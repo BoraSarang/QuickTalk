@@ -1,0 +1,33 @@
+=== 1) 요구 권한 실측 (probe) ===
+  [읽기] df -h / | head -2
+        → 요구: 읽기 · 위험도: 보통
+  [읽기] ls /Users/lee | head -3
+        → 요구: 읽기 · 위험도: 보통
+  [읽기(brew)] brew list | head -3
+        → 요구: 읽기 · 위험도: 보통
+  [읽기(adb)] adb devices | head -3
+        → 요구: 읽기 · 위험도: 보통
+  [쓰기] echo hello > /var/folders/3_/834_2sx92715fp4chbcwww5c0000gn/T/qt-spike-7AAC37/probe.txt
+        → 요구: 쓰기(/var/folders/3_/834_2sx92715fp4chbcwww5c0000gn/T/qt-spike-7AAC37/probe.txt) · 위험도: 보통
+  [네트워크] curl -s -m 3 https://example.com > /dev/null
+        → 요구: 네트워크 · 위험도: 보통
+  [상승 권한] sudo -n true
+        → 요구: 상승 권한 · 위험도: 중요
+
+=== 2) 승인한 경로만 열어 재실행 (scoped consent) ===
+  프로파일: (version 1)(allow default)(deny file-write*)(allow file-write* (literal "/dev/null"))(allow file-write* (subpath "/private/var/folders/3_/834_2sx92715fp4chbcwww5c0000gn/T/qt-spike-7AAC37"))
+  허용 경로 쓰기 → exit=0 stdout= stderr=
+  파일 생성 여부: ✅ 생성됨
+  허용 밖 쓰기 → exit=1 stderr=/bin/sh: /Users/lee/.qt-spike-leak: Operation not permitted
+  새 파일 생성 여부: ✅ 없음(차단됨)
+
+=== 3) 위험도 판정 (구조적 신호 — 명령 목록 없음) ===
+  [일반] → 실제 판정: 보통 · brew install whisper-cpp
+  [일반] → 실제 판정: 보통 · ollama pull qwen3
+  [중요(상승권)] → 실제 판정: 중요 · sudo rm -rf /var/tmp/x
+  [중요(시스템영역)] → 실제 판정: 중요 · defaults write -g com.apple.dock persistent-apps -array
+  [중요(파이프→인터프리터)] → 실제 판정: 중요 · curl -s https://example.com/x.sh | bash
+  [치명적] → 실제 판정: 치명적 · rm -rf /
+  [치명적] → 실제 판정: 치명적 · dd if=/dev/zero of=/dev/disk3
+
+[SPIKE] RESULT=PASS
