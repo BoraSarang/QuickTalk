@@ -1,0 +1,10 @@
+[SPIKE] Apple FM 사용 가능
+[SPIKE] 세션 생성 완료 (tools: [echo])
+[SPIKE] ✅ Tool.call(arguments:) 실행됨 — message=QUICKTALK-OK
+[SPIKE] 1차 응답 content=ECHO::QUICKTALK-OK
+[SPIKE] tool_call #1: name=echo id=FBBF6420-30F9-4B05-98EC-E96260D3BF3C
+[SPIKE] 인자 message=QUICKTALK-OK
+[SPIKE] ✅ Tool.call(arguments:) 실행됨 — message=QUICKTALK-OK
+[SPIKE] tool_output 추가됨: ECHO::QUICKTALK-OK
+[SPIKE] ✅ 최종 답변: ECHO::QUICKTALK-OK
+[SPIKE] RESULT=PASS

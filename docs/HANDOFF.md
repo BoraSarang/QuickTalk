@@ -1,8 +1,9 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-21 20:43 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-22 00:20 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
+> **현재 작업 브랜치 `feat/t18-agent-runtime`** (T-18 에이전트 런타임) — `main` 기준 분기, 아직 push 전.
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -11,13 +12,94 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-21 20:43 T-21 포인터 pill** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `ebc78fe9a55fb962467a89928d43d95a3fb91aad1bd895b14cac021f5ab2ca7c`(QuickTalk.debug.dylib) |
-| 테스트 | **332/332**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 |
-| 마지막 완료 | **T-21 포인터 pill 구현·배포**(2026-10-21 20:43) — ⌘Space "새 대화"일 때 빈 창 대신 포인터 자리 pill. Enter=전송+대화 창, ⌘Return=대화 창, Esc, 보관함 최근 4개. **사용자 실측 대기** |
-| 다음 작업 | **T-21 실측**(`docs/qa/t21-pill/CHECKLIST.md` P1~P27) → **QA 배치 3**(기억·공통 메모리 21건) → **배치 4**(QuickShelf·캡처·음성·오류 27건) |
-| 실측 대기 | **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
+| 현재 빌드 | **2026-10-22 00:06 T-18 도우미 도구(v0.18)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327` |
+| 테스트 | **354/354**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 22 = 도구·권한·샌드박스) |
+| 마지막 완료 | **T-18 v0.18 구현·배포**(2026-10-22 00:06) — 자연어 한마디로 앱이 **직접 명령을 실행**하고 답한다. 권한 3단계(읽기/쓰기/실행)·샌드박스 실측·확인 카드·감사 기록. **사용자 실측 대기** |
+| 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
+| 실측 대기 | **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **15:14 빌드**(`4b82e52d…`) 실행 중 — T-21 빌드(20:43)는 **재실행해야** 적용된다. 교체 전 번들은 `~/Applications/.QuickTalk.old`에 백업 |
+| 실행 중 앱 | **20:51 실행분**(T-21 빌드)이 살아 있음 — **T-18 을 쓰려면 앱을 완전히 종료 후 재실행**해야 한다 |
+
+### 세션 진행 (2026-10-22 00:20) — T-18 v0.18 구현·배포 (도우미 도구)
+
+#### 무엇을 만들었나
+- **"맥 도우미"의 핵심 기능 구현** — 자연어로 말하면 앱이 **직접 행동**하고 그 결과로 답한다.
+  예: "하드 용량 얼마나 남았어" → 실제 `df -h` 실행 → "521 GiB 남음".
+- **앱은 명령어 이름을 모른다.** 도구는 3개뿐(`shell`·`read_file`·`list_dir`)이고 모델이 정한 명령을 그대로 실행한다.
+  `brew`·`adb`·`pip`·`uv`·`ollama` 를 따로 등록하지 않는다(사용자가 든 예시일 뿐).
+- **권한은 분류가 아니라 협상** — 읽기 전용 샌드박스로 먼저 실행해 **요구 권한을 실측**한다.
+  쓰기가 막히면 에러에 경로가 같이 나와 "이 경로만 쓰기 허용"으로 재실행한다(승인이 스코프로 제한됨).
+- **권한 3단계(읽기/쓰기/실행)** 를 설정 › 도구에서 고른다. 읽기=자동(기본), 쓰기·실행=확인(기본).
+  위험도(중요/치명적)는 별도 축 — **중요는 자동 허용이어도 확인**, 치명적은 기본 차단.
+- **확인 UI 는 대화 안 카드**(네이티브 alert 금지): [한 번 허용] [항상 허용] [거부]. 거부하면 모델에 알려 다른 방법을 제안.
+- **실행 기록**(감사 로그) — `~/Library/Application Support/QuickTalk/agent-audit.log`, 키·토큰은 가림.
+
+#### 프로바이더 3종 통일
+| 프로바이더 | 방식 | 실측 |
+|---|---|---|
+| Apple FM | FoundationModels `Tool` 프로토콜 | ✅ `df -h` 실행 → 521 GiB (3스텝 · 16초) |
+| 원격 OpenAI 호환 | `tools` + `tool_calls` | ✅ 도구 3개 실행 + 거부 1개 (4스텝 · 20초) |
+| Local Ollama | `/api/chat` 의 `tools` | 구현 완료 · 실측 미수행(로컬 32B 가 느려 세션 시간 제한) |
+
+#### 구현 중 잡은 문제 3건
+1. 프록시 thinking 모델이 **2차 요청 400** — `reasoning_content` 를 되돌려 보내야 한다 → `AgentMessage.reasoningContent` 추가
+2. Apple FM 의 `GeneratedContent` 를 JSON 직렬화하려다 **NSException 크래시** → `jsonValue` 변환기 추가
+3. 위험도 판정이 **시스템 경로 참조**(`/usr/bin/df`)까지 위험으로 봤다 → 변경 명령의 **대상**일 때만 위험으로
+
+#### 검증·배포
+- `swift test` **354/354** (6 skip, 신규 22) · `xcodebuild` BUILD SUCCEEDED (경고 0)
+- 헤드리스 자가진단 `--agent-test=<질문>` 신규 — 로그 `docs/qa/t18-agent/`
+- 배포 2026-10-22 00:06 `~/Applications/QuickTalk.app`, `codesign --verify --strict` OK,
+  SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327`(빌드와 일치)
+- **실행 중 앱은 종료하지 않았다** — 재실행해야 T-18 이 적용된다.
+
+#### 다음
+- **사용자 실측**(P1~P19) → 피드백 반영
+- v0.19: 쓰기 단계 + 휴지통 rewrite + 되돌리기 버튼
+- v0.20: 실행 단계 + 위험도 고도화 + 백그라운드 실행
+- T-21 실측(P1~P27) · QA 배치 3·4 는 그대로 대기
+
+### 세션 진행 (2026-10-21 23:20) — T-18 에이전트 런타임 설계 + 스파이크 2개
+
+#### 사용자 발사 (요약)
+- "내 말은 QuickTalk에 입력해서 **응답을 받는** 거잖아" — 자연어 한마디로 **앱이 직접 행동**해야 한다
+- "brew, adb, pip, uv, ollama는 **내가 예를 든 것** — 모델이 정하는 거" → **앱은 명령어 사전을 갖지 않는다**
+- "권한을 **읽기/쓰기/실행**으로 나눠서 설정에서 선택하게 해줘" + "OpenCode처럼 **자동 수락**"
+
+#### 확정 (사용자)
+| 항목 | 확정 |
+|---|---|
+| 배포 | **GitHub 배포**(스토어 없음) → 샌드박스 OFF 유지 → 셸 자유 |
+| 자동 실행 범위 | **읽기(기본 자동) / 쓰기 / 실행** — 설정에서 선택 + 규칙 + 대화별 오버라이드 + 전역 자동 수락 |
+| 범위 | **v0.18 ~ v0.22 전체** |
+| 프로바이더 | **Apple FM · Local Ollama · 원격 OpenAI 호환 3종 완전 통일** |
+
+#### 설계 (문서: `docs/plans/PLAN_v0.18_agent-runtime_macos.md`)
+- **도구 카탈로그가 아니라 "실행 원시 + 에이전트 루프"** — `shell`·`read_file`·`list_dir` + 기존 `web_search`.
+  모델이 명령을 정하고 앱은 실행만 한다.
+- **권한은 "분류"가 아니라 "협상"** — 읽기 전용 샌드박스로 먼저 실행해 **무슨 권한이 필요한지 실측**한다.
+  쓰기가 막히면 에러 메시지에 경로가 같이 나온다 → "이 경로만 쓰기 허용"으로 재실행.
+- **위험도는 구조적 신호만** (상승권·시스템영역·파이프→인터프리터·재귀삭제 대상) — 명령/패키지 이름 목록 없음.
+- **되돌리기가 권한을 낮춘다** — `rm`은 금지하지 않고 **휴지통 이동**으로 바꿔 실행 → [되돌리기] 버튼.
+
+#### 스파이크 2개 — **둘 다 PASS** (산출물 `docs/qa/t18-spike/`)
+1. **Apple FM tool calling** — FoundationModels `Tool` 프로토콜로 도구 1개 호출 → **4.0초, 실제 호출 성공**.
+   `call(arguments:)` 는 `respond(to:)` **안에서 자동 실행**된다 → **정책 게이트는 `Tool.call` 안에서** 하면 된다.
+   ⚠️ `@Tool` 매크로는 이 SDK에 없다 → 프로토콜 직접 구현. `Arguments` 는 `@Generable` 구조체여야 한다.
+2. **샌드박스 권한 협상** — `df`/`ls`/`brew list`/`adb devices` → **읽기**, `echo > 파일` → **쓰기(경로)**, `curl` → **네트워크**, `sudo` → **상승 권한**.
+   승인 경로만 열어 재실행 → 허용 밖 쓰기는 차단됨. 위험도 판정 7/7 정확.
+
+#### 스파이크가 찾은 함정 4건 (수정·재검증 완료)
+1. 쓰기 차단 메시지에서 **경로가 메시지보다 앞에** 온다(`/bin/sh: /path: Operation not permitted`)
+2. **네트워크 차이는 "Operation not permitted"로 오지 않는다** — curl 6 / ping 68 / "Unknown host"
+3. `sudo rm -rf /var/tmp/x` 를 치명적으로 오판 — `"rm -rf /"` **접두사** 매칭이 원인 → 토큰 단위 판정으로 교체
+4. `curl … | bash` 를 보통으로 오판 — 토큰화 때 `|` 가 구분자로 제거됨
++ **`URL.resolvingSymlinksInPath()` 는 `/var` → `/private/var` 를 못 푼다** → 샌드박스 규칙은 `realpath(3)` 사용
+
+#### 다음
+- **v0.18 구현**: `AgentTool`·`AgentClient`·`AgentRunner`(Core) · `SandboxRunner` · `RiskClassifier` · `PolicyEngine` · 실행 카드
+- 그 뒤 v0.19(쓰기·되돌리기) → v0.20(실행·확인 시트·감사 로그) → v0.21(스크린샷·Shortcuts) → v0.22(권한 고도화)
+- **T-21 실측**(P1~P27)과 QA 배치 3·4는 그대로 대기
 
 ### 세션 진행 (2026-10-21 20:43) — T-21 포인터 pill
 

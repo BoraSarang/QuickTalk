@@ -426,6 +426,15 @@ struct ContentView: View {
                   if t.role == .assistant, let sources = t.sources, !sources.isEmpty {
                     sourceCards(sources)
                   }
+                  // 도우미 도구 실행 카드 — 이 턴에 붙은 실행 기록 + 승인 버튼
+                  if t.role == .assistant, t.id == store.agentTurnID {
+                    AgentCard(events: store.agentEvents,
+                              approval: store.agentApproval,
+                              onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
+                              onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
+                              onDeny: { store.resolveAgentApproval(.deny) })
+                      .padding(.top, 2)
+                  }
                   // 모델이 "검색할 수 없다"고 답했을 때 — 같은 질문을 검색 강제로 재시도
                   if t.role == .assistant, store.shouldOfferWebRetry(t) {
                     webRetryButton(t)

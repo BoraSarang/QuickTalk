@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - 설정 탭 정의 (ApexKey SettingsTabs 준용)
 
 enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
-  case general, shortcut, shelf, ai, voice, archive, about
+  case general, shortcut, shelf, ai, tools, voice, archive, about
 
   var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
     case .shortcut: return L("단축키")
     case .shelf: return L("퀵셸프")
     case .ai: return "AI"
+    case .tools: return L("도구")
     case .voice: return L("음성")
     case .archive: return L("보관함")
     case .about: return L("정보")
@@ -25,6 +26,7 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
     case .shortcut: return "keyboard"
     case .shelf: return "sidebar.right"
     case .ai: return "brain"
+    case .tools: return "hammer"
     case .voice: return "mic"
     case .archive: return "archivebox"
     case .about: return "info.circle"
@@ -50,6 +52,10 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
       return (L("답변을 만들 AI 프로바이더 목록입니다. 기본 3종이 들어 있고 계속 추가할 수 있습니다."),
               L("로컬/원격 모델을 바꾸거나 새 서버를 붙일 때."),
               L("활성 프로바이더를 고르고, 원격이면 주소·키를 저장한 뒤 '연결 테스트'로 확인하세요."))
+    case .tools:
+      return (L("도우미가 컴퓨터를 대신 확인하고 행동할 때의 권한 설정입니다."),
+              L("읽기·쓰기·실행을 언제까지 물어볼지 정할 때."),
+              L("읽기는 기본 자동 허용입니다. 쓰기·실행은 물어보고, 위험한 명령은 확인 없이 막습니다."))
     case .voice:
       return (L("음성 입력(받아쓰기)과 답변 읽어주기 엔진을 정합니다."),
               L("마이크로 질문하거나 답변을 소리로 들을 때."),
@@ -127,6 +133,10 @@ struct SettingsView: View {
   @State var recordHint: String?
   /// 녹화 중 로컬 키 모니터
   @State var recordMonitor: Any?
+  /// 도우미 도구 — 허용 규칙 입력용(설정 › 도구)
+  @State var newAgentRule: String = ""
+  /// 도우미 도구 — 실행 기록 펼치기
+  @State var showAgentAudit = false
 
   var body: some View {
     HStack(spacing: 0) {
@@ -201,6 +211,7 @@ struct SettingsView: View {
         case .shortcut: shortcutSection
         case .shelf: shelfSection
         case .ai: aiSection
+        case .tools: toolsSection
         case .voice: voiceSection
         case .archive: archiveSection
         case .about: aboutSection

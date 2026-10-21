@@ -256,6 +256,21 @@ extension AppDelegate {
     return true
   }
 
+  /// QA: `--agent-test=<질문>` — 도우미 도구 1회(헤드리스). 도구 실행·권한 판정·최종 답 로그.
+  func runAgentSelfTestIfRequested() -> Bool {
+    guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--agent-test=") })
+    else { return false }
+    let query = String(arg.dropFirst("--agent-test=".count))
+    applyProviderOverrideForSelfTest()
+    Task { @MainActor in
+      let started = Date()
+      let result = await self.store.agentSelfTest(query: query)
+      NSLog("[AGENT-TEST] %@ ms=%d", result, Int(Date().timeIntervalSince(started) * 1000))
+      NSApp.terminate(nil)
+    }
+    return true
+  }
+
   /// QA: `--provider=applefm|ollama|remote` — 실검증에서 활성 프로바이더만 메모리에서 바꾼다.
   func applyProviderOverrideForSelfTest() {
     guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--provider=") }) else { return }
