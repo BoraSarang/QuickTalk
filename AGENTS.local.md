@@ -26,4 +26,4 @@
 ## 6. 문서 진입점 (새 세션)
 - **`docs/HANDOFF.md`부터** → `docs/TODO.md` §지금 → 최근 `.agent/session-*.md`
 - 기능 설계는 `docs/plans/`, 실측은 `docs/QA-CHECKLIST-2026-10-20.md`
-- **git 저장소 아님** — 커밋 대신 변경 파일·검증·배포 상태를 문서에 남긴다
+- **git 저장소 있음**(`github.com/BoraSarang/QuickTalk`) — `main` 직접 push 금지. 작업 브랜치에서 커밋하고, 변경 파일·검증·배포 상태를 문서에도 남긴다.

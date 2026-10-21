@@ -1,7 +1,8 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-21 16:00 KST
-> **git 저장소 아님** — 커밋·브랜치·worktree가 없다. 모든 변경은 작업 디렉터리에 바로 남는다.
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-21 20:43 KST
+> **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
+> T-21은 `feat/t21-pointer-pill` 브랜치 → PR로 병합한다(**`main` 직접 push 금지**).
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -10,13 +11,64 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-21 15:14 크래시 수정 + 헤더 정리·상대 시간·맨 아래로** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK |
-| 테스트 | **326/326**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 |
-| 마지막 완료 | **크래시 수정 + UI 4건 + 사용자 실측 통과**(2026-10-21 15:55) — 배치2 **34건 전부 OK**(K3 포함), **N16·N17~N19 OK**. 백그라운드 설정 수정 → 메인 밖 SwiftUI 갱신이 크래시 원인이었다 |
-| 다음 작업 | **QA 배치 3**(기억·공통 메모리 21건) → **배치 4**(QuickShelf·캡처·음성·오류 27건). 체크리스트 상단 **`## 실측 순서 (배치)`** 표 → ID 검색 |
-| 실측 대기 | **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
+| 현재 빌드 | **2026-10-21 20:43 T-21 포인터 pill** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `ebc78fe9a55fb962467a89928d43d95a3fb91aad1bd895b14cac021f5ab2ca7c`(QuickTalk.debug.dylib) |
+| 테스트 | **332/332**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 |
+| 마지막 완료 | **T-21 포인터 pill 구현·배포**(2026-10-21 20:43) — ⌘Space "새 대화"일 때 빈 창 대신 포인터 자리 pill. Enter=전송+대화 창, ⌘Return=대화 창, Esc, 보관함 최근 4개. **사용자 실측 대기** |
+| 다음 작업 | **T-21 실측**(`docs/qa/t21-pill/CHECKLIST.md` P1~P27) → **QA 배치 3**(기억·공통 메모리 21건) → **배치 4**(QuickShelf·캡처·음성·오류 27건) |
+| 실측 대기 | **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **15:14 빌드**(`4b82e52d…`) 실행 중 — 사용자가 재실행해 K·N 확인 완료. 이후 변경 없음 |
+| 실행 중 앱 | **15:14 빌드**(`4b82e52d…`) 실행 중 — T-21 빌드(20:43)는 **재실행해야** 적용된다. 교체 전 번들은 `~/Applications/.QuickTalk.old`에 백업 |
+
+### 세션 진행 (2026-10-21 20:43) — T-21 포인터 pill
+
+#### 확정 (사용자)
+- pill은 대화 창과 **별개가 아니라 같은 대화의 다른 표현**이다.
+- 설정 › 일반 **“단축키로 열 때 유지”** 규칙을 **그대로** 따르고, 그 결과가 **새 대화**일 때만 pill.
+- **0(사용 안 함) = 항상 pill** (빈 대화 창을 띄우지 않는다).
+- **마이크 삭제**, 보관함 아이콘은 **최근 대화 4개 작은 목록 · 1클릭 이어가기**.
+
+#### 규칙 (`ShortcutEntryPresentation.decide`, Core)
+| 현재 대화 | ⌘Space |
+|---|---|
+| 유지 시간 이내 + 턴 있음 | 대화 창 그대로 |
+| 유지 시간 초과 | **pill** |
+| 턴 없음 / 활동 없음 | **pill** |
+| 설정 0 | **pill** |
+
+설정 기본값·의미·픽커는 바꾸지 않았다. pill이 떠도 대화 상태는 그대로이고,
+`store.startShortcutSession()`(만료 시 새 대화 + 기록 저장)은 **전송할 때만** 호출한다.
+
+#### 구현
+- `QuickTalkApp/PointerPill.swift` — `PointerPillPanel`(borderless, canBecomeKey) · `PointerPillController` · `PillRootView` · `PillTextField`.
+- 크기 **380×56**, 모서리 28. 포인터 = 캐럿: 창 왼쪽을 `pointer.x − 55`(패딩13+오브30+간격12), 세로 중심, 작업 영역 안 클램프.
+- **Enter** → 즉시 닫고 대화 창 + `startShortcutSession()` + `draft` 설정 + `send()`.
+  **⌘Return** → 대화 창만(입력한 글은 초안으로; 파일 첨부용). **Esc** → 닫기(상태 불변).
+  **⌘L** → 보관함 탭. 바깥 클릭 → 닫기. Esc·⌘Space로 닫으면 **직전 앱으로 포커스 복귀**.
+- 보관함 목록은 **별도 창을 만들지 않고 같은 창을 아래로 늘인다**(포커스·클릭 문제 회피). 행 34pt·푸터 32pt·폭 300·최대 4행, 화면 아래로 넘치면 창을 위로 민다.
+- 입력은 단일 행 `NSTextField`. 한글 조합 중 Enter는 **조합을 먼저 확정**한 뒤 전송(대화 입력창과 같은 규칙). 포커스는 창이 붙은 뒤 0.05초에 한 번 더 요청.
+- 실패한 포커스를 잃었을 때 닫히는 동작은 Spotlight과 같다 — 여는 도중 0.25초의 일시적 resign은 무시.
+- `QuickTalkApp.swift`의 `togglePanel(fromShortcut:)`에서 분기하고 `handlePill(_:)`가 대화 창으로 이어받는다.
+
+#### 시각·렌더에서 찾은 결함
+- 액센트는 DESIGN의 **`#7A5CFF`**(오브 그라디언트·활성 아이콘·핀 점).
+- 시스템 머티리얼(`.regularMaterial`)은 창 가장자리에 **1pt 세로 이음새**가 보여 반투명 솔리드로 대체.
+- **`Capsule().strokeBorder`가 좌우 끝에 28pt 길이의 1pt 세로선**을 남겼다(오프스크린 렌더 확대·픽셀 측정으로 확인).
+  같은 반지름의 **`RoundedRectangle(cornerRadius: 28, style: .circular)`**로 바꾸면 사라진다(`.continuous`는 재현됨).
+- 렌더: `docs/qa/t21-pill/`(빈·입력 중·목록, 한/영) · `docs/qa/t21-pill-light/`.
+
+#### 검증
+- `swift test` **332/332**(6 skip, 신규 `ShortcutEntryTests` 6: 이내·초과·0·턴 없음·활동 없음·경계).
+- `xcodebuild` BUILD SUCCEEDED(경고 0). 오프스크린 렌더 확인.
+- **한계**: 실사용 ⌘Space는 사용자 맥 사용 중이라 실행하지 않았다 — P1~P27 실측 대기.
+
+#### 배포
+- 2026-10-21 20:43 `~/Applications/QuickTalk.app` 교체(`ditto` → `.QuickTalk.old` 백업 → 교체), `codesign --verify --strict` OK.
+- SHA-256 `ebc78fe9a55fb962467a89928d43d95a3fb91aad1bd895b14cac021f5ab2ca7c` — `build/Build/Products/Debug/QuickTalk.app`과 **일치 확인**.
+- 실행 중 앱은 종료하지 않았다(**재실행 필요**).
+
+#### git
+- `feat/t21-pointer-pill` 브랜치에서 커밋 → PR → squash merge. `main` 직접 push는 하지 않는다.
+- 렌더 산출물은 `docs/qa/t21-pill/`·`docs/qa/t21-pill-light/`·`docs/qa/t21-pill-mockup/`을 함께 커밋하고, 디버그 렌더(`*-debug/`)는 `.gitignore`로 제외.
 
 ### 세션 진행 (2026-10-21 14:15) — Ollama 시간 초과 조사·수정
 
@@ -629,7 +681,7 @@
 
 | ID | 내용 | 상태 |
 |---|---|---|
-| T-21 | 포인터 pill(380×150) | 다음 단계, 역할 정리 필요 |
+| T-21 | 포인터 pill(380×56) | **구현 완료(2026-10-21 20:35)** — 사용자 실측 대기(`docs/qa/t21-pill/CHECKLIST.md`), 계획 `docs/plans/PLAN_v0.17_pointer-pill_macos.md` |
 | H3 | 다크/틴티드 아이콘 아트워크 | 에셋 대기 |
 | H2 | 채팅 배경 워터마크 | **없음 — 종료(2026-10-21)**. 기존 새 대화 아이콘만 유지 |
 | H4 | QuickShelf 화면 가장자리 핸들 | **제거 완료(2026-10-21)**. `⇧⌥V`·헤더 버튼·창 안 오버레이만 사용 |
@@ -689,6 +741,7 @@ APP=build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk
 - `--compact-test[=<턴수>]` — 긴 대화를 만들어 **수동 정리 1회**, 요약 글자 수·전후 토큰·지연만 로그
 - `--compact-auto-test[=<턴수>]` — **자동 트리거(70%)** 확인. 20턴 YES / 10턴 NO
 - `--provider=applefm|ollama|remote` — 위 실검증에서 활성 프로바이더만 메모리에서 바꾼다(저장 안 함)
+- `--demo-pill` — T-21 pill 오프스크린 렌더(빈 입력·입력 중·보관함 목록). 실제 창·단축키는 쓰지 않는다
 
 `--render`은 창을 띄우지 않고 PNG만 만들며 실제 설정·기록을 저장하지 않는다(프로세스 한정 오버라이드). 그래도 사용자 맥 사용 중에는 **오프스크린 렌더만** 허용된다.
 
@@ -708,6 +761,7 @@ APP=build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk
 - `Markdown.swift` — 마크다운 파서 + **`CitationLinks`(웹 인용 `[n]` 클릭 링크)**
 - `SpeechCatalog.swift`, `EdgeTTS.swift`, `PiperTTS.swift`, `WhisperService.swift`
 - `ConversationHistory.swift`(Persistence), `CaptureGeometry.swift`, `SecretStore.swift`
+- `ShortcutEntry.swift` — **⌘Space 표시 판단**(`ShortcutEntryPresentation`: 대화 창 / pill)
 
 ### App (`QuickTalkApp`)
 - `ContentView.swift` — 대화·보관함·설정 탭, 스크롤, 검색 포커스, 시트 2종(기억 요약 **편집** 포함)
@@ -722,6 +776,7 @@ APP=build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk
 - `ShelfView.swift` + `+Clipboard` / `+Files` / `+Capture`, `ShelfPanel.swift`
 - `CaptureService.swift` + `CaptureOverlay.swift`
 - `QuickTalkApp.swift` + `AppDelegate+RenderHarness.swift`
+- `PointerPill.swift` — **T-21 포인터 pill**(패널·컨트롤러·뷰·단일 행 입력)
 - `MarkdownText.swift`, `ChatInputField.swift`
 
 ## 8. 규칙·주의
@@ -736,10 +791,17 @@ APP=build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk
 - 드래그·윈도우 캡처: **십자 커서**, **Esc 취소**, **Space로 드래그↔윈도우 전환**.
 - 클립보드: 후 제거, 민감 마스킹, 2분/최대 5개, 내용 로그 금지.
 - **화면 제어 금지**: 실행/종료·스크린샷·창 조회·소리 재생 금지. 오프스크린 렌더는 허용.
-- **git 저장소 아님** — 커밋하지 말고, 변경 파일을 문서에 남긴다.
+- **git 저장소 있음**(2026-10-21 20:12 초기화, `origin BoraSarang/QuickTalk`). `main` 직접 push 금지 — 작업은 브랜치에서. 커밋 전 `git status`로 사용자 변경을 확인한다.
 
 ## 9. 알려진 주의점
 
+- **pill은 별개 기능이 아니다**(T-21). ⌘Space의 표현만 다르고, 규칙의 단일 출처는 설정의
+  `shortcutSessionMinutes`(+`continuesSession`)이다. pill이 떠 있는 동안에는 대화 상태를 바꾸지 않고,
+  **전송할 때만** `startShortcutSession()`을 부른다. 새 규칙을 만들 때 이 두 곳을 갈라놓지 않는다.
+- **SwiftUI `Capsule().strokeBorder`는 좌우 끝에 1pt 세로 이음새를 남긴다**(macOS 26, 2026-10-21 렌더에서 확인).
+  높이의 절반 길이(28pt) 선이 캡슐 양 끝에 보인다. 같은 반지름의
+  `RoundedRectangle(cornerRadius: h/2, style: .circular)`로 그리면 사라진다(`.continuous`는 재현됨).
+  시스템 머티리얼(`.regularMaterial`)도 창 가장자리에서 1pt 이음새가 보이므로 pill은 반투명 솔리드로 채운다.
 - **`@Published`(설정·상태)는 반드시 메인 액터에서만 고친다**(2026-10-21 실사용 크래시). 비격리 `async` 함수가
   `await` 뒤 협력 스레드에서 `settings`를 수정하면 SwiftUI가 **그 스레드에서** 뷰를 갱신하고, AppKit 입력창이
   `NSWindow drag regions should only be invalidated on the Main Thread!` 예외로 **앱을 죽인다**(SIGABRT).
