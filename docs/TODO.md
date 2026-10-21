@@ -20,6 +20,7 @@
 - **검증**: `swift test` **354/354**(6 skip, 신규 22) · BUILD SUCCEEDED(경고 0) · 헤드리스 `--agent-test` 신규
   · 로그 `docs/qa/t18-agent/`. 배포 2026-10-22 00:06, `codesign --verify --strict` OK,
   SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327`. **실행 중 앱은 종료하지 않음 — 재실행 필요**.
+- **git**: `feat/t18-agent-runtime` → **PR #4** → squash merge `23d8820`. `main` 직접 push 없음.
 - **다음**: **사용자 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) →
   v0.21(스크린샷·Shortcuts) → v0.22(스트리밍 tool_calls 수집). 그 사이 T-21 실측·QA 배치 3·4 대기 유지.
 
