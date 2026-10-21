@@ -137,6 +137,9 @@ public enum WebSearchTool {
   public struct Response: Equatable {
     public let text: String
     public let calls: [Call]
+    /// thinking 모드 모델의 사고 내용 — 다음 요청에 **그대로 되돌려야 한다**
+    /// (프록시가 요구한다 — 빠지면 400 으로 거절된다)
+    public let reasoning: String?
 
     public var hasToolCalls: Bool { !calls.isEmpty }
   }
@@ -182,7 +185,9 @@ public enum WebSearchTool {
       calls.append(Call(id: raw["id"] as? String ?? "call_\(index)",
                         name: name, arguments: args))
     }
-    return Response(text: text, calls: calls)
+    let reasoning = (message["reasoning_content"] as? String)
+      ?? (message["reasoning"] as? String)
+    return Response(text: text, calls: calls, reasoning: reasoning)
   }
 
   /// 검색 결과를 `tool` 메시지 content로 — 페이지 안의 지시문은 데이터로만 취급한다.

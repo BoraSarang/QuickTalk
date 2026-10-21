@@ -319,3 +319,69 @@ public enum AgentStep {
 
 추가로 **`URL.resolvingSymlinksInPath()` 가 `/var` → `/private/var` 를 못 푼다**는 사실을 확인 →
 샌드박스 규칙에는 `realpath(3)` 결과를 써야 한다(§4.1 주의 1).
+
+## 11. v0.18 구현 결과 (2026-10-22 00:06)
+
+### 구현 파일
+
+| 파일 | 역할 | 상태 |
+|---|---|---|
+| `Sources/QuickTalkCore/AgentTypes.swift` | 권한 단계·위험도·자동 처리 정책·`AgentTool`·`AgentMessage`·`AgentStep`·`AgentClient` | 신규 |
+| `Sources/QuickTalkCore/SandboxRunner.swift` | 샌드박스 실행 · **요구 권한 실측**(읽기/쓰기(경로)/네트워크/상승) · 스코프 프로파일 | 신규 |
+| `Sources/QuickTalkCore/RiskClassifier.swift` | 위험도 판정(구조적 신호만) | 신규 |
+| `Sources/QuickTalkCore/PolicyEngine.swift` | `AgentPolicy` + 허용/확인/차단 결정 + 규칙 매칭 | 신규 |
+| `Sources/QuickTalkCore/ToolSchemas.swift` | 도구 3종 스키마 + 에이전트 지시문 + 앱 자신 지식 | 신규 |
+| `Sources/QuickTalkCore/AgentRunner.swift` | 에이전트 루프(호출→실행→관찰→반복) + 실행 기록 | 신규 |
+| `QuickTalkApp/AgentClients.swift` | 3프로바이더 클라이언트(OpenAI 호환 / Ollama `/api/chat` / Apple FM FoundationModels) | 신규 |
+| `QuickTalkApp/AgentExecutor.swift` | 정책 게이트 · 샌드박스 실행 · 승인 대기 · 파일 읽기/목록 | 신규 |
+| `QuickTalkApp/AgentAudit.swift` | 실행 감사 기록(비밀 마스킹) | 신규 |
+| `QuickTalkApp/AgentCard.swift` | 대화 속 실행 카드 + 승인 UI(커스텀, 네이티브 alert 없음) | 신규 |
+| `QuickTalkApp/UIStore+Agent.swift` | 도구 필요 판정(모델 판단·캐시 10분) · 에이전트 턴 · 헤드리스 자가진단 | 신규 |
+| `QuickTalkApp/SettingsView+Tools.swift` | 설정 › 도구(권한 3단계·제한·허용 규칙·실행 기록) | 신규 |
+| `Sources/QuickTalkCore/Settings.swift` | `agentToolsEnabled` · `agentPolicy` (구버전 설정은 기본값) | 수정 |
+| `QuickTalkApp/UIStore.swift` | `send()` 에이전트 분기 · 판정을 웹 검색과 **병렬** 실행 | 수정 |
+| `QuickTalkApp/ContentView.swift` | 턴 아래 실행 카드 렌더 | 수정 |
+| `Sources/QuickTalkCore/LocalizationTable.swift` | 새 문구 영문 번역 66건 | 수정 |
+
+### 동작 흐름
+
+```
+질문 → [병렬] 웹 검색 필요 판정 · 도구 필요 판정(모델에게 짧게 질문, 캐시 10분)
+     → 도구 필요 없으면: 기존 경로 그대로(스트리밍 유지)
+     → 도구 필요 있으면: 에이전트 루프
+          모델 → 도구 호출 → 샌드박스로 요구 권한 실측 → 정책 판단
+                → 허용: 스코프 프로필로 실행 → 결과를 tool 메시지로 되돌림 → 다음 스텝
+                → 확인: 대화 카드에 [한 번 허용][항상 허용][거부] → 사용자 응답 후 진행
+                → 차단/거부: 모델에 "거부했다"를 되돌려 다른 방법 제안
+          → 최종 답을 답변 말풍선에 표시(실행 카드는 그 아래)
+```
+
+### 검증
+
+- `swift test` **354/354** (6 skip, 신규 **22**: 위험도 8 · 정책 6 · 샌드박스 실측 4 · 루프 2 · 스키마 1 · 설정 왕복 2)
+- `xcodebuild` **BUILD SUCCEEDED** (경고 0)
+- 헤드리스 자가진단 `--agent-test=<질문>` (신규):
+  - **Apple FM** — `df -h` 를 직접 실행 → *"실제로 사용 가능한 하드 용량은 521 GiB입니다"* (3스텝 · 16.0초)
+  - **원격 OpenAI 호환** — 3개 도구 실행 + 1개 거부(네트워크 명령) → *"측정 명령이 거부되어 … 링크 상태는 읽기 전용으로 확인했습니다"* (4스텝 · 20초)
+  - 로그: `docs/qa/t18-agent/selftest-applefm.log` · `selftest-remote.log`
+- 배포: 2026-10-22 00:06 `~/Applications/QuickTalk.app`, `codesign --verify --strict` OK,
+  SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327`(빌드 산출물과 일치)
+- 사용자 실측 대기: `docs/qa/t18-agent/CHECKLIST.md` (P1~P19)
+
+### 구현 중 발견·해결한 문제 3건
+
+| # | 문제 | 해결 |
+|---|---|---|
+| 1 | 프록시의 thinking 모델이 **2차 요청에서 400** — `reasoning_content` 를 되돌려 보내야 한다 | `AgentMessage.reasoningContent` 추가 · OpenAI 형식 변환에 `reasoning_content` 포함 · `WebSearchTool.Response.reasoning` 파싱 |
+| 2 | Apple FM 응답의 `GeneratedContent` 를 그대로 JSON 직렬화하려다 **NSException 크래시** | `GeneratedContent.jsonValue` 변환기 추가(JSON 값으로 변환 후 직렬화) |
+| 3 | 위험도 판정이 **시스템 경로 참조**까지 위험으로 봤다(`/usr/bin/df` → 중요 → 매번 확인) | 변경 명령의 **대상**이 시스템 경로일 때만 위험 신호. 실행 경로 참조는 읽기로 취급 |
+
+### 남는 한계 (v0.19 이후)
+
+- **일정 조회·생성** 전용 도구가 없다(캘린더는 셸로는 권한이 필요) → v0.20 이후
+- **되돌리기(휴지통 rewrite)** 는 설계만 있고 v0.18엔 미구현 → v0.19
+- **스크린샷·멀티모달·Shortcuts** → v0.21
+- **도구 필요 판정**이 매 질문마다 모델을 한 번 더 부른다(캐시 10분·웹 검색과 병렬 실행으로 지연 억제).
+  스트리밍을 유지하려면 이 판정이 필요하다 — v0.22 에서 "스트리밍 중 tool_calls 수집" 방식으로 바꿀 수 있다.
+- **Apple FM 은 온디바이스라 다단계 계획이 불안정**하다(같은 명령을 두 번 실행하기도 함). 원격이 주 운영 권장.
+- 앱 안의 **일정·설정 변경**은 아직 셸로 접근하지 않는다(권한·안전). 전용 도구로 제공해야 한다.

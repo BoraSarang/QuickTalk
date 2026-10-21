@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-21 23:20 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-22 00:20 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `feat/t18-agent-runtime`** (T-18 에이전트 런타임) — `main` 기준 분기, 아직 push 전.
@@ -12,13 +12,52 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-21 20:43 T-21 포인터 pill** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `ebc78fe9a55fb962467a89928d43d95a3fb91aad1bd895b14cac021f5ab2ca7c`(QuickTalk.debug.dylib) |
-| 테스트 | **332/332**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 |
-| 마지막 완료 | **T-18 설계 + 스파이크 2개 통과**(2026-10-21 23:20) — "맥 도우미" 도구 설계 문서 + Apple FM 도구콜링·샌드박스 권한 협상 검증. **코드는 아직 안 고침** |
-| 다음 작업 | **T-18 v0.18 구현**(에이전트 런타임) → T-21 실측(`docs/qa/t21-pill/CHECKLIST.md` P1~P27) → QA 배치 3 → 배치 4 |
-| 실측 대기 | **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
+| 현재 빌드 | **2026-10-22 00:06 T-18 도우미 도구(v0.18)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327` |
+| 테스트 | **354/354**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 22 = 도구·권한·샌드박스) |
+| 마지막 완료 | **T-18 v0.18 구현·배포**(2026-10-22 00:06) — 자연어 한마디로 앱이 **직접 명령을 실행**하고 답한다. 권한 3단계(읽기/쓰기/실행)·샌드박스 실측·확인 카드·감사 기록. **사용자 실측 대기** |
+| 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
+| 실측 대기 | **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **20:51 재실행**(PID 96393) — **T-21 빌드가 이미 적용되어 있다**(이전 문서의 "15:14 빌드·재실행 필요"는 낡음). 교체 전 번들은 `~/Applications/.QuickTalk.old`에 백업 |
+| 실행 중 앱 | **20:51 실행분**(T-21 빌드)이 살아 있음 — **T-18 을 쓰려면 앱을 완전히 종료 후 재실행**해야 한다 |
+
+### 세션 진행 (2026-10-22 00:20) — T-18 v0.18 구현·배포 (도우미 도구)
+
+#### 무엇을 만들었나
+- **"맥 도우미"의 핵심 기능 구현** — 자연어로 말하면 앱이 **직접 행동**하고 그 결과로 답한다.
+  예: "하드 용량 얼마나 남았어" → 실제 `df -h` 실행 → "521 GiB 남음".
+- **앱은 명령어 이름을 모른다.** 도구는 3개뿐(`shell`·`read_file`·`list_dir`)이고 모델이 정한 명령을 그대로 실행한다.
+  `brew`·`adb`·`pip`·`uv`·`ollama` 를 따로 등록하지 않는다(사용자가 든 예시일 뿐).
+- **권한은 분류가 아니라 협상** — 읽기 전용 샌드박스로 먼저 실행해 **요구 권한을 실측**한다.
+  쓰기가 막히면 에러에 경로가 같이 나와 "이 경로만 쓰기 허용"으로 재실행한다(승인이 스코프로 제한됨).
+- **권한 3단계(읽기/쓰기/실행)** 를 설정 › 도구에서 고른다. 읽기=자동(기본), 쓰기·실행=확인(기본).
+  위험도(중요/치명적)는 별도 축 — **중요는 자동 허용이어도 확인**, 치명적은 기본 차단.
+- **확인 UI 는 대화 안 카드**(네이티브 alert 금지): [한 번 허용] [항상 허용] [거부]. 거부하면 모델에 알려 다른 방법을 제안.
+- **실행 기록**(감사 로그) — `~/Library/Application Support/QuickTalk/agent-audit.log`, 키·토큰은 가림.
+
+#### 프로바이더 3종 통일
+| 프로바이더 | 방식 | 실측 |
+|---|---|---|
+| Apple FM | FoundationModels `Tool` 프로토콜 | ✅ `df -h` 실행 → 521 GiB (3스텝 · 16초) |
+| 원격 OpenAI 호환 | `tools` + `tool_calls` | ✅ 도구 3개 실행 + 거부 1개 (4스텝 · 20초) |
+| Local Ollama | `/api/chat` 의 `tools` | 구현 완료 · 실측 미수행(로컬 32B 가 느려 세션 시간 제한) |
+
+#### 구현 중 잡은 문제 3건
+1. 프록시 thinking 모델이 **2차 요청 400** — `reasoning_content` 를 되돌려 보내야 한다 → `AgentMessage.reasoningContent` 추가
+2. Apple FM 의 `GeneratedContent` 를 JSON 직렬화하려다 **NSException 크래시** → `jsonValue` 변환기 추가
+3. 위험도 판정이 **시스템 경로 참조**(`/usr/bin/df`)까지 위험으로 봤다 → 변경 명령의 **대상**일 때만 위험으로
+
+#### 검증·배포
+- `swift test` **354/354** (6 skip, 신규 22) · `xcodebuild` BUILD SUCCEEDED (경고 0)
+- 헤드리스 자가진단 `--agent-test=<질문>` 신규 — 로그 `docs/qa/t18-agent/`
+- 배포 2026-10-22 00:06 `~/Applications/QuickTalk.app`, `codesign --verify --strict` OK,
+  SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327`(빌드와 일치)
+- **실행 중 앱은 종료하지 않았다** — 재실행해야 T-18 이 적용된다.
+
+#### 다음
+- **사용자 실측**(P1~P19) → 피드백 반영
+- v0.19: 쓰기 단계 + 휴지통 rewrite + 되돌리기 버튼
+- v0.20: 실행 단계 + 위험도 고도화 + 백그라운드 실행
+- T-21 실측(P1~P27) · QA 배치 3·4 는 그대로 대기
 
 ### 세션 진행 (2026-10-21 23:20) — T-18 에이전트 런타임 설계 + 스파이크 2개
 

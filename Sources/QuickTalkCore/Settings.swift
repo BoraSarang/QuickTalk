@@ -123,6 +123,12 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var compactKeepTurns: Int = 6
   public static let compactKeepOptions: [Int] = [4, 6, 8, 12]
 
+  // 도우미 도구 (PLAN_v0.18) — 자연어 한마디로 앱이 직접 행동한다.
+  /// 도우미 도구 사용 여부(기본 켜짐). 꺼도 일반 대화는 그대로 동작한다.
+  public var agentToolsEnabled: Bool = true
+  /// 권한 정책 — 단계별 자동 처리·허용 규칙·제한.
+  public var agentPolicy: AgentPolicy = AgentPolicy()
+
   /// 검색이 켜져 있는가(공급자 선택 기준)
   public var webSearchEnabled: Bool { webSearchProvider != .none }
 
@@ -201,6 +207,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case webSearchDailyLimit, webSearchUsageDay, webSearchUsageCount, webSearchMode
     case autoCompact, compactKeepTurns
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
+    case agentToolsEnabled, agentPolicy
     // 구버전 전용 (디코딩 승계용 — 인코딩에는 기록하지 않는다)
     case llmProvider, openAIBaseURL, openAIModel, ollamaHost, ollamaModel, apiKeyAccount
   }
@@ -264,6 +271,13 @@ public struct QuickTalkSettings: Codable, Equatable {
     globalMemoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .globalMemoryEnabled) ?? true
     globalMemoryMode = Self.decodeEnum(MemoryInjectionMode.self, c, .globalMemoryMode, default: .always)
     globalMemoryBudgetTokens = try c.decodeIfPresent(Int.self, forKey: .globalMemoryBudgetTokens) ?? 800
+    // 구버전 설정에는 도구 관련 값이 없다 → 기본값(읽기 자동 허용)으로 둔다.
+    agentToolsEnabled = try c.decodeIfPresent(Bool.self, forKey: .agentToolsEnabled) ?? true
+    if let stored = try? c.decodeIfPresent(AgentPolicy.self, forKey: .agentPolicy) {
+      agentPolicy = stored
+    } else {
+      agentPolicy = AgentPolicy()
+    }
 
     if let stored = try c.decodeIfPresent([LLMProviderConfig].self, forKey: .providers), !stored.isEmpty {
       providers = stored
@@ -328,6 +342,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(globalMemoryEnabled, forKey: .globalMemoryEnabled)
     try c.encode(globalMemoryMode, forKey: .globalMemoryMode)
     try c.encode(globalMemoryBudgetTokens, forKey: .globalMemoryBudgetTokens)
+    try c.encode(agentToolsEnabled, forKey: .agentToolsEnabled)
+    try c.encode(agentPolicy, forKey: .agentPolicy)
   }
 
   /// 구버전 단일 프로바이더 설정값을 기본 3종 목록으로 승계한다.

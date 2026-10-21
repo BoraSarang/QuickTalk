@@ -57,6 +57,20 @@ final class UIStore: ObservableObject {
   /// 설정 › AI의 [답변 API 테스트] 결과
   @Published var answerTestResult = ""
   @Published var answerTesting = false
+  // MARK: - 도우미 도구 (PLAN_v0.18)
+  /// 실행 카드 — 지금 답변에 붙는 도구 실행 기록
+  @Published var agentEvents: [AgentEvent] = []
+  /// 승인을 기다리는 요청 — 카드에 [허용] 버튼이 뜬다
+  @Published var agentApproval: AgentApprovalRequest?
+  /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
+  @Published var agentTurnID: UUID?
+  /// 도구 실행기 — 정책 판단·사용자 확인·감사 기록
+  var agentExecutor: AgentExecutor?
+  /// 도구 필요 판정 캐시 — 같은 질문이면 10분간 모델을 다시 부르지 않는다.
+  var agentDecisionCache: [String: (needed: Bool, at: Date)] = [:]
+  let agentDecisionTTL: TimeInterval = 600
+  /// QA 헤드리스 모드 — 승인이 필요한 명령을 자동으로 거부한다(대면 창이 없으므로).
+  var agentSelfTestMode = false
   /// 공통 메모리 — 모든 대화에 적용되는 사용자 작성 사실(PLAN_v0.16).
   @Published var memoryEntries: [GlobalMemoryEntry] = [] {
     didSet { saveMemory() }
@@ -1160,6 +1174,10 @@ final class UIStore: ObservableObject {
         var precomputedAnswer: String?
         let forced = self.forceWebSearch
         self.forceWebSearch = false
+        // 도우미 도구 판정(PLAN_v0.18) — **웹 검색과 병렬로** 돌려 지연을 더하지 않는다.
+        let agentDecisionTask: Task<Bool, Never>? = ws.agentToolsEnabled
+          ? Task { @MainActor in await self.decidesToUseTools(prompt, history: history) }
+          : nil
 
         // P3-a) 툴 콜링 — 모델이 `web_search`를 직접 호출한다. OpenAI 호환에서만 시도하고,
         // 프록시가 tools를 모르면(400) 아래 기존 주입 경로로 조용히 폴백한다.
@@ -1275,6 +1293,9 @@ final class UIStore: ObservableObject {
         }
         // 검색 중 사용자가 다른 대화방으로 옮겼으면 이 답변은 버린다(다른 방에 섞이지 않게).
         guard self.conversation.id == convID else { return }
+        // ── 도우미 도구 (PLAN_v0.18) — 모델에게 "도구가 필요한가"를 짧게 묻는다 ──
+        // 필요 없으면 아래 기존 경로(스트리밍) 그대로. 필요 있으면 에이전트 루프로 넘어간다.
+        let useAgent = await agentDecisionTask?.value ?? false
         // 초기 400토큰 예약보다 검색 컨텍스트가 크면 기록을 다시 맞춘다.
         // (검색은 기록 fitting 뒤에 일어나므로 실제 컨텍스트 크기를 그때 알 수 있다.)
         var finalHistory = history
@@ -1326,6 +1347,12 @@ final class UIStore: ObservableObject {
             // 툴 콜링이 검색 없이 답한 경우 — 그대로 표시한다(스트리밍 없음).
             reply = precomputedAnswer
             self.core.appendStreaming(precomputedAnswer, to: aid)
+            self.conversation = self.core.conversation
+          } else if useAgent {
+            // 도우미 도구 — 모델이 직접 명령을 실행하고, 그 결과로 답한다.
+            reply = try await self.runAgentTurn(provider: p, prompt: modelPrompt,
+                                                history: finalHistory, turnID: aid)
+            self.core.setAssistantText(reply, id: aid)
             self.conversation = self.core.conversation
           } else {
             reply = try await Self.streamReplyWithFallback(
@@ -1933,7 +1960,7 @@ final class UIStore: ObservableObject {
   }
 
   /// 분류용 짧은 호출 — `timeout`초를 넘기면 취소하고 nil(검색 안 함)로 처리한다.
-  private static func classifierAnswer(provider: LLMProviderConfig,
+  static func classifierAnswer(provider: LLMProviderConfig,
                                        prompt: String,
                                        timeout: TimeInterval) async throws -> String {
     try await withThrowingTaskGroup(of: String?.self) { group in
