@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>QuickTalk 목업 v0.3-r2 — 대화 창 AI 탭 (선택 + 상태 표시)</title>
+<style>
+  :root {
+    --panel: #121214; --card: #1e1e23; --card2: #23232a;
+    --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06);
+    --txt: #ececf1; --dim: #9a9aa5; --dim2: #6e6e78;
+    --accent: #7A5CFF; --accent-soft: rgba(122,92,255,.16);
+    --green: #34c759; --red: #ff5f57; --amber: #febc2e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 30px 26px 44px; background: #0b0b0d; color: var(--txt);
+    font: 400 14px/1.45 -apple-system, "SF Pro Text", "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; letter-spacing: -.2px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 13px; margin: 0 0 8px; }
+  .rules { margin: 0 0 24px; padding: 12px 14px; background: #151519; border: 1px solid var(--line2);
+           border-radius: 12px; font-size: 12.5px; color: #bcbcc6; }
+  .rules b { color: #e6e6ee; }
+  .rules ul { margin: 6px 0 0; padding-left: 18px; }
+  .rules ul li { margin: 2px 0; }
+  .row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .col { width: 460px; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+         padding: 4px 10px; border-radius: 999px; margin-bottom: 9px;
+         background: rgba(122,92,255,.18); color: #b8a6ff; }
+  .tag.g { background: rgba(52,199,89,.14); color: #6fdc8c; }
+  .tag.a { background: rgba(254,188,46,.14); color: #ffd479; }
+  .tag.r { background: rgba(255,95,87,.14); color: #ff8a84; }
+  .verdict { font-size: 12.5px; color: var(--dim); margin: 9px 2px 0; min-height: 60px; }
+  .verdict b { color: #d9d9e2; font-weight: 600; }
+
+  .win { width: 460px; height: 560px; border-radius: 20px; background: var(--panel);
+         border: 1px solid rgba(255,255,255,.07); box-shadow: 0 24px 60px rgba(0,0,0,.55);
+         overflow: hidden; display: flex; flex-direction: column; }
+  .titlebar { height: 34px; flex: 0 0 34px; display: flex; align-items: center; padding: 0 12px; gap: 8px;
+              background: #17171a; border-bottom: 1px solid var(--line); }
+  .lights { display: flex; gap: 8px; }
+  .light { width: 12px; height: 12px; border-radius: 50%; }
+  .l1 { background: #ff5f57; } .l2 { background: #febc2e; } .l3 { background: #28c840; }
+  .titlebar .t { margin-left: 6px; font-size: 12.5px; font-weight: 600; color: #c9c9d2; }
+
+  .head { flex: 0 0 42px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+  .head .name { font-size: 14.5px; font-weight: 700; }
+  .head .right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--dim2); font-size: 12px; }
+
+  .tabs { display: flex; gap: 4px; padding: 7px 12px 0; flex: 0 0 auto; }
+  .tab { font-size: 12px; padding: 5px 10px; border-radius: 8px; color: var(--dim); border: 1px solid transparent; }
+  .tab.sel { background: var(--accent-soft); color: #cbbdff; border-color: rgba(122,92,255,.35); }
+
+  .body { flex: 1 1 auto; min-height: 0; padding: 8px 12px 10px;
+          display: flex; flex-direction: column; gap: 7px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 7px 10px; }
+  .card h3 { margin: 0 0 5px; font-size: 12px; font-weight: 700; color: #cfcfd8;
+             display: flex; align-items: center; gap: 6px; letter-spacing: .1px; }
+  .card h3 .sub2 { margin-left: auto; font-weight: 500; font-size: 11px; color: var(--dim2); }
+  .cap { font-size: 11px; color: var(--dim2); margin-top: 5px; line-height: 1.35; }
+  .cap b { color: #c9c9d2; font-weight: 600; }
+
+  /* 프로바이더 = 선택 행 (한 줄, 추가/삭제 없음) */
+  .prow { display: flex; align-items: center; gap: 9px; padding: 3px 8px; border-radius: 8px;
+          border: 1px solid transparent; }
+  .prow.sel { background: var(--accent-soft); border-color: rgba(122,92,255,.34); }
+  .pico { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px; display: flex; align-items: center;
+          justify-content: center; font-size: 12px; background: rgba(255,255,255,.06); color: #cfcfd8; }
+  .prow.sel .pico { background: rgba(122,92,255,.28); color: #d7ccff; }
+  .pname { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .psub { font-size: 11px; color: var(--dim2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .radio { margin-left: auto; width: 15px; height: 15px; flex: 0 0 15px; border-radius: 50%;
+           border: 1.5px solid rgba(255,255,255,.28); }
+  .prow.sel .radio { border-color: var(--accent);
+                     background: radial-gradient(circle at center, var(--accent) 0 44%, transparent 45%); }
+
+  /* 픽커 */
+  .picker { display: flex; align-items: center; gap: 8px; background: var(--card2); border: 1px solid var(--line);
+            border-radius: 8px; padding: 6px 9px; font-size: 12.5px; }
+  .picker .val { color: #eaeaf2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .picker .right { margin-left: auto; display: flex; align-items: center; gap: 7px; color: var(--dim2); font-size: 11px; }
+  .picker.locked { opacity: .55; }
+  .refresh { width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center;
+             justify-content: center; background: rgba(255,255,255,.06); font-size: 11px; color: #c3c3cc; }
+
+  /* 상태(읽기 전용) */
+  .kv { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .kv .k { color: var(--dim); }
+  .kv .v { color: #dcdce4; }
+  .badge { font-size: 10.5px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .badge.ok { background: rgba(52,199,89,.14); color: #6fdc8c; }
+  .badge.warn { background: rgba(254,188,46,.14); color: #ffd479; }
+  .badge.err { background: rgba(255,95,87,.16); color: #ff8a84; }
+  .badge.violet { background: var(--accent-soft); color: #b8a6ff; }
+  .badge.dim { background: rgba(255,255,255,.07); color: #a9a9b4; }
+  .ro { margin-left: 4px; font-size: 10px; color: var(--dim2); }
+
+  .btn-primary { margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 7px;
+                 background: var(--accent); color: #fff; font-weight: 600; font-size: 13px;
+                 border-radius: 10px; padding: 8px 12px; flex: 0 0 auto; }
+  .btn-note { text-align: center; font-size: 11px; color: var(--dim2); margin-top: 5px; flex: 0 0 auto; }
+  .code { font-family: "SF Mono", ui-monospace, monospace; font-size: 11px; color: #ffb3ae; }
+</style>
+</head>
+<body>
+
+<h1>QuickTalk 목업 v0.3-r2 — 대화 창 <span>AI 탭</span></h1>
+<p class="sub">기준: docs/DESIGN.md v0.10 토큰 · 창 460×560 고정 · 탭 = 대화 / 보관함 / AI</p>
+
+<div class="rules">
+  <b>이 탭의 범위 (사용자 지시 반영)</b>
+  <ul>
+    <li><b>조작은 AI만</b> — 프로바이더 · 모델 <b>선택</b>만 가능(추가/삭제 없음). 대화 도중 이 탭에서 바꾸면 다음 질문부터 즉시 적용</li>
+    <li><b>단축키 · 음성 · Whisper · 표시 · 보관 조작은 이 탭에 없다</b> → <code>전체 설정 보기</code>로 이동 (한 번 정하면 거의 안 바꾸는 항목)</li>
+    <li><b>상태는 표시한다</b> — AI 연결 · 호출 단축키 · 음성 엔진 상태를 <b>읽기 전용</b> 배지로 보여줌(고장 진단 창구 역할)</li>
+  </ul>
+</div>
+
+<div class="row">
+
+  <!-- ---------- 1. Apple FM ---------- -->
+  <div class="col">
+    <span class="tag">● 기본 · Apple FM 활성</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">AI</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="tabs"><span class="tab">대화</span><span class="tab">보관함</span><span class="tab sel">AI</span></div>
+      <div class="body">
+
+        <div class="card">
+          <h3>프로바이더 <span class="sub2">3개 등록됨</span></h3>
+          <div class="prow sel"><span class="pico">􀫊</span><span class="pname">Local Apple FM</span><span class="psub">· 온디바이스</span><span class="radio"></span></div>
+          <div class="prow"><span class="pico">􀨪</span><span class="pname">Local Ollama</span><span class="psub">· localhost:11434</span><span class="radio"></span></div>
+          <div class="prow"><span class="pico">􀤆</span><span class="pname">Remote OpenAI 호환</span><span class="psub">· 키 저장됨</span><span class="radio"></span></div>
+        </div>
+
+        <div class="card">
+          <h3>모델</h3>
+          <div class="picker locked"><span class="val">온디바이스 모델 (자동)</span><span class="right">변경 불가</span></div>
+          <div class="cap">Apple FM은 시스템 모델을 쓰므로 고를 모델이 없습니다.</div>
+        </div>
+
+        <div class="card">
+          <h3>상태 <span class="sub2">읽기 전용</span></h3>
+          <div class="kv"><span class="k">AI 연결</span><span><span class="badge ok">사용 가능 · 온디바이스</span></span></div>
+          <div class="kv"><span class="k">호출 단축키</span><span><span class="badge ok">동작 중</span> <span class="v">⌘Space</span></span></div>
+          <div class="kv"><span class="k">음성</span><span><span class="badge ok">준비됨</span> <span class="v">Apple 음성인식</span></span></div>
+          <div class="cap">값 변경은 <b>전체 설정 보기</b>에서 합니다. 여기서 바꾸는 건 AI 프로바이더 · 모델뿐입니다.</div>
+        </div>
+
+        <div class="btn-primary">전체 설정 보기…</div>
+        <div class="btn-note">단축키 · 음성 · Whisper · 표시 · 보관함 · 정보 · 프로바이더 편집</div>
+      </div>
+    </div>
+    <p class="verdict"><b>빈 공간 해결 + 역할 명확.</b> 조작(AI 선택)과 상태(읽기 전용)를 카드로 분리 — 상태 줄은 <b>수정하기 전에 현재 상태를 확인하는 용도</b>로만 남습니다.</p>
+  </div>
+
+  <!-- ---------- 2. Ollama ---------- -->
+  <div class="col">
+    <span class="tag g">Ollama 활성 · 모델 선택 가능</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">AI</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="tabs"><span class="tab">대화</span><span class="tab">보관함</span><span class="tab sel">AI</span></div>
+      <div class="body">
+
+        <div class="card">
+          <h3>프로바이더 <span class="sub2">3개 등록됨</span></h3>
+          <div class="prow"><span class="pico">􀫊</span><span class="pname">Local Apple FM</span><span class="psub">· 온디바이스</span><span class="radio"></span></div>
+          <div class="prow sel"><span class="pico">􀨪</span><span class="pname">Local Ollama</span><span class="psub">· 실행 중</span><span class="radio"></span></div>
+          <div class="prow"><span class="pico">􀤆</span><span class="pname">Remote OpenAI 호환</span><span class="psub">· 키 저장됨</span><span class="radio"></span></div>
+        </div>
+
+        <div class="card">
+          <h3>모델 <span class="sub2">설치된 4개</span></h3>
+          <div class="picker"><span class="val">Local-Qwen2.5-32B:latest</span><span class="right"><span class="refresh">⟳</span>▼</span></div>
+          <div class="cap">⟳는 설치된 모델을 그때만 다시 읽습니다(상주 요청 없음).</div>
+        </div>
+
+        <div class="card">
+          <h3>상태 <span class="sub2">읽기 전용</span></h3>
+          <div class="kv"><span class="k">AI 연결</span><span><span class="badge ok">응답 정상</span></span></div>
+          <div class="kv"><span class="k">호출 단축키</span><span><span class="badge ok">동작 중</span> <span class="v">⌘Space</span></span></div>
+          <div class="kv"><span class="k">음성</span><span><span class="badge ok">준비됨</span> <span class="v">Apple 음성인식</span></span></div>
+          <div class="cap">변경하면 <b>다음 질문부터</b> 적용됩니다. 진행 중인 응답은 그대로 끝납니다.</div>
+        </div>
+
+        <div class="btn-primary">전체 설정 보기…</div>
+        <div class="btn-note">단축키 · 음성 · Whisper · 표시 · 보관함 · 정보 · 프로바이더 편집</div>
+      </div>
+    </div>
+    <p class="verdict"><b>실사용 핵심 화면.</b> 프로바이더 선택 + 모델 픽커만으로 대화 중 전환이 끝나고, 상태 줄에서 성공 여부를 즉시 확인합니다.</p>
+  </div>
+
+  <!-- ---------- 3. 원격 ---------- -->
+  <div class="col">
+    <span class="tag a">Remote OpenAI 호환 · 키 저장됨</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">AI</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="tabs"><span class="tab">대화</span><span class="tab">보관함</span><span class="tab sel">AI</span></div>
+      <div class="body">
+
+        <div class="card">
+          <h3>프로바이더 <span class="sub2">3개 등록됨</span></h3>
+          <div class="prow"><span class="pico">􀫊</span><span class="pname">Local Apple FM</span><span class="psub">· 온디바이스</span><span class="radio"></span></div>
+          <div class="prow"><span class="pico">􀨪</span><span class="pname">Local Ollama</span><span class="psub">· 실행 중</span><span class="radio"></span></div>
+          <div class="prow sel"><span class="pico">􀤆</span><span class="pname">Remote OpenAI 호환</span><span class="psub">· 키 저장됨</span><span class="radio"></span></div>
+        </div>
+
+        <div class="card">
+          <h3>모델 <span class="sub2">서버 목록 6개</span></h3>
+          <div class="picker"><span class="val">gpt-oss-120b</span><span class="right"><span class="refresh">⟳</span>▼</span></div>
+          <div class="cap">키 저장 상태만 표시합니다. 주소·모델·키 편집은 전체 설정에서.</div>
+        </div>
+
+        <div class="card">
+          <h3>상태 <span class="sub2">읽기 전용</span></h3>
+          <div class="kv"><span class="k">AI 연결</span><span><span class="badge ok">연결 정상</span></span></div>
+          <div class="kv"><span class="k">호출 단축키</span><span><span class="badge ok">동작 중</span> <span class="v">⌘Space</span></span></div>
+          <div class="kv"><span class="k">음성</span><span><span class="badge dim">Whisper 미지정</span> <span class="v">Apple 음성인식</span></span></div>
+          <div class="cap">민감값(키)은 화면·로그에 표시하지 않습니다.</div>
+        </div>
+
+        <div class="btn-primary">전체 설정 보기…</div>
+        <div class="btn-note">단축키 · 음성 · Whisper · 표시 · 보관함 · 정보 · 프로바이더 편집</div>
+      </div>
+    </div>
+    <p class="verdict"><b>상태 줄이 “준비됨/미지정”을 구분.</b> Whisper처럼 조건부 준비 항목은 회색 배지로 — 조작 없이 사실만 알림.</p>
+  </div>
+
+  <!-- ---------- 4. 실패 ---------- -->
+  <div class="col">
+    <span class="tag r">실패 상태 · 진단 창구</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">AI</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="tabs"><span class="tab">대화</span><span class="tab">보관함</span><span class="tab sel">AI</span></div>
+      <div class="body">
+
+        <div class="card">
+          <h3>프로바이더 <span class="sub2">3개 등록됨</span></h3>
+          <div class="prow"><span class="pico">􀫊</span><span class="pname">Local Apple FM</span><span class="psub">· 온디바이스</span><span class="radio"></span></div>
+          <div class="prow sel"><span class="pico">􀨪</span><span class="pname">Local Ollama</span><span class="psub">· 응답 없음</span><span class="radio"></span></div>
+          <div class="prow"><span class="pico">􀤆</span><span class="pname">Remote OpenAI 호환</span><span class="psub">· 키 저장됨</span><span class="radio"></span></div>
+        </div>
+
+        <div class="card">
+          <h3>모델</h3>
+          <div class="picker"><span class="val" style="color:#ffb3ae">모델 미지정</span><span class="right"><span class="refresh">⟳</span>▼</span></div>
+          <div class="cap">연결 실패로 목록을 못 읽었습니다. 저장된 모델명 <span class="code">Local-Qwen2.5-32B:latest</span>.</div>
+        </div>
+
+        <div class="card">
+          <h3>상태 <span class="sub2">읽기 전용</span></h3>
+          <div class="kv"><span class="k">AI 연결</span><span><span class="badge err">실패 · E-MAC-NET-0001</span></span></div>
+          <div class="kv"><span class="k">호출 단축키</span><span><span class="badge ok">동작 중</span> <span class="v">⌘Space</span></span></div>
+          <div class="kv"><span class="k">음성</span><span><span class="badge ok">준비됨</span> <span class="v">Apple 음성인식</span></span></div>
+          <div class="cap">대체 응답으로 숨기지 않습니다. <b>Apple FM으로 전환</b>하면 바로 이어서 대화할 수 있습니다.</div>
+        </div>
+
+        <div class="btn-primary">전체 설정 보기…</div>
+        <div class="btn-note">단축키 · 음성 · Whisper · 표시 · 보관함 · 정보 · 프로바이더 편집</div>
+      </div>
+    </div>
+    <p class="verdict"><b>실패 원인 + 다음 행동 제시.</b> 설정 탭이 “고장 났을 때 확인하고 갈아타는” 창구 역할까지 겸합니다.</p>
+  </div>
+
+</div>
+
+<p style="color:#6e6e78;font-size:12px;margin-top:20px">
+  ※ 이 탭에서 저장되는 값: <code>activeProviderID</code>, 활성 프로바이더의 <code>model</code> — 나머지 설정은 전체 설정 창에서만 변경합니다.
+</p>
+
+</body>
+</html>
