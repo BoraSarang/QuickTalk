@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>QuickTalk 목업 v0.4 — 대화 창 (클립보드 스트립 · 창 크기)</title>
+<style>
+  :root{
+    --panel:#121214; --card:#1e1e23; --card2:#23232a; --chip:#2a2a30;
+    --line:rgba(255,255,255,.10); --txt:#ececf1; --dim:#9a9aa5; --dim2:#6e6e78;
+    --accent:#7A5CFF; --accent-soft:rgba(122,92,255,.16);
+    --green:#34c759; --amber:#febc2e; --red:#ff5f57;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:30px 26px 52px;background:#0b0b0d;color:var(--txt);
+    font:400 14px/1.45 -apple-system,"SF Pro Text","Helvetica Neue","Apple SD Gothic Neo",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  h1{font-size:20px;font-weight:700;margin:0 0 6px;letter-spacing:-.2px}
+  h1 span{color:var(--accent)}
+  h2{font-size:14.5px;font-weight:700;margin:34px 0 4px;color:#dcdce6}
+  h2 small{font-weight:500;color:var(--dim2);font-size:12px;margin-left:8px}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 10px}
+  .rules{margin:14px 0 0;padding:12px 14px;background:#151519;border:1px solid rgba(255,255,255,.06);
+    border-radius:12px;font-size:12.5px;color:#bcbcc6}
+  .rules b{color:#e6e6ee}
+  .rules ul{margin:6px 0 0;padding-left:18px}
+  .row{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;margin-top:14px}
+  .col{width:460px}
+  .tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    padding:4px 10px;border-radius:999px;margin-bottom:9px;background:var(--accent-soft);color:#b8a6ff}
+  .tag.g{background:rgba(52,199,89,.14);color:#6fdc8c}
+  .tag.a{background:rgba(254,188,46,.14);color:#ffd479}
+  .tag.r{background:rgba(255,95,87,.14);color:#ff8a84}
+  .verdict{font-size:12.5px;color:var(--dim);margin:9px 2px 0;min-height:56px}
+  .verdict b{color:#d9d9e2;font-weight:600}
+  .code{font-family:"SF Mono",ui-monospace,monospace;font-size:11px;color:#ffb3ae}
+
+  /* ---------- 창 ---------- */
+  .win{width:460px;height:560px;border-radius:20px;background:var(--panel);
+    border:1px solid rgba(255,255,255,.07);box-shadow:0 24px 60px rgba(0,0,0,.55);
+    overflow:hidden;display:flex;flex-direction:column}
+  .win.small{width:380px;height:150px;border-radius:16px}
+  .win.big{width:560px;height:660px}
+  .titlebar{height:32px;flex:0 0 32px;display:flex;align-items:center;padding:0 12px;gap:8px;
+    background:#17171a;border-bottom:1px solid var(--line)}
+  .lights{display:flex;gap:8px}.light{width:12px;height:12px;border-radius:50%}
+  .l1{background:#ff5f57}.l2{background:#febc2e}.l3{background:#28c840}
+  .titlebar .t{margin-left:6px;font-size:12px;font-weight:600;color:#c9c9d2}
+  .head{flex:0 0 42px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--line)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .head .name{font-size:14px;font-weight:700}
+  .head .right{margin-left:auto;display:flex;align-items:center;gap:9px;color:var(--dim2);font-size:12px}
+  .ico{width:15px;height:15px;opacity:.75;display:inline-flex;align-items:center;justify-content:center}
+  .ico.on{opacity:1;color:var(--accent)}
+
+  /* ---------- 클립보드 스트립 ---------- */
+  .strip{flex:0 0 auto;padding:7px 12px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(122,92,255,.06),rgba(122,92,255,0));display:flex;align-items:center;gap:8px}
+  .strip .lbl{font-size:10.5px;color:var(--dim2);writing-mode:horizontal-tb;flex:0 0 auto;
+    display:flex;align-items:center;gap:5px;padding-right:6px;border-right:1px solid var(--line)}
+  .strip .items{display:flex;gap:7px;overflow:hidden;flex:1 1 auto}
+  .chip{display:flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);
+    border-radius:9px;padding:5px 9px;font-size:12px;color:#e4e4ec;white-space:nowrap;max-width:190px;overflow:hidden}
+  .chip.clip-target{border-color:rgba(122,92,255,.55);box-shadow:0 0 0 1px rgba(122,92,255,.25) inset}
+  .chip .txt{overflow:hidden;text-overflow:ellipsis}
+  .chip .x{color:var(--dim2);font-size:10px}
+  .ttl{margin-left:auto;font-size:10px;color:var(--dim2);font-family:"SF Mono",monospace;flex:0 0 auto}
+  .thumb{width:26px;height:26px;border-radius:6px;flex:0 0 26px;
+    background:linear-gradient(135deg,#2b3548,#3c2b48 60%,#5b3a2a);border:1px solid var(--line)}
+  .thumb.doc{background:linear-gradient(135deg,#26303f,#1d2431);display:flex;align-items:center;justify-content:center;font-size:11px}
+  .pulse{width:5px;height:5px;border-radius:50%;background:var(--green);flex:0 0 5px}
+  .sens{font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(254,188,46,.16);color:#ffd479}
+
+  /* ---------- 대화 본문 ---------- */
+  .body{flex:1 1 auto;min-height:0;position:relative;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;overflow:hidden}
+  .orb{width:210px;height:210px;border-radius:50%;border:2px solid rgba(255,255,255,.045);position:relative;opacity:.9}
+  .orb::after{content:"";position:absolute;inset:14px;border-radius:50%;border:2px solid rgba(255,255,255,.03)}
+  .orb .wave{position:absolute;left:-2px;top:52%;width:214px;height:74px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.05);transform:rotate(-8deg)}
+  .hint{position:absolute;bottom:16px;font-size:11.5px;color:var(--dim2)}
+  .scroll{flex:1 1 auto;min-height:0;overflow:hidden;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .bub{max-width:78%;font-size:13px;padding:9px 11px;border-radius:14px;line-height:1.45}
+  .bub.u{align-self:flex-end;background:var(--chip)}
+  .bub.a{align-self:flex-start;background:rgba(255,255,255,.035);border:1px solid var(--line)}
+  .meta{font-size:10.5px;color:var(--dim2);margin-top:4px}
+
+  /* ---------- 입력독 ---------- */
+  .dock{flex:0 0 auto;padding:10px 12px 12px;display:flex;align-items:center;gap:9px}
+  .circle{width:34px;height:34px;flex:0 0 34px;border-radius:50%;background:var(--chip);
+    display:flex;align-items:center;justify-content:center;font-size:15px;color:#e8e8f0;border:1px solid var(--line)}
+  .circle.mic{font-size:14px}
+  .field{flex:1 1 auto;height:34px;border-radius:17px;background:var(--chip);border:1px solid var(--line);
+    display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--dim2)}
+  .field .caret{width:1.5px;height:15px;background:#e8e8f0;margin-right:5px}
+  .field.filled{color:#ececf1}
+  .attachrow{display:flex;gap:6px;padding:0 12px 8px}
+  .attach{display:flex;align-items:center;gap:5px;font-size:11px;background:var(--chip);
+    border:1px solid var(--line);border-radius:8px;padding:3px 8px;color:#dcdce4}
+
+  /* ---------- 주석 ---------- */
+  .note{margin-top:10px;font-size:12px;color:var(--dim);border-left:2px solid rgba(122,92,255,.5);padding-left:10px}
+  .note b{color:#d9d9e2}
+  table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px}
+  table.cmp th,table.cmp td{border:1px solid rgba(255,255,255,.08);padding:7px 9px;text-align:left;vertical-align:top}
+  table.cmp th{background:#17171b;color:#d6d6de;font-weight:600}
+  table.cmp td.dim{color:var(--dim)}
+  .ok{color:#6fdc8c}.warn{color:#ffd479}.bad{color:#ff8a84}
+</style>
+</head>
+<body>
+
+<h1>QuickTalk 목업 v0.4 — <span>대화 창</span>: 클립보드 스트립 + 창 크기</h1>
+<p class="sub">기준: DESIGN.md 토큰(패널 #121214 · 액센트 #7A5CFF · radius 20) · 참고: Siri 새 대화 창 / 포인터 pill</p>
+
+<div class="rules">
+  <b>이 목업이 답하려는 것</b>
+  <ul>
+    <li><b>A. 클립보드 스트립</b> — 최근 1~2분 내 복사한 <b>텍스트·이미지</b>를 창 위쪽에 보여주고, 클릭하면 입력창에 삽입 / 이미지 첨부</li>
+    <li><b>B. 창 크기</b> — 스트립이 붙으면 세로 공간이 필요해진다 → 고정이냐 가변이냐, 가변이면 보관함·설정 탭은 어떻게 되나</li>
+    <li><b>C. 포인터 pill</b> — 포인터 옆에서 바로 질문 시작(참고 2번째 이미지) 후 대화 창으로 확장</li>
+  </ul>
+</div>
+
+<!-- ============ 1. 스트립 위치 ============ -->
+<h2>1. 클립보드 스트립 위치 <small>같은 창, 위치만 다름</small></h2>
+<div class="row">
+
+  <div class="col">
+    <span class="tag">1-A · 창 최상단(헤더 아래) — 말씀하신 "대화창 위에"</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">새 대화</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="strip">
+        <span class="lbl"><span class="pulse"></span>클립보드</span>
+        <span class="items">
+          <span class="chip clip-target"><span class="txt">아아아아아아아아…</span><span class="x">✕</span></span>
+          <span class="chip"><span class="thumb"></span><span class="txt">스크린샷 20.41.07</span></span>
+        </span>
+        <span class="ttl">1:32</span>
+      </div>
+      <div class="body">
+        <div class="orb"><span class="wave"></span></div>
+        <div class="hint">무엇이든 물어보세요 — 클립보드 항목을 누르면 입력창에 들어갑니다</div>
+      </div>
+      <div class="dock">
+        <span class="circle">＋</span>
+        <span class="field"><span class="caret"></span>Siri에게 물어보기</span>
+        <span class="circle mic">🎤</span>
+      </div>
+    </div>
+    <p class="verdict"><b>장점</b> 새 대화를 열자마자 "지금 복사해 둔 것"이 눈에 먼저 들어옴.<br><b>단점</b> 대화가 쌓이면 스크롤 영역 위에 고정돼 시선이 분산됨(자동 만료로 사라지면 완화).</p>
+  </div>
+
+  <div class="col">
+    <span class="tag g">1-B · 입력독 바로 위 (추천)</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">새 대화</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="body">
+        <div class="orb"><span class="wave"></span></div>
+        <div class="hint">무엇이든 물어보세요</div>
+      </div>
+      <div class="strip" style="border-top:1px solid var(--line);border-bottom:none;
+           background:linear-gradient(0deg,rgba(122,92,255,.06),rgba(122,92,255,0))">
+        <span class="lbl"><span class="pulse"></span>방금 복사</span>
+        <span class="items">
+          <span class="chip"><span class="txt">아아아아아아아아…</span></span>
+          <span class="chip clip-target"><span class="thumb"></span><span class="txt">스크린샷 20.41.07</span></span>
+        </span>
+        <span class="ttl">1:32</span>
+      </div>
+      <div class="dock">
+        <span class="circle">＋</span>
+        <span class="field"><span class="caret"></span>Siri에게 물어보기</span>
+        <span class="circle mic">🎤</span>
+      </div>
+    </div>
+    <p class="verdict"><b>장점</b> 손이 가는 곳(입력독)과 시선이 한 곳에 모임. 대화 본문은 위에서 자유롭게 흐름.<br><b>단점</b> "창 위"라는 원래 표현과는 다름 → 사용자 선택 필요.</p>
+  </div>
+</div>
+
+<!-- ============ 2. 스트립 상세 ============ -->
+<h2>2. 스트립 상세 동작 <small>텍스트 / 이미지 / 만료 / 민감 항목</small></h2>
+<div class="row">
+  <div class="col" style="width:640px">
+    <span class="tag">2 · 항목별 표현과 클릭 동작</span>
+    <div class="win" style="width:640px;height:auto">
+      <div class="strip" style="border-bottom:1px solid var(--line);background:#15151a">
+        <span class="lbl"><span class="pulse"></span>방금 복사</span>
+        <span class="items" style="flex-wrap:wrap">
+          <span class="chip"><span class="txt">아아아아아아아아…</span><span class="x">✕</span></span>
+          <span class="chip"><span class="thumb"></span><span class="txt">스크린샷 20.41.07</span><span class="x">✕</span></span>
+          <span class="chip"><span class="thumb doc">URL</span><span class="txt">https://example.com/a…</span><span class="x">✕</span></span>
+          <span class="chip"><span class="thumb doc">MD</span><span class="txt">report.md · 2KB</span><span class="x">✕</span></span>
+          <span class="chip" style="opacity:.45"><span class="sens">민감</span><span class="txt">••••••••</span></span>
+        </span>
+        <span class="ttl">0:58</span>
+      </div>
+      <div style="padding:12px 14px;font-size:12.5px;color:#c6c6d0;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px">
+        <div><b style="color:#e8e8f2">텍스트</b> — 1줄 미리보기(말줄임). 클릭 → 입력창에 삽입(커서 위치)</div>
+        <div><b style="color:#e8e8f2">이미지</b> — 26pt 썸네일. 클릭 → 첨부로 추가</div>
+        <div><b style="color:#e8e8f2">만료</b> — 복사 시점부터 1~2분, 남은 시간 표시. 지나면 자동 제거</div>
+        <div><b style="color:#e8e8f2">민감 항목</b> — 비밀번호 관리자/토큰 추정 시 흐리게(내용 비표시), 눌러야 표시</div>
+        <div><b style="color:#e8e8f2">✕</b> — 그 항목만 지움(클립보드 자체는 건드리지 않음)</div>
+        <div><b style="color:#e8e8f2">최대 개수</b> — 최근 N개(예: 5개). 넘치면 오래된 것부터 사라짐</div>
+      </div>
+    </div>
+    <p class="verdict">텍스트는 <b>삽입</b>, 이미지·파일은 <b>첨부</b>로 동작이 다릅니다. 민감 항목은 규칙([HARD] 로그·화면 노출 금지)에 맞춰 <b>기본 마스킹</b>을 제안합니다.</p>
+  </div>
+</div>
+
+<!-- ============ 3. 대화 진행 중 ============ -->
+<h2>3. 대화가 쌓였을 때 <small>스트립이 본문을 잡아먹지 않는가</small></h2>
+<div class="row">
+  <div class="col">
+    <span class="tag a">3 · 진행 중 대화 + 스트립(1-B 위치)</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">새 대화</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="scroll">
+        <div class="bub u">아아아아아아아아 이 문장 요약해줘</div>
+        <div class="bub a">네 문장을 요약하면 — 반복되는 '아'로 이루어진 감탄 표현입니다.<div class="meta">Apple FM · 1.2s</div></div>
+        <div class="bub u">스크린샷에 뭐가 보여?</div>
+        <div class="bub a">간판과 횡단보도가 보입니다. 좌측에 노란 구조물이 있습니다.<div class="meta">Remote OpenAI · 2.8s</div></div>
+      </div>
+      <div class="strip" style="border-top:1px solid var(--line);border-bottom:none">
+        <span class="lbl"><span class="pulse"></span>방금 복사</span>
+        <span class="items"><span class="chip"><span class="thumb"></span><span class="txt">스크린샷 20.41.07</span></span></span>
+        <span class="ttl">0:12</span>
+      </div>
+      <div class="dock">
+        <span class="circle">＋</span>
+        <span class="field"><span class="caret"></span>이어서 물어보기</span>
+        <span class="circle mic">🎤</span>
+      </div>
+    </div>
+    <p class="verdict">스트립 1줄(약 38pt)은 transcript에서 2~3줄 정도를 가져갑니다. <b>만료되면 자동으로 사라져</b> 대화 중에는 대부분 비어 있습니다.</p>
+  </div>
+
+  <div class="col">
+    <span class="tag r">3-대안 · 스트립을 대화 위에 "겹쳐" 띄우기</span>
+    <div class="win">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">새 대화</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="scroll" style="position:relative">
+        <div class="bub u">아아아아아아아아 이 문장 요약해줘</div>
+        <div class="bub a">네 문장을 요약하면 — 반복되는 '아'로 이루어진 감탄 표현입니다.<div class="meta">Apple FM · 1.2s</div></div>
+        <div class="bub u">스크린샷에 뭐가 보여?</div>
+        <div class="bub a">간판과 횡단보도가 보입니다.<div class="meta">Remote OpenAI · 2.8s</div></div>
+        <div style="position:absolute;left:12px;right:12px;bottom:8px;background:rgba(28,28,34,.92);
+             backdrop-filter:blur(6px);border:1px solid rgba(122,92,255,.35);border-radius:11px;
+             padding:6px 9px;display:flex;align-items:center;gap:8px">
+          <span class="lbl" style="border:none"><span class="pulse"></span>방금 복사</span>
+          <span class="chip clip-target"><span class="thumb"></span><span class="txt">스크린샷 20.41.07</span></span>
+          <span class="ttl">0:12</span>
+        </div>
+      </div>
+      <div class="dock">
+        <span class="circle">＋</span>
+        <span class="field"><span class="caret"></span>이어서 물어보기</span>
+        <span class="circle mic">🎤</span>
+      </div>
+    </div>
+    <p class="verdict">본문 레이아웃을 건드리지 않고 떠 있다가 만료되면 사라짐. <b>단, 대화 마지막 부분을 가릴 수 있어</b> "가림 방지(마지막 줄 아래 여백)" 처리가 필요합니다.</p>
+  </div>
+</div>
+
+<!-- ============ 4. 창 크기 ============ -->
+<h2>4. 창 크기 정책 <small>고정 vs 가변 — 가변이면 탭은 어떻게</small></h2>
+<table class="cmp">
+  <tr>
+    <th style="width:120px">정책</th><th>동작</th><th style="width:180px">보관함 탭</th><th style="width:180px">설정 탭</th><th style="width:150px">스트립 영향</th>
+  </tr>
+  <tr>
+    <td><b>① 고정 유지</b><br><span class="dim">460×560</span></td>
+    <td class="dim">지금처럼 내용 크기 고정. 리사이즈 잠금(불필요한 리사이즈로 깨지는 일 없음)</td>
+    <td class="dim">고정 크기 안에서 스크롤</td>
+    <td class="dim">공유 카드가 560에 맞춰짐(현재 여백 ~120pt)</td>
+    <td class="warn">세로 38pt를 항상 본문에서 빼앗음</td>
+  </tr>
+  <tr>
+    <td><b>② 가변 (추천)</b><br><span class="dim">최소 420×420 · 자유 리사이즈 · 크기 기억</span></td>
+    <td class="dim">본문이 늘고 줄어듦. 입력독·스트립은 하단 고정. 3개 탭 모두 같은 창 안에서 늘어남</td>
+    <td class="ok">목록이 길어지면 그대로 더 보임(스크롤 유지)</td>
+    <td class="warn">설정 카드가 위로 몰리고 아래 여백 → 카드 폭 제한(예: 최대 520pt 중앙 정렬)</td>
+    <td class="ok">공간이 늘면 스트립이 부담 없음</td>
+  </tr>
+  <tr>
+    <td><b>③ 컴팩트 → 확장</b><br><span class="dim">380×150 pill로 시작</span></td>
+    <td class="dim">포인터 옆에서 작게 시작(참고 2번째 이미지) → 질문을 보내면 460×560으로 확장</td>
+    <td class="dim">확장 후 ②와 동일</td>
+    <td class="dim">확장 후 ②와 동일</td>
+    <td class="dim">pill 상태에서는 스트립 1줄만(입력 위)</td>
+  </tr>
+</table>
+
+<div class="row">
+  <div class="col" style="width:400px">
+    <span class="tag">③ 컴팩트 pill (포인터 옆에서 시작)</span>
+    <div class="win small">
+      <div class="dock" style="padding:12px">
+        <span class="circle">＋</span>
+        <span class="field"><span class="caret"></span>Siri에게 물어보기</span>
+        <span class="circle mic">🎤</span>
+      </div>
+      <div style="padding:0 12px 10px;display:flex;gap:6px">
+        <span class="chip" style="max-width:230px"><span class="thumb"></span><span class="txt">스크린샷 20.41.07 · 클릭 첨부</span></span>
+      </div>
+    </div>
+    <p class="verdict">참고 이미지(2번째)의 "Siri에게 물어보기" pill이 이 형태입니다. <b>포인터 옆에 뜨고</b>, 전송하면 대화 창으로 확장 — 지금 QuickTalk의 "포인터 위치에 560 창" 방식과 다른 모델.</p>
+  </div>
+
+  <div class="col" style="width:560px">
+    <span class="tag a">② 가변 창 — 늘렸을 때 (560×660)</span>
+    <div class="win big">
+      <div class="titlebar"><div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div><span class="t">QuickTalk</span></div>
+      <div class="head"><span class="dot"></span><span class="name">새 대화</span><span class="right">⌘+Space ▢ ▣ ⚙</span></div>
+      <div class="scroll">
+        <div class="bub u">아아아아아아아아 이 문장 요약해줘</div>
+        <div class="bub a">네 문장을 요약하면 — 반복되는 '아'로 이루어진 감탄 표현입니다.<div class="meta">Apple FM · 1.2s</div></div>
+        <div class="bub u">스크린샷에 뭐가 보여?</div>
+        <div class="bub a">간판과 횡단보도가 보입니다. 좌측에 노란 구조물이 있습니다.<div class="meta">Remote OpenAI · 2.8s</div></div>
+        <div class="bub u">이 내용으로 블로그 초안 써줘</div>
+        <div class="bub a">제목: 골목의 간판… (초안 3단락)<div class="meta">Remote OpenAI · 4.1s</div></div>
+      </div>
+      <div class="strip" style="border-top:1px solid var(--line);border-bottom:none">
+        <span class="lbl"><span class="pulse"></span>방금 복사</span>
+        <span class="items">
+          <span class="chip"><span class="txt">아아아아아아아아…</span></span>
+          <span class="chip"><span class="thumb"></span><span class="txt">스크린샷 20.41.07</span></span>
+        </span>
+        <span class="ttl">1:07</span>
+      </div>
+      <div class="dock">
+        <span class="circle">＋</span>
+        <span class="field"><span class="caret"></span>이어서 물어보기</span>
+        <span class="circle mic">🎤</span>
+      </div>
+    </div>
+    <p class="verdict">가변이면 대화가 길어질 때 스크롤 부담이 줄고, 스트립(38pt)도 여유 있게 들어갑니다. <b>입력독·스트립은 항상 하단 고정</b>, 본문만 늘어납니다.</p>
+  </div>
+</div>
+
+<p class="note" style="margin-top:26px">
+  <b>공통 원칙</b> — ① 입력독(`＋` / 입력 / 🎤)은 항상 하단 고정 ② 클립보드 스트립은 만료되면 자동 소멸 ③ 클립보드 내용은 <b>로그·캡처에 남기지 않음</b>([HARD] 마스킹) ④ 민감 항목은 기본 마스킹 ⑤ 스트립은 클립보드를 <b>읽기만</b> 하고 수정하지 않음
+</p>
+
+</body>
+</html>

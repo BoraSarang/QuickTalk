@@ -1,0 +1,92 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuickTalk v0.7 — 전 기능 통합 목업</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0a0a0c;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;display:flex;flex-direction:column;align-items:center;padding:20px}
+.top{font-size:13px;color:#999;margin-bottom:12px}.top b{color:#fff}
+.desk{position:relative;width:1000px;max-width:100%;height:660px;background:linear-gradient(180deg,#1a1a20,#101014);border:1px solid #26262b;border-radius:16px;overflow:hidden}
+.fake{position:absolute;inset:0;padding:24px;color:#555;font-size:13px}.fake .doc{height:480px;background:#16161b;border-radius:12px;padding:16px}
+.pill{position:absolute;left:40px;top:40px;width:460px;background:#17171c;border:1px solid #2c2c32;border-radius:14px;box-shadow:0 12px 40px #000a;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid #26262b}.tabs button{flex:1;background:transparent;border:0;color:#999;font-size:13px;padding:10px;cursor:pointer}.tabs button.on{color:#fff;border-bottom:2px solid #7A5CFF}
+.head{display:flex;align-items:center;gap:10px;padding:10px 12px}.dot{width:10px;height:10px;border-radius:50%;background:#7A5CFF}.head b{font-size:13px}.head .x{margin-left:auto;display:flex;gap:6px}.head .x button{background:#1c1c20;border:1px solid #333;color:#aaa;border-radius:8px;font-size:12px;padding:4px 8px;cursor:pointer}
+.view{display:none}.view.on{display:block}
+.thread{padding:12px;min-height:140px;max-height:240px;overflow:auto}.empty{border:1px dashed #333;border-radius:12px;padding:14px;text-align:center;color:#888;font-size:13px}
+.att{padding:0 12px 4px;font-size:12px;color:#7A5CFF;display:none}
+.bar{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #26262b}.bar input{flex:1;background:#1e1e24;border:1px solid #333;border-radius:10px;padding:9px 10px;color:#eee;font-size:13px;outline:none}.bar button{background:#7A5CFF;border:0;color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}.bar button.ghost{background:#1c1c20;border:1px solid #333;color:#aaa}
+.meta{display:flex;gap:8px;padding:0 12px 12px;flex-wrap:wrap}.meta button{background:#1c1c20;border:1px solid #333;color:#aaa;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}.meta button.on{background:#7A5CFF;color:#fff;border-color:#7A5CFF}
+.arch{padding:12px;max-height:380px;overflow:auto}.srow{display:flex;gap:8px;margin-bottom:8px}.srow input{flex:1;background:#1e1e24;border:1px solid #333;border-radius:8px;padding:8px;color:#eee;font-size:13px;outline:none}
+.aitem{border:1px solid #2a2a30;border-radius:10px;padding:10px;margin-bottom:8px;background:#1b1b21}.aitem.pin{border-color:#7A5CFF88}.aitem b{font-size:13px}.aitem p{margin:6px 0 0;font-size:12px;color:#aaa}.aitem .r{display:flex;gap:6px;margin-top:8px}.aitem .r button{background:#222;border:1px solid #333;color:#aaa;border-radius:7px;font-size:11px;padding:4px 8px;cursor:pointer}
+.set{padding:12px;max-height:380px;overflow:auto}.sgrp{background:#1b1b21;border:1px solid #2a2a30;border-radius:10px;padding:10px 12px;margin-bottom:8px}.sgrp h5{margin:0 0 8px;font-size:12px;color:#999}.line{display:flex;align-items:center;justify-content:space-between;padding:7px 0;font-size:13px;border-top:1px solid #26262b}.line:first-of-type{border-top:0}
+.sw{width:40px;height:22px;border-radius:11px;background:#333;position:relative;cursor:pointer;flex:none}.sw.on{background:#7A5CFF}.sw:after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}.sw.on:after{left:20px}
+select{background:#222;color:#eee;border:1px solid #333;border-radius:8px;padding:5px 8px;font-size:12px}
+.lay{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:center;padding-top:30px;background:#0008}.lay.show{display:flex}
+.panel{width:480px;background:#17171c;border:1px solid #333;border-radius:14px;overflow:hidden}.phead{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid #2a2a30}.phead input{flex:1;background:transparent;border:0;color:#eee;font-size:15px;outline:none}
+.prow{display:flex;gap:10px;align-items:center;padding:10px 14px;cursor:pointer}.prow:hover{background:#1e2a4a}.prow .th{width:34px;height:34px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center}.prow kbd{margin-left:auto;color:#777}
+.pfoot{padding:8px 14px;border-top:1px solid #2a2a30;font-size:12px;color:#888}
+.note{margin-top:10px;font-size:12px;color:#777;text-align:center;max-width:1000px}
+</style></head><body>
+<div class="top"><b>QuickTalk v0.7</b> — 대화+보관함(Tab)+설정 전 기능 · 📋 클립보드 · 📎 파일(md/txt/이미지 드래그)</div>
+<div class="desk"><div class="fake"><div class="doc">브라우저 작업 중…</div></div>
+<div class="pill">
+<div class="tabs"><button id="t1" class="on">대화</button><button id="t2">보관함 Tab</button><button id="t3">설정 ⚙</button></div>
+<div class="view on" id="v1">
+<div class="head"><span class="dot"></span><b>새 대화</b><div class="x"><button id="fold">접기</button><button>⤢</button></div></div>
+<div class="thread" id="thread"><div class="empty" id="empty">기록 없음 — 📋·📎·드래그로 첨부 후 질문. 키보드 1순위.</div></div>
+<div class="att" id="att">첨부: <b id="attn"></b> <a href="#" id="attx" style="color:#999">제거</a></div>
+<div class="bar"><button class="ghost" id="clipbtn">📋</button><button class="ghost" id="filebtn">📎</button><input id="q" placeholder="질문 입력 — md/txt/이미지 드래그 가능"><button id="send">↑</button></div>
+<div class="meta"><button id="voice">🎙 음성 토글</button><button id="pin">☆ 핀 저장</button><button id="goTab">Tab 보관함</button><button id="newc">✎ 새 대화</button></div>
+</div>
+<div class="view" id="v2"><div class="arch"><div class="srow"><input placeholder="대화·요약 검색"><button style="background:#1c1c20;border:1px solid #333;color:#aaa;border-radius:8px;padding:8px">검색</button></div>
+<div class="aitem pin"><b>★ 세금 조약 캐나다 혜택</b><p>중개자 역할 대리인… · 이전 30일</p><div class="r"><button>열기</button><button>새창</button><button>고정 해제</button><button>삭제</button></div></div>
+<div class="aitem"><b>Safari 자동 번역 설정법</b><p>번역 아이콘… · 어제</p><div class="r"><button>열기</button><button>고정</button><button>삭제</button></div></div>
+<div class="aitem"><b>미핀 휘발 예시</b><p>핀 안 하면 세션 종료 시 삭제 · 오늘</p><div class="r"><button>열기</button><button>고정</button></div></div>
+</div></div>
+<div class="view" id="v3"><div class="set">
+<div class="sgrp"><h5>일반</h5>
+<div class="line"><span>메뉴바에 표시 (PopClip식)</span><div class="sw on" data-k="menu"></div></div>
+<div class="line"><span>Dock에 표시</span><div class="sw" data-k="dock"></div></div>
+<div class="line"><span>새 창은 새 대화로</span><div class="sw on" data-k="new"></div></div>
+<div class="line"><span>미리보기</span><select><option>2줄</option><option>1줄</option><option>3줄</option></select></div>
+<div class="line"><span>메시지 보관</span><select><option>30일</option><option>7일</option><option>무제한(핀만)</option></select></div>
+</div>
+<div class="sgrp"><h5>입력</h5>
+<div class="line"><span>글로벌 단축키</span><select><option>Ctrl+Space</option><option>Cmd+Shift+Q</option></select></div>
+<div class="line"><span>음성 자동 이어가기</span><div class="sw on" data-k="v"></div></div>
+<div class="line"><span>붙여넣기 딜레이(Handy식)</span><select><option>표준</option><option>Reliable Beta</option></select></div>
+</div>
+<div class="sgrp"><h5>권한</h5>
+<div class="line"><span>마이크·음성인식·카메라</span><button style="background:#1c1c20;border:1px solid #333;color:#aaa;border-radius:8px;padding:5px 10px;font-size:12px">열기</button></div>
+</div>
+</div></div>
+</div>
+<div class="lay" id="lay"><div class="panel"><div class="phead">🔍 <input placeholder="클립보드 검색"><span style="font-size:11px;color:#777">esc</span></div>
+<div class="prow" data-n="beneficial owner 텍스트"><div class="th">📄</div><div><b>Will you be the beneficial…</b><br><small style="color:#888">7분 전</small></div><kbd>⌘1</kbd></div>
+<div class="prow" data-n="스크린샷 858×826"><div class="th">🖼️</div><div><b>이미지 858×826 · 152KB</b><br><small style="color:#888">10분 전</small></div><kbd>⌘2</kbd></div>
+<div class="pfoot">↩ 붙여넣기 · ⌘P 고정 · ⌫ 삭제</div></div></div>
+</div>
+<div class="note">전 기능: 대화 턴 누적 · 📋/📎/드래그 첨부 · 음성 토글 · 핀 · 보관함 검색/열기/새창/고정/삭제 · 설정 토글 전부 동작 목업. Esc=접기.</div>
+<script>
+const t1=document.getElementById('t1'),t2=document.getElementById('t2'),t3=document.getElementById('t3');
+function tab(n){[t1,t2,t3].forEach(b=>b.classList.remove('on'));document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+document.getElementById('t'+n).classList.add('on');document.getElementById('v'+n).classList.add('on')}
+t1.onclick=()=>tab(1);t2.onclick=()=>tab(2);t3.onclick=()=>tab(3);
+document.getElementById('goTab').onclick=()=>tab(2);
+document.querySelectorAll('.sw').forEach(s=>s.onclick=()=>s.classList.toggle('on'));
+const lay=document.getElementById('lay'),att=document.getElementById('att'),attn=document.getElementById('attn'),q=document.getElementById('q'),thread=document.getElementById('thread'),empty=document.getElementById('empty');
+document.getElementById('clipbtn').onclick=()=>lay.classList.add('show');
+lay.onclick=e=>{if(e.target===lay)lay.classList.remove('show')};
+document.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{att.style.display='block';attn.textContent=r.dataset.n;lay.classList.remove('show')});
+document.getElementById('attx').onclick=e=>{e.preventDefault();att.style.display='none'};
+document.getElementById('filebtn').onclick=()=>{att.style.display='block';attn.textContent='report.md · screenshot.png (목업)';};
+function send(){let t=q.value.trim(),has=att.style.display==='block';if(!t&&!has)return;empty.style.display='none';
+if(has){let d=document.createElement('div');d.style.cssText='font-size:12px;color:#7A5CFF';d.textContent='첨부: '+attn.textContent;thread.appendChild(d)}
+if(t){let u=document.createElement('div');u.style.textAlign='right';u.innerHTML='<span style="display:inline-block;background:#2A2A2E;padding:8px 12px;border-radius:14px 14px 4px 14px;font-size:13px">'+t+'</span>';thread.appendChild(u)}
+q.value='';setTimeout(()=>{let a=document.createElement('div');a.style.cssText='background:#1b1b21;border:1px solid #2a2a30;padding:10px;border-radius:4px 14px 14px;margin:8px 0;font-size:13px';a.textContent='(목업) 턴 누적 · 같은 방 이어짐';thread.appendChild(a)},300)}
+document.getElementById('send').onclick=send;q.onkeydown=e=>{if(e.key==='Enter')send()};
+document.getElementById('voice').onclick=e=>e.target.classList.toggle('on');
+document.getElementById('pin').onclick=e=>{e.target.classList.toggle('on');e.target.textContent=e.target.classList.contains('on')?'★ 저장됨':'☆ 핀 저장'};
+document.getElementById('newc').onclick=()=>{thread.querySelectorAll('div').forEach(d=>{if(d.id!=='empty')d.remove()});empty.style.display='block';att.style.display='none'};
+document.getElementById('fold').onclick=()=>alert('목업: Esc·접기는 대화 유지, 삭제 아님');
+const pill=document.querySelector('.pill');
+['dragover','dragenter'].forEach(ev=>pill.addEventListener(ev,e=>e.preventDefault()));
+pill.addEventListener('drop',e=>{e.preventDefault();att.style.display='block';attn.textContent=[...e.dataTransfer.files].map(f=>f.name).join(' · ')||'드래그 파일'});
+</script></body></html>

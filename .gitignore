@@ -1,0 +1,8 @@
+.agent/
+.build/
+build/
+DerivedData/
+*.xcuserdata/
+.env
+.DS_Store
+*.profraw

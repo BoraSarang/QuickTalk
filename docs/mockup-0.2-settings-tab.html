@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>QuickTalk 목업 v0.2 — 대화 창 설정 탭 재설계</title>
+<style>
+  :root {
+    --panel: #121214;
+    --panel-2: #1a1a1e;
+    --card: #1e1e23;
+    --line: rgba(255,255,255,.10);
+    --txt: #ececf1;
+    --dim: #9a9aa5;
+    --dim2: #6e6e78;
+    --accent: #7A5CFF;
+    --green: #34c759;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 28px 48px;
+    background: #0b0b0d;
+    color: var(--txt);
+    font: 400 14px/1.5 -apple-system, "SF Pro Text", "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; letter-spacing: -.2px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 13px; margin: 0 0 28px; }
+  .row { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+  .col { width: 460px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; letter-spacing: .2px;
+    padding: 4px 10px; border-radius: 999px; margin-bottom: 10px;
+  }
+  .tag.cur { background: rgba(255,90,90,.14); color: #ff8080; }
+  .tag.a   { background: rgba(255,255,255,.10); color: #d6d6de; }
+  .tag.b   { background: rgba(122,92,255,.18); color: #b8a6ff; }
+  .tag.c   { background: rgba(52,199,89,.14); color: #6fdc8c; }
+  .verdict {
+    font-size: 12.5px; color: var(--dim); margin: 10px 2px 0; min-height: 58px;
+  }
+  .verdict b { color: #d9d9e2; font-weight: 600; }
+
+  /* ---------- 창 크롬 ---------- */
+  .win {
+    width: 460px; height: 560px; border-radius: 20px;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,.07);
+    box-shadow: 0 24px 60px rgba(0,0,0,.55);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .titlebar {
+    height: 34px; flex: 0 0 34px; display: flex; align-items: center;
+    padding: 0 12px; gap: 8px;
+    background: #17171a; border-bottom: 1px solid var(--line);
+  }
+  .lights { display: flex; gap: 8px; }
+  .light { width: 12px; height: 12px; border-radius: 50%; }
+  .l1 { background: #ff5f57; } .l2 { background: #febc2e; } .l3 { background: #28c840; }
+  .titlebar .t { margin-left: 6px; font-size: 12.5px; font-weight: 600; color: #c9c9d2; }
+
+  .head {
+    flex: 0 0 44px; display: flex; align-items: center; gap: 8px;
+    padding: 0 14px; border-bottom: 1px solid var(--line);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+  .head .name { font-size: 14.5px; font-weight: 700; }
+  .head .right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--dim2); font-size: 12px; }
+  .ic { width: 15px; height: 15px; opacity: .8; }
+  .ic.on { opacity: 1; color: var(--accent); }
+
+  /* 탭 스트립 (A안 = 2개, B/C안 = 3개) */
+  .tabs { display: flex; gap: 4px; padding: 8px 12px 0; }
+  .tab {
+    font-size: 12px; padding: 5px 10px; border-radius: 8px; color: var(--dim);
+    border: 1px solid transparent;
+  }
+  .tab.sel { background: rgba(122,92,255,.16); color: #cbbdff; border-color: rgba(122,92,255,.35); }
+
+  .body { flex: 1; padding: 12px; overflow: hidden; }
+  .body.center { display: flex; align-items: center; justify-content: center; }
+
+  /* ---------- 공통 컴포넌트 ---------- */
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 12.5px; font-weight: 700; color: #cfcfd8; }
+  .kv { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+  .kv .k { color: #d7d7e0; }
+  .kv .v { color: var(--dim); }
+  .cap { font-size: 11.5px; color: var(--dim2); margin-top: 6px; }
+  .switch { width: 34px; height: 20px; border-radius: 999px; background: #3a3a42; position: relative; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+  .switch.on { background: var(--green); }
+  .switch.on::after { left: 16px; }
+  .picker {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #2a2a30; border: 1px solid var(--line); border-radius: 7px;
+    padding: 3px 8px; font-size: 12.5px; color: #e2e2ea;
+  }
+  .picker .car { color: var(--dim2); font-size: 9px; }
+  .btn-primary {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    background: var(--accent); color: #fff; font-weight: 600; font-size: 13px;
+    border-radius: 10px; padding: 9px 12px;
+  }
+  .btn-ghost {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    background: #2a2a30; border: 1px solid var(--line); color: #e6e6ee;
+    font-weight: 600; font-size: 13px; border-radius: 10px; padding: 9px 12px;
+  }
+  .badge {
+    font-size: 11px; padding: 2px 7px; border-radius: 999px;
+    background: rgba(52,199,89,.14); color: #6fdc8c;
+  }
+  .badge.violet { background: rgba(122,92,255,.18); color: #b8a6ff; }
+  .hint {
+    display: flex; gap: 7px; align-items: flex-start;
+    background: rgba(122,92,255,.09); border: 1px solid rgba(122,92,255,.22);
+    border-radius: 10px; padding: 9px 11px; font-size: 12px; color: #c3baff;
+  }
+  .empty-note {
+    color: var(--dim2); font-size: 12.5px; text-align: center; padding: 10px 20px;
+  }
+  /* 현재(문제) 화면 전용 */
+  .bug { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+  .bug .line { font-size: 13px; color: #d7d7e0; }
+  .bug .dim { color: var(--dim2); font-size: 12.5px; }
+  .void {
+    flex: 1; margin: 12px; border-radius: 12px;
+    border: 1px dashed rgba(255,120,120,.35);
+    background: repeating-linear-gradient(45deg, rgba(255,90,90,.05) 0 10px, transparent 10px 20px);
+    display: flex; align-items: center; justify-content: center;
+    color: #ff9c9c; font-size: 12.5px;
+  }
+  .measure { position: relative; }
+  .measure .ruler {
+    position: absolute; right: -18px; top: 0; bottom: 0; width: 8px;
+    border-left: 2px solid rgba(255,120,120,.6);
+  }
+  .foot { color: var(--dim2); font-size: 12px; margin-top: 22px; }
+</style>
+</head>
+<body>
+
+<h1>QuickTalk 목업 v0.2 — <span>대화 창 “설정” 탭</span> 재설계</h1>
+<p class="sub">기준: docs/DESIGN.md v0.10 토큰(패널 #121214, 액센트 #7A5CFF, radius 20) · 창 크기 460×560 고정</p>
+
+<div class="row">
+
+  <!-- ================= 현재(문제) ================= -->
+  <div class="col">
+    <span class="tag cur">● 현재 (문제)</span>
+    <div class="win measure">
+      <div class="titlebar">
+        <div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div>
+        <span class="t">QuickTalk</span>
+      </div>
+      <div class="head">
+        <span class="dot"></span><span class="name">설정</span>
+        <span class="right">⌘+Space ▢ ▭ ⚙</span>
+      </div>
+      <div class="bug">
+        <div class="line" style="font-weight:700">설정 요약</div>
+        <div class="line">단축키: Cmd+Space</div>
+        <div class="line">AI: Local Apple FM</div>
+        <div class="line">음성: Apple 음성인식</div>
+        <div class="dim">보관: 핀 0개 · 30일</div>
+        <div class="btn-ghost" style="width:120px">설정 열기…</div>
+        <div class="dim">모든 설정은 별도 설정 창에서 변경</div>
+      </div>
+      <div class="void">빈 공간 약 440pt — 아무것도 없음</div>
+      <div class="ruler"></div>
+    </div>
+    <p class="verdict"><b>내용 120pt + 빈 공간 440pt.</b> 요약은 읽기 전용이고 실제 조작은 “설정 열기…” 버튼 하나뿐 → 탭이 존재할 이유가 없음.</p>
+  </div>
+
+  <!-- ================= A안 ================= -->
+  <div class="col">
+    <span class="tag a">A안 · 없애고 바로 설정 창</span>
+    <div class="win">
+      <div class="titlebar">
+        <div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div>
+        <span class="t">QuickTalk</span>
+      </div>
+      <div class="head">
+        <span class="dot"></span><span class="name">새 대화</span>
+        <span class="right">⌘+Space ▢ ▣ <span class="ic on">⚙</span></span>
+      </div>
+      <div class="tabs">
+        <span class="tab sel">대화</span>
+        <span class="tab">보관함</span>
+      </div>
+      <div class="body center">
+        <div class="empty-note">
+          설정 탭을 없애고<br>기어 아이콘이 <b style="color:#ddd">설정 창을 바로 엽니다</b><br>
+          <span style="color:#6e6e78">(툴팁: 설정 열기 ⌘,)</span>
+        </div>
+      </div>
+    </div>
+    <p class="verdict"><b>중복 0, 구현 최소.</b> 설정은 이미 독립 창·Hub 팝오버 두 곳에 있음 → 대화 창에서는 진입만 담당. 다만 “대화 창 안에서 빠른 조작”은 못 함.</p>
+  </div>
+
+  <!-- ================= B안 ================= -->
+  <div class="col">
+    <span class="tag b">● B안 · 제대로 (추천)</span>
+    <div class="win">
+      <div class="titlebar">
+        <div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div>
+        <span class="t">QuickTalk</span>
+      </div>
+      <div class="head">
+        <span class="dot"></span><span class="name">빠른 설정</span>
+        <span class="right">⌘+Space ▢ ▣ <span class="ic on">⚙</span></span>
+      </div>
+      <div class="tabs">
+        <span class="tab">대화</span>
+        <span class="tab">보관함</span>
+        <span class="tab sel">설정</span>
+      </div>
+      <div class="body">
+        <div class="card">
+          <h3>AI · 지금 이 대화</h3>
+          <div class="kv">
+            <span class="k">활성 프로바이더</span>
+            <span class="picker">Local Apple FM <span class="car">▼</span></span>
+          </div>
+          <div class="kv">
+            <span class="k">상태</span>
+            <span class="v"><span class="badge">사용 가능 · 온디바이스</span></span>
+          </div>
+          <div class="cap">여기서 바꾸면 다음 질문부터 바로 적용됩니다.</div>
+        </div>
+
+        <div class="card">
+          <h3>빠른 토글</h3>
+          <div class="kv"><span class="k">메뉴바에 표시</span><span class="switch on"></span></div>
+          <div class="kv"><span class="k">Dock에 표시</span><span class="switch"></span></div>
+          <div class="kv"><span class="k">새 창은 새 대화로 시작</span><span class="switch on"></span></div>
+          <div class="kv"><span class="k">음성 답변 자동 재생(TTS)</span><span class="switch on"></span></div>
+        </div>
+
+        <div class="card">
+          <h3>대화 창</h3>
+          <div class="kv">
+            <span class="k">호출 단축키</span>
+            <span class="picker">⌘ Space <span class="car">▼</span></span>
+          </div>
+          <div class="kv">
+            <span class="k">창 위치</span>
+            <span class="picker">화면 중앙 <span class="car">▼</span></span>
+          </div>
+          <div class="kv">
+            <span class="k">음성 엔진</span>
+            <span class="picker">Apple 음성인식 <span class="car">▼</span></span>
+          </div>
+        </div>
+
+        <div class="btn-primary">모든 설정 열기…</div>
+        <div class="cap" style="text-align:center">일반 · 단축키 · AI · 음성 · 보관함 · 정보</div>
+      </div>
+    </div>
+    <p class="verdict"><b>탭이 실제로 쓸모 있는 화면이 됨.</b> 560pt를 카드 3장으로 채우고, 요약이 아니라 “즉시 조작”을 제공. Hub 설정 탭(표시·실행)과 역할이 겹치지 않게 <b>대화·음성 중심</b>으로 구성.</p>
+  </div>
+
+  <!-- ================= C안 ================= -->
+  <div class="col">
+    <span class="tag c">C안 · 요약 유지 + 상태 카드</span>
+    <div class="win">
+      <div class="titlebar">
+        <div class="lights"><i class="light l1"></i><i class="light l2"></i><i class="light l3"></i></div>
+        <span class="t">QuickTalk</span>
+      </div>
+      <div class="head">
+        <span class="dot"></span><span class="name">설정</span>
+        <span class="right">⌘+Space ▢ ▣ <span class="ic on">⚙</span></span>
+      </div>
+      <div class="tabs">
+        <span class="tab">대화</span>
+        <span class="tab">보관함</span>
+        <span class="tab sel">설정</span>
+      </div>
+      <div class="body">
+        <div class="card">
+          <h3>현재 상태</h3>
+          <div class="kv"><span class="k">호출 단축키</span><span class="v">⌘ Space</span></div>
+          <div class="kv"><span class="k">활성 AI</span><span class="v">Local Apple FM</span></div>
+          <div class="kv"><span class="k">음성</span><span class="v">Apple 음성인식</span></div>
+          <div class="kv"><span class="k">보관</span><span class="v">핀 0개 · 30일</span></div>
+        </div>
+        <div class="card">
+          <h3>점검</h3>
+          <div class="kv"><span class="k">전역 단축키</span><span class="v"><span class="badge">동작 중</span></span></div>
+          <div class="kv"><span class="k">AI 연결</span><span class="v"><span class="badge">정상</span></span></div>
+          <div class="kv"><span class="k">Whisper 모델</span><span class="v"><span class="badge violet">미지정</span></span></div>
+        </div>
+        <div class="hint">세부 변경은 설정 창에서 합니다. 이 탭은 “지금 어떤 상태인지” 확인용입니다.</div>
+        <div class="btn-primary">모든 설정 열기…</div>
+      </div>
+    </div>
+    <p class="verdict"><b>구현 부담 적고 빈 공간도 해결.</b> 다만 “확인만 가능”은 현재와 크게 다르지 않아 <b>여전히 탭 존재 이유가 약함</b>(상태는 Hub에서도 보임).</p>
+  </div>
+
+</div>
+
+<p class="foot">※ 세 안 모두 공통: 대화 창은 460×560 고정이며 3번째 탭/기어 진입은 유지됩니다. A안만 탭이 2개로 줄어듭니다.</p>
+
+</body>
+</html>

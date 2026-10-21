@@ -1,0 +1,48 @@
+name: QuickTalk
+options:
+  bundleIdPrefix: com.borasarang
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+targets:
+  QuickTalk:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: QuickTalkApp
+      - path: Sources/QuickTalkCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.borasarang.QuickTalk
+        INFOPLIST_FILE: QuickTalkApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: QuickTalkApp/QuickTalk.entitlements
+        SWIFT_VERSION: "5.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # TCC(화면 기록·마이크·음성) 권한은 코드 서명의 **지정 요구사항(DR)** 에 묶인다.
+        # ad-hoc 서명은 DR이 cdhash라서 다시 빌드할 때마다 다른 앱으로 보여 권한이 풀린다
+        # → Apple Development 인증서로 서명해 DR을 bundle id + 팀으로 고정한다.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: 6GPJQ7BQC9
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        OTHER_LDFLAGS: -weak_framework FoundationModels
+    info:
+      path: QuickTalkApp/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: QuickTalk
+        NSMicrophoneUsageDescription: 음성으로 질문을 입력하기 위해 마이크가 필요합니다.
+        NSSpeechRecognitionUsageDescription: 말하는 내용을 전사하기 위해 음성 인식이 필요합니다.
+        NSCameraUsageDescription: 질문에 첨부할 사진을 촬영하기 위해 카메라가 필요합니다.
+        NSPhotoLibraryUsageDescription: 질문에 첨부할 이미지를 가져오기 위해 사진 보관함이 필요합니다.
+    entitlements:
+      path: QuickTalkApp/QuickTalk.entitlements
+schemes:
+  QuickTalk:
+    build:
+      targets:
+        QuickTalk: all
+    run:
+      config: Debug
