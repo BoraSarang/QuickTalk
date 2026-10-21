@@ -12,7 +12,7 @@
 - **검증**: `swift test` **332/332**(6 skip, 신규 6), BUILD SUCCEEDED(경고 0), 오프스크린 렌더 `docs/qa/t21-pill/`(빈·입력 중·목록, 한/영) · `docs/qa/t21-pill-light/`.
 - **문서**: `docs/plans/PLAN_v0.17_pointer-pill_macos.md`, `docs/qa/t21-pill/CHECKLIST.md`(P1~P27).
 - **배포**: 2026-10-21 20:43 `~/Applications/QuickTalk.app` 교체·`codesign --verify --strict` OK, SHA-256 `ebc78fe9a55fb962467a89928d43d95a3fb91aad1bd895b14cac021f5ab2ca7c`. **실행 중 앱은 종료하지 않음 — 재실행 필요**.
-- **git**: `feat/t21-pointer-pill` → PR → squash merge. 디버그 렌더는 `.gitignore` 제외.
+- **git**: `feat/t21-pointer-pill` → PR #2 → squash merge `6d344cf`. 디버그 렌더는 `.gitignore` 제외.
 - **다음**: **사용자 실측**(재실행 후 P1~P27) → QA 배치 3(기억·공통 메모리 21건) → 배치 4(QuickShelf·캡처·음성·오류 27건).
 
 ## 이전 (2026-10-21 15:14) — 실사용 크래시 수정 + 헤더 정리·상대 시간·맨 아래로

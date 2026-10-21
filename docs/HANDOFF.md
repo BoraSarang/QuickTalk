@@ -2,7 +2,7 @@
 
 > **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-21 20:43 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
-> T-21은 `feat/t21-pointer-pill` 브랜치 → PR로 병합한다(**`main` 직접 push 금지**).
+> T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -67,7 +67,7 @@
 - 실행 중 앱은 종료하지 않았다(**재실행 필요**).
 
 #### git
-- `feat/t21-pointer-pill` 브랜치에서 커밋 → PR → squash merge. `main` 직접 push는 하지 않는다.
+- `feat/t21-pointer-pill` → **PR #2** → squash merge **`6d344cf`**(2026-10-21 20:47 KST). `main` 직접 push는 하지 않는다.
 - 렌더 산출물은 `docs/qa/t21-pill/`·`docs/qa/t21-pill-light/`·`docs/qa/t21-pill-mockup/`을 함께 커밋하고, 디버그 렌더(`*-debug/`)는 `.gitignore`로 제외.
 
 ### 세션 진행 (2026-10-21 14:15) — Ollama 시간 초과 조사·수정
