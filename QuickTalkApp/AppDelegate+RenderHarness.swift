@@ -161,6 +161,35 @@ extension AppDelegate {
           size: NSSize(width: 420, height: 230),
           to: "\(dir)/delete-confirm-\(all ? "all" : "one")-\(suffix).png")
       }
+      if CommandLine.arguments.contains("--demo-pill") {
+        let recent = [
+          Conversation(title: "포인터 pill 설계 회의",
+                       turns: [Turn(role: .user, text: "pill은 언제 뜨나?")],
+                       updatedAt: Date().addingTimeInterval(-120)),
+          Conversation(title: "QuickShelf 캡처 정리",
+                       turns: [Turn(role: .user, text: "캡처 정리해줘")],
+                       updatedAt: Date().addingTimeInterval(-3_600)),
+          Conversation(title: "모델 비교 — Ollama vs 원격",
+                       turns: [Turn(role: .user, text: "모델 비교")],
+                       pinned: true,
+                       updatedAt: Date().addingTimeInterval(-86_400))
+        ]
+        let empty = PillModel()
+        let listed = PillModel()
+        listed.showList = true
+        listed.recent = recent
+        let typed = PillModel()
+        typed.text = "내일 서울 날씨 알려줘"
+        self.renderPNG(AnyView(Self.pillStage(empty)),
+                       size: NSSize(width: 460, height: 140),
+                       to: "\(dir)/pill-\(suffix).png")
+        self.renderPNG(AnyView(Self.pillStage(typed)),
+                       size: NSSize(width: 460, height: 140),
+                       to: "\(dir)/pill-typed-\(suffix).png")
+        self.renderPNG(AnyView(Self.pillStage(listed)),
+                       size: NSSize(width: 460, height: 320),
+                       to: "\(dir)/pill-list-\(suffix).png")
+      }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)
     }
@@ -596,9 +625,23 @@ extension AppDelegate {
   ```
   """
 
+  /// pill QA 렌더 — 실제 창 없이 pill(빈 입력·입력 중·목록)만 PNG로 본다.
+  private static func pillStage(_ model: PillModel) -> some View {
+    ZStack(alignment: .top) {
+      LinearGradient(colors: [Color(red: 0.10, green: 0.09, blue: 0.16),
+                              Color(red: 0.05, green: 0.05, blue: 0.07)],
+                     startPoint: .top, endPoint: .bottom)
+      RadialGradient(colors: [Color.purple.opacity(0.22), .clear],
+                     center: .topLeading, startRadius: 0, endRadius: 380)
+      PillRootView(model: model,
+                   onSubmit: { _ in }, onCancel: {}, onToggleList: {},
+                   onResume: { _ in }, onOpenArchive: {})
+        .padding(.top, 24)
+    }
+  }
+
   /// SwiftUI 뷰를 창 없이 PNG로 — `--render` 전용
-  private func renderPNG(_ view: AnyView, size: NSSize, to path: String) {
-    // 창이 없으므로 배경을 직접 깔고, 외형(라이트/다크)도 호스팅 뷰에 지정한다
+  private func renderPNG(_ view: AnyView, size: NSSize, to path: String) {    // 창이 없으므로 배경을 직접 깔고, 외형(라이트/다크)도 호스팅 뷰에 지정한다
     let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
     host.appearance = NSApp.appearance
     host.frame = NSRect(origin: .zero, size: size)

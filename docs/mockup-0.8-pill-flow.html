@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>QuickTalk — pill 흐름 목업 0.8</title>
+<style>
+  :root{
+    --bg:#0b0b0f; --line:rgba(255,255,255,.09); --text:#f2f2f5; --muted:#9a9aa6;
+    --accent:#7A5CFF; --accent-soft:rgba(122,92,255,.18); --glass:rgba(30,30,36,.74);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1100px 600px at 12% -10%, rgba(122,92,255,.15), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(255,138,76,.07), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+    -webkit-font-smoothing:antialiased; padding:44px 48px 64px;
+  }
+  .page{max-width:1240px;margin:0 auto}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:650}
+  h1{font-size:30px;line-height:1.22;margin:10px 0 8px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:14px;line-height:1.65;max-width:680px}
+  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:8px 14px;white-space:nowrap}
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:46px 0 14px;font-weight:650}
+  h2 b{color:var(--text);letter-spacing:0;text-transform:none;font-size:15px;font-weight:650;margin-left:8px}
+
+  /* flow */
+  .flow{border:1px solid var(--line);border-radius:18px;padding:22px 24px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012))}
+  .flow-row{display:flex;align-items:center;gap:16px;padding:14px 0}
+  .flow-row + .flow-row{border-top:1px dashed rgba(255,255,255,.10)}
+  .flow-row .label{width:190px;flex:none;font-size:12px;color:var(--muted);line-height:1.5}
+  .flow-row .label b{display:block;color:var(--text);font-size:13px;margin-bottom:3px}
+  .key{
+    display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650;color:#e9e6ff;
+    background:rgba(122,92,255,.14);border:1px solid rgba(122,92,255,.38);border-radius:8px;padding:6px 10px;white-space:nowrap
+  }
+  .arrow{color:rgba(255,255,255,.28);font-size:18px;flex:none}
+  .node{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;font-size:12px;line-height:1.5;background:rgba(255,255,255,.03)}
+  .node b{display:block;font-size:12.5px;margin-bottom:2px}
+  .node.off{opacity:.55;border-style:dashed}
+  .node.off b::after{content:" — 뜨지 않음";font-weight:500;color:#ff9c9c;font-size:11px}
+  .chat-thumb{width:112px;height:148px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:#15151a;overflow:hidden;flex:none;
+    display:flex;flex-direction:column;box-shadow:0 10px 24px rgba(0,0,0,.45)}
+  .chat-thumb.hl{border-color:rgba(122,92,255,.8);box-shadow:0 0 0 3px rgba(122,92,255,.18),0 12px 26px rgba(0,0,0,.5)}
+  .chat-thumb .tb{height:15px;background:rgba(255,255,255,.06);display:flex;align-items:center;gap:3px;padding:0 6px;flex:none}
+  .chat-thumb .tb i{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.3)}
+  .chat-thumb .bd{flex:1;padding:8px 7px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+  .chat-thumb .m{height:9px;border-radius:4px;background:rgba(255,255,255,.10);flex:none}
+  .chat-thumb .m.me{margin-left:auto;background:rgba(122,92,255,.48)}
+  .chat-thumb .m.ai{margin-right:auto}
+  .chat-thumb .dock{margin:0 7px 8px;height:13px;border-radius:7px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);flex:none}
+  .pill-thumb{width:250px;height:34px;border-radius:17px;background:var(--glass);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;gap:8px;padding:0 9px;box-shadow:0 10px 22px rgba(0,0,0,.45)}
+  .pill-thumb .orb{width:18px;height:18px;border-radius:50%;background:conic-gradient(from 210deg,#7A5CFF,#B06CFF,#FF8A4C,#7A5CFF);flex:none}
+  .pill-thumb .ca{width:1.5px;height:13px;background:#a892ff;border-radius:1px;flex:none}
+  .pill-thumb .tx{font-size:10px;color:rgba(255,255,255,.45);flex:1;white-space:nowrap;overflow:hidden}
+  .pill-thumb .ic{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.08);flex:none;display:grid;place-items:center;color:rgba(255,255,255,.6);font-size:10px}
+
+  /* big pill */
+  .pill{
+    position:relative;width:420px;height:56px;border-radius:28px;display:flex;align-items:center;gap:12px;padding:0 12px 0 13px;
+    background:var(--glass);border:1px solid rgba(255,255,255,.15);
+    box-shadow:0 22px 48px rgba(0,0,0,.52),0 2px 8px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.10);
+    backdrop-filter:blur(26px) saturate(160%);-webkit-backdrop-filter:blur(26px) saturate(160%);
+  }
+  .pill .orb{width:30px;height:30px;border-radius:50%;flex:none;position:relative;
+    background:conic-gradient(from 210deg,#7A5CFF,#B06CFF,#FF8A4C,#7A5CFF);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.28),0 3px 10px rgba(122,92,255,.45)}
+  .pill .orb::after{content:"";position:absolute;inset:7px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.9),rgba(255,255,255,.18) 55%,transparent 70%);opacity:.55}
+  .pill .field{flex:1;display:flex;align-items:center;min-width:0;height:100%}
+  .caret{width:2px;height:22px;border-radius:1px;background:#a892ff;margin-right:4px;flex:none;
+    box-shadow:0 0 10px rgba(122,92,255,.85),0 0 0 1px rgba(122,92,255,.28);animation:blink 1.06s steps(1) infinite}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  .ph{font-size:15.5px;color:rgba(255,255,255,.42);letter-spacing:-.01em;white-space:nowrap;overflow:hidden}
+  .icon{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;
+    color:rgba(255,255,255,.72);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08)}
+  .icon.small{width:30px;height:30px}
+  .icon svg{width:15px;height:15px}
+  .pill-thumb .ic svg{width:11px;height:11px}
+  .send{background:var(--accent);border-color:rgba(255,255,255,.18);color:#fff;box-shadow:0 4px 14px rgba(122,92,255,.45)}
+
+  .anatomy{position:relative;padding:56px 40px 40px;flex-direction:column;align-items:center;border:1px solid var(--line);border-radius:18px;
+    background:radial-gradient(600px 260px at 50% 0%,rgba(122,92,255,.12),transparent 70%),linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+    display:flex;justify-content:center}
+  .pill-wrap{position:relative;width:460px;margin-bottom:66px}
+  .pill-wrap .pill{width:460px}
+  .legend{display:flex;justify-content:center;gap:22px;margin-top:2px;font-size:11.5px;color:var(--muted)}
+  .legend b{color:#cfc6ff;font-weight:650;margin-right:3px}
+  .num{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;
+    display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.45);z-index:3}
+  .lead{position:absolute;border-top:1px dashed rgba(122,92,255,.45);transform-origin:left center;z-index:2}
+  .note{position:absolute;font-size:11.5px;color:#cfc6ff;background:rgba(20,18,32,.86);border:1px solid rgba(122,92,255,.35);
+    border-radius:8px;padding:5px 9px;white-space:nowrap;z-index:3}
+
+  /* variants */
+  .variants{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{border:1px solid var(--line);border-radius:16px;padding:20px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012))}
+  .card .cap{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px}
+  .card .cap b{font-size:13.5px}
+  .card .cap span{font-size:11.5px;color:var(--muted)}
+  .stage-mini{position:relative;height:110px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(420px 220px at 20% 0%,rgba(122,92,255,.22),transparent 60%),linear-gradient(150deg,#191724,#0e0f14);
+    border:1px solid rgba(255,255,255,.08);overflow:hidden}
+  .stage-mini .pill{width:420px;box-shadow:0 14px 30px rgba(0,0,0,.4)}
+  .stage-mini .pill.slim{width:380px}
+  .stage-mini .caret{animation:none;opacity:1}
+  .mini-note{font-size:12px;color:var(--muted);line-height:1.6;margin-top:12px}
+  .pick{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(122,92,255,.18);
+    border:1px solid rgba(122,92,255,.4);color:#cfc6ff;margin-left:8px;vertical-align:2px}
+  .dim{font-size:11px;color:var(--muted);margin-top:8px}
+
+  /* library popover mock */
+  .popover{width:290px;flex:none;border-radius:12px;background:rgba(28,28,34,.96);border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 22px 50px rgba(0,0,0,.55);overflow:hidden}
+  .popover .head{padding:10px 12px;font-size:11px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between}
+  .prow{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)}
+  .prow .dot{width:6px;height:6px;border-radius:50%;background:#7A5CFF;flex:none}
+  .prow .t{font-size:12px;color:rgba(255,255,255,.9);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .tm{font-size:10.5px;color:var(--muted)}
+  .popover .foot{padding:10px 12px;font-size:11.5px;color:#c8bcff;display:flex;justify-content:space-between}
+
+  table.spec{width:100%;border-collapse:collapse;font-size:13px}
+  table.spec th,table.spec td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.spec th{color:var(--muted);font-weight:600;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;width:180px}
+  table.spec td b{font-weight:650;color:#ffd9a8}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#cfc6ff}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <div class="kicker">Mockup 0.8 · T-21</div>
+      <h1>포인터 pill은 “새 대화의 입구”</h1>
+      <p class="sub">단축키를 눌렀을 때, 마지막 대화가 이어가기 시간(예: 5분) 안이면 지금처럼 대화 창이 뜹니다.
+        시간이 지났으면 빈 대화 창 대신 <b>포인터 자리의 pill</b>이 뜨고, 질문을 넣으면 대화 창으로 넘어갑니다.</p>
+    </div>
+    <div class="badge">이어가기 5분 기준</div>
+  </header>
+
+  <h2>01 <b>언제 무엇이 뜨나</b></h2>
+  <div class="flow">
+    <div class="flow-row">
+      <div class="label"><b>① 단축키 · 5분 이내</b>마지막 대화를 이어서</div>
+      <span class="key">⌘ Space</span>
+      <span class="arrow">→</span>
+      <div class="node" style="flex:1"><b>지금 대화 창</b>마지막 대화가 그대로 열림 · 변화 없음</div>
+      <div class="chat-thumb">
+        <div class="tb"><i></i><i></i><i></i></div>
+        <div class="bd">
+          <div class="m me" style="width:62%"></div>
+          <div class="m ai" style="width:88%"></div>
+          <div class="m ai" style="width:74%"></div>
+          <div class="m me" style="width:54%;margin-top:6px"></div>
+          <div class="m ai" style="width:82%"></div>
+          <div class="m ai" style="width:64%"></div>
+        </div>
+        <div class="dock"></div>
+      </div>
+    </div>
+
+    <div class="flow-row">
+      <div class="label"><b>② 단축키 · 5분 초과</b>새 대화를 시작할 때</div>
+      <span class="key">⌘ Space</span>
+      <span class="arrow">→</span>
+      <div class="node off" style="width:190px"><b>빈 대화 창</b></div>
+      <span class="arrow">→</span>
+      <div style="display:flex;flex-direction:column;gap:8px;flex:1">
+        <div class="pill-thumb">
+          <div class="orb"></div><div class="ca"></div><span class="tx">무엇이든 물어보세요</span>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></div><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted)">포인터 자리에 pill · 대화 창은 뜨지 않음</div>
+      </div>
+    </div>
+
+    <div class="flow-row">
+      <div class="label"><b>③ pill에 질문 입력</b>Enter 또는 보내기</div>
+      <span class="key">Enter</span>
+      <span class="arrow">→</span>
+      <div class="node" style="flex:1"><b>대화 창 + 방금 질문 전송</b>pill은 사라지고 응답이 스트리밍됨 · 이후는 지금과 동일</div>
+      <div class="chat-thumb hl">
+        <div class="tb"><i></i><i></i><i></i></div>
+        <div class="bd">
+          <div class="m me" style="width:62%"></div>
+          <div class="m ai" style="width:88%"></div>
+          <div class="m ai" style="width:74%"></div>
+          <div class="m me" style="width:54%;margin-top:6px"></div>
+          <div class="m ai" style="width:82%"></div>
+          <div class="m ai" style="width:64%"></div>
+        </div>
+        <div class="dock"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>02 <b>pill 구성 — 보관함 아이콘 추가</b></h2>
+  <div class="anatomy">
+    <div class="pill-wrap">
+      <div class="pill">
+        <div class="orb"></div>
+        <div class="field"><span class="caret"></span><span class="ph">무엇이든 물어보세요</span></div>
+        <div class="icon small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+      </div>
+      <span class="num" style="left:14px;top:-32px">1</span>
+      <span class="num" style="left:50px;top:62px">2</span>
+      <span class="num" style="left:372px;top:-32px">3</span>
+      <span class="num" style="left:420px;top:62px">4</span>
+    </div>
+    <div class="legend">
+      <span><b>①</b> 오브 · 상태</span>
+      <span><b>②</b> 캐럿 = 포인터</span>
+      <span><b>③</b> 보관함</span>
+      <span><b>④</b> 받아쓰기</span>
+    </div>
+    <div class="note" style="position:relative;left:auto;top:auto;margin-top:16px;color:var(--muted);border-color:var(--line);background:rgba(255,255,255,.03)">
+      Enter 전송 · Esc 닫기 · 아이콘은 호버 시 툴팁
+    </div>
+  </div>
+
+  <h2>03 <b>보관함 아이콘 — 두 안</b></h2>
+  <div class="variants">
+    <div class="card">
+      <div class="cap"><b>A안. 마이크 유지 + 보관함 추가</b><span>폭 420</span></div>
+      <div class="stage-mini">
+        <div class="pill">
+          <div class="orb"></div>
+          <div class="field"><span class="caret"></span><span class="ph">무엇이든 물어보세요</span></div>
+          <div class="icon small"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+        </div>
+      </div>
+      <div class="mini-note">음성 입력을 pill에서도 그대로. 아이콘 2개가 들어가 입력 폭이 30pt 줄어듦. <span class="pick">권장</span></div>
+    </div>
+
+    <div class="card">
+      <div class="cap"><b>B안. 마이크 삭제 → 보관함</b><span>폭 380</span></div>
+      <div class="stage-mini">
+        <div class="pill slim">
+          <div class="orb"></div>
+          <div class="field"><span class="caret"></span><span class="ph">무엇이든 물어보세요</span></div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></div>
+        </div>
+      </div>
+      <div class="mini-note">더 단순하고 입력 폭이 넓음. 음성은 대화 창에서만 사용(⌘⇧D 등 기존 단축키).</div>
+    </div>
+  </div>
+
+  <h2>04 <b>보관함 아이콘을 눌렀을 때</b></h2>
+  <div class="variants">
+    <div class="card">
+      <div class="cap"><b>① 보관함 탭으로 바로</b><span>구현 단순 · 1클릭</span></div>
+      <div class="stage-mini" style="height:206px">
+        <div class="popover">
+          <div class="head"><span>보관함 — 최근 대화</span><span>12</span></div>
+          <div class="prow"><span class="dot"></span><span class="t">포인터 pill 설계 회의</span><span class="tm">2분 전</span></div>
+          <div class="prow"><span class="dot"></span><span class="t">QuickShelf 캡처 정리</span><span class="tm">1시간 전</span></div>
+          <div class="prow"><span class="dot" style="background:#454552"></span><span class="t">모델 비교 — Ollama vs 원격</span><span class="tm">어제</span></div>
+          <div class="foot"><span>보관함 전체 열기</span><span>⌘L</span></div>
+        </div>
+      </div>
+      <div class="mini-note">기존 대화 창의 보관함 탭을 연다. 최근 대화가 맨 위라 바로 전 대화도 2클릭.</div>
+    </div>
+
+    <div class="card">
+      <div class="cap"><b>② pill 위 작은 목록 (대안)</b><span>1클릭으로 이어가기</span></div>
+      <div class="stage-mini" style="height:206px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div class="popover" style="width:300px">
+            <div class="prow"><span class="dot"></span><span class="t">방금 전 대화 이어가기</span><span class="tm">2분 전</span></div>
+            <div class="prow"><span class="dot" style="background:#454552"></span><span class="t">보관함에서 고르기</span><span class="tm">12개</span></div>
+          </div>
+          <div class="pill-thumb" style="width:300px;height:30px"><div class="orb"></div><div class="ca"></div><span class="tx">무엇이든 물어보세요</span><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg></div><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div></div>
+        </div>
+      </div>
+      <div class="mini-note">누르면 “최근 대화 / 보관함” 두 줄만 띄운다. 구현은 늘지만 왕복이 줄어듦.</div>
+    </div>
+  </div>
+
+  <h2>05 <b>승인 시 확정할 값</b></h2>
+  <table class="spec">
+    <tr><th>표시 조건</th><td><b>이어가기 시간이 지난 뒤 단축키</b>를 눌렀을 때만 pill. 그 안이면 지금처럼 대화 창.</td></tr>
+    <tr><th>기준 시간</th><td>설정 › 일반의 <b>“이어가기” 값 그대로</b> <span class="mono">(0 = 사용 안 함 → 항상 pill? 또는 항상 새 대화 — 확인 필요)</span></td></tr>
+    <tr><th>대화 창</th><td>pill이 뜰 때 <b>빈 대화 창은 만들지 않음</b>. 질문을 보낼 때 새 대화를 만들고 창을 연다.</td></tr>
+    <tr><th>Enter</th><td>입력한 질문을 보내며 대화 창으로 전환. 빈 입력이면 무시.</td></tr>
+    <tr><th>Esc</th><td>pill만 닫기 — 대화 상태·마지막 대화는 그대로.</td></tr>
+    <tr><th>보관함</th><td><b>A안(마이크 유지 + 보관함 추가)</b> 권장 · 누르면 보관함 탭</td></tr>
+    <tr><th>대화 창 위치</th><td>기존 설정(화면 중앙 / 포인터)을 그대로 따름 — pill 위치와 무관</td></tr>
+    <tr><th>5분 이내 새 대화</th><td>지금처럼 대화 창의 <b>새 대화</b> 버튼 사용 <span class="mono">(추후 “⌘Space 길게” 같은 별도 입구 검토)</span></td></tr>
+  </table>
+
+  <footer>
+    <span>QuickTalk · mockup 0.8 · 2026-10-21</span>
+    <span>노란 값은 승인 시 확정합니다.</span>
+  </footer>
+</div>
+</body>
+</html>

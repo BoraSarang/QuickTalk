@@ -21,6 +21,7 @@
 		2FE34F808D45A911194E5B37 /* SettingsView+Voice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BCC68AF259264132DF4A74 /* SettingsView+Voice.swift */; };
 		350E8C6240C1DBF021F127D4 /* AppleFMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C5115E45EB6BDC05E911B5 /* AppleFMClient.swift */; };
 		355B656C93CB1A5C46A93134 /* Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B3BA0ADF75FC7F4E2B4013D /* Clipboard.swift */; };
+		383446CB170F6CF76CE851E3 /* PointerPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36FB7D6B72920A828D78C84 /* PointerPill.swift */; };
 		39717BDB98AB7E8BD6EA0C03 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9370ED6612F49EC6C6433957 /* Keychain.swift */; };
 		3A29D6B52BA10E0CCDCF36D8 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46AB59036E6CDC9C1D797893 /* WhisperService.swift */; };
 		3D6ADFAB8BED5713579BC330 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF188D635D4F46E486935089 /* Persistence.swift */; };
@@ -47,6 +48,7 @@
 		AECA4A0F7457C6FC3A20BE4E /* WebTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4340B244244ED63B5DEF0D28 /* WebTools.swift */; };
 		B0ED415EF78C8366C26ACB98 /* DeleteConfirmSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A994DD19EB365550CB2B3E48 /* DeleteConfirmSheet.swift */; };
 		B1490EEAFEDB1CF74261F59B /* ServerFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = D365FF5FF18A22A715651BBC /* ServerFailure.swift */; };
+		B28D62906DD82AFC5FAC5F57 /* ShortcutEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB22DE1D96B2C98BECA63D0 /* ShortcutEntry.swift */; };
 		B48481475211453118E44468 /* ProviderEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B4F0CFB680182126B97B67 /* ProviderEditorSheet.swift */; };
 		B97486E1D312C431A48E35AC /* UIStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF08B4A7902C3727A3EFE83B /* UIStore.swift */; };
 		BD0D181F3B0507A51A874335 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C765AE231078C7BE029074BD /* SpeechService.swift */; };
@@ -110,6 +112,7 @@
 		A80145B8EF36B33D339972F5 /* ClipboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardService.swift; sourceTree = "<group>"; };
 		A8B27D2AFFA346E1FB886FED /* ShelfPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfPanel.swift; sourceTree = "<group>"; };
 		A994DD19EB365550CB2B3E48 /* DeleteConfirmSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmSheet.swift; sourceTree = "<group>"; };
+		ADB22DE1D96B2C98BECA63D0 /* ShortcutEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutEntry.swift; sourceTree = "<group>"; };
 		AF188D635D4F46E486935089 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
 		B2A02B9140976F463DA5AB0D /* SpeechCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechCatalog.swift; sourceTree = "<group>"; };
 		B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGeometry.swift; sourceTree = "<group>"; };
@@ -122,6 +125,7 @@
 		C765AE231078C7BE029074BD /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
 		CCC6202DA471E06B93A3E247 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		D365FF5FF18A22A715651BBC /* ServerFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailure.swift; sourceTree = "<group>"; };
+		D36FB7D6B72920A828D78C84 /* PointerPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerPill.swift; sourceTree = "<group>"; };
 		D95F7F96477810C260032BED /* WebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearch.swift; sourceTree = "<group>"; };
 		DA84ABEFD1876BF8ED75C710 /* SettingsView+WebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+WebSearch.swift"; sourceTree = "<group>"; };
 		DCC0E0A49E9FAE4A8DC1DC4C /* SecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretStore.swift; sourceTree = "<group>"; };
@@ -157,6 +161,7 @@
 				7C2923600C30D5D38ED1A950 /* MarkdownText.swift */,
 				E3BA3DBC6AFA968606E34D9B /* MenuBarHubView.swift */,
 				E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */,
+				D36FB7D6B72920A828D78C84 /* PointerPill.swift */,
 				857D6BD5840713F9857BDAA2 /* ProcessSpeechService.swift */,
 				A1B4F0CFB680182126B97B67 /* ProviderEditorSheet.swift */,
 				4BDA30A073442043AE6BCCAE /* QuickTalk.entitlements */,
@@ -222,6 +227,7 @@
 				D365FF5FF18A22A715651BBC /* ServerFailure.swift */,
 				311038797E5275B1C71188B6 /* Settings.swift */,
 				18F0C670FDE6AF2A0F611E90 /* Shortcut.swift */,
+				ADB22DE1D96B2C98BECA63D0 /* ShortcutEntry.swift */,
 				B2A02B9140976F463DA5AB0D /* SpeechCatalog.swift */,
 				E5AEE95E9756FB6329F5C014 /* Store.swift */,
 				CCC6202DA471E06B93A3E247 /* VoiceService.swift */,
@@ -334,6 +340,7 @@
 				3D6ADFAB8BED5713579BC330 /* Persistence.swift in Sources */,
 				26DE68043908C26F79D28EFD /* PiperSpeechService.swift in Sources */,
 				9B81D3B83509FF5189FA3963 /* PiperTTS.swift in Sources */,
+				383446CB170F6CF76CE851E3 /* PointerPill.swift in Sources */,
 				D2FD79560F4A1B153C59D078 /* ProcessSpeechService.swift in Sources */,
 				B48481475211453118E44468 /* ProviderEditorSheet.swift in Sources */,
 				83153F15B5E2F4D8BBBBC62B /* ProviderFallback.swift in Sources */,
@@ -356,6 +363,7 @@
 				A5CD27110B006E899FDD8692 /* ShelfView+Files.swift in Sources */,
 				BD4AC968FCB5678578F10B51 /* ShelfView.swift in Sources */,
 				1E98097CE2505F620BB5EE8A /* Shortcut.swift in Sources */,
+				B28D62906DD82AFC5FAC5F57 /* ShortcutEntry.swift in Sources */,
 				E42DC23D1B42C59918FB3F52 /* SpeechCatalog.swift in Sources */,
 				BD0D181F3B0507A51A874335 /* SpeechService.swift in Sources */,
 				F4BBBDC9664636EF6E07F955 /* Store.swift in Sources */,

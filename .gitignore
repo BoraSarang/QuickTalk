@@ -6,3 +6,4 @@ DerivedData/
 .env
 .DS_Store
 *.profraw
+docs/qa/*-debug/

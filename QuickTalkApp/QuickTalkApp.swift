@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     observeSettings()
     installWindowLevelObservers()
     ShelfController.shared.start(store: store, chatWindowProvider: { [weak self] in self?.panel })
+    PointerPillController.shared.start(store: store, onOutcome: { [weak self] in self?.handlePill($0) })
     applyShortcuts(store.settings, force: true)
     NSLog("[QuickTalk] launched, LSUIElement=%@, shortcut=%@",
           Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? String ?? "?",
@@ -634,6 +635,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func togglePanel(fromShortcut: Bool) {
+    // pill이 떠 있으면 단축키를 다시 눌렀을 때 닫는다(Spotlight 토글).
+    if PointerPillController.shared.isVisible {
+      PointerPillController.shared.dismiss()
+      return
+    }
     if panel.isVisible {
       // 기본 레벨(일반 창)에서는 다른 앱 뒤에 있을 수 있다 — 그때는 닫지 말고 앞으로 가져온다.
       let frontmost = NSApp.isActive && panel.isKeyWindow
@@ -641,9 +647,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       panel.orderOut(nil)
       return
     }
-    // 단축키: 유지 시간(기본 10분) 안이면 마지막 대화를 이어서, 지났으면 새 대화
-    if fromShortcut { store.startShortcutSession() }
+    // 단축키: 유지 시간(기본 10분) 안이면 마지막 대화를 이어서, 지났으면 새 대화.
+    // 새 대화일 때는 빈 대화 창 대신 포인터 pill을 띄운다(T-21) — 창은 하나이고 표현만 다르다.
+    if fromShortcut {
+      let entry = ShortcutEntryPresentation.decide(
+        settings: store.settings,
+        lastActivity: store.conversation.updatedAt,
+        hasTurns: !store.conversation.turns.isEmpty)
+      if entry == .pill {
+        PointerPillController.shared.present()
+        return
+      }
+      store.startShortcutSession()
+    }
     showPanel(tab: 0)
+  }
+
+  /// pill에서 고른 다음 동작 — 같은 대화 창으로 이어받는다.
+  private func handlePill(_ outcome: PillOutcome) {
+    switch outcome {
+    case .send(let text):
+      store.startShortcutSession()
+      store.draft = text
+      showPanel(tab: 0)
+      store.send()
+    case .openChat(let draft):
+      store.startShortcutSession()
+      store.draft = draft
+      showPanel(tab: 0)
+    case .resume(let conversation):
+      store.openConversation(conversation)
+      showPanel(tab: 0)
+    case .archive:
+      showPanel(tab: 1)
+    }
   }
 
   /// QuickShelf 사용 결과를 확인할 수 있게 대화 창을 앞으로 (이미 보이면 위치·탭만 맞춘다)
