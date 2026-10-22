@@ -316,18 +316,19 @@ struct ContentView: View {
 
       // 핀·새 대화는 하단 여백을 만들지 않도록 헤더 오른쪽으로 옮겼다(PLAN_v0.12 개정)
       if tab == 0 {
-        // 🧠 = 공통 메모리 — 전역에서 켜져 있을 때만 보인다(이 대화에서만 끄고 켬).
-        // 전역이 꺼져 있으면 눌러도 효과가 없어 혼란을 주므로 숨긴다.
-        // 툴팁에 "무엇인지"까지 적는다 — 뇌 아이콘만 보고는 알기 어렵다는 피드백 반영.
-        if store.settings.globalMemoryEnabled {
-          let memoryOff = !store.commonMemoryActive
-          headerIcon(memoryOff ? "brain.slash" : "brain",
-                     tint: memoryOff ? .secondary : .purple,
-                     help: memoryOff
-                       ? L("공통 메모리 꺼짐(이 대화만) — 다른 대화의 기억을 쓰지 않습니다. 눌러서 켜기")
-                       : L("공통 메모리 켜짐 — 이 대화의 내용을 다른 대화에서도 기억합니다. 눌러서 이 대화에서만 끄기")) {
-            store.setCommonMemory(enabledForConversation: memoryOff)
-          }
+        // 🧠 = 공통 메모리 — **항상 보인다**(꺼져 있어도).
+        // 예전엔 전역에서 꺼져 있으면 아예 숨겼다 → 끈 뒤 켤 방법이 헤더에 없어서
+        // "껐는데 왜 안 보이지?"가 됐다(2026-10-22 사용자 지적). 꺼져 있으면 흐리게 두고
+        // 누르면 다시 켜게 한다.
+        let memoryOff = !store.commonMemoryActive
+        headerIcon(memoryOff ? "brain.slash" : "brain",
+                   tint: memoryOff ? .secondary : .purple,
+                   help: memoryOff
+                     ? (store.settings.globalMemoryEnabled
+                        ? L("이 대화에서는 공통 메모리를 쓰지 않습니다 — 눌러서 켜기")
+                        : L("공통 메모리가 꺼져 있습니다 — 눌러서 켜기"))
+                     : L("공통 메모리 사용 중 — 눌러서 이 대화에서만 끄기")) {
+          store.toggleCommonMemory()
         }
 
         // 🔖 = 이 대화를 만료 없이 보관(모든 대화는 자동 저장되고 보관일수 뒤 정리된다)

@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-22 20:45 KST
+> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-22 21:10 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08` 로 병합됐다.
@@ -12,14 +12,27 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 20:40 안전장치(치명적 명령 차단·실행 순서 수정)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `6a61b998d66852e0290c9c01fcec651af4e4b7f284a866909c2d8240ce8701d1` |
-| 테스트 | **375/375**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 13 = 안전장치) |
-| 마지막 완료 | **안전장치 사고 대응**(2026-10-22 20:40) — `rm -rf /` 가 **실행 전에 차단**되고, 명령 실행이 UI 를 얼리지 않는다. **재실행 필요** |
+| 현재 빌드 | **2026-10-22 21:10 공용 메모리 기본값 Off + 헤더 🧠** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `f3d9b697a91174e7…` |
+| 테스트 | **376/376**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 2 = 공용 메모리 기본 OFF · 기존 13 = 안전장치) |
+| 마지막 완료 | **공용 메모리 기본값 Off + 헤더 아이콘**(2026-10-22 21:10) — 공용 메모리 `globalMemoryEnabled` 기본값 `true`→`false`, 저장값 갱신, 헤더 🧠 꺼도 항상 표시. **재실행 필요** |
 | 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
 | 실측 대기 | **N21 안전장치 2건** + **N20 중복 실행 1건** + **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 건 직전 빌드. 이번 변경(안전장치·단일 인스턴스 가드)은 재실행 후 반영 |
-| git | `main` = **`53c23c4`** (안전장치 · PR #13) |
+| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 건 직전 빌드. 이번 변경(안전장치·공용 메모리 기본 OFF)은 재실행 후 반영 |
+| git | `main` = **`53c23c4`** (안전장치 · PR #13) — 이번 변경은 `fix/global-memory-off` 브랜치 |
+
+### 세션 진행 (2026-10-22 21:10) — 공용 메모리 기본값 Off
+
+#### 사용자 요청
+"공용 메모리 기본 값 Off 로 해줘"
+
+#### 한 일
+- `QuickTalkSettings.globalMemoryEnabled` 기본값 `true` → `false`(디코딩 fallback 도 `false` 로) + 저장된 사용자 값 갱신.
+- 부수: 헤더 🧠 아이콘 — 전역 OFF 여도 항상 표시(회색 · `brain.slash`, 눌러서 켜기/끄기). [2026-10-22 21:00]
+- `swift test` **376/376**(6 skip, 신규 2) · BUILD SUCCEEDED · 배포 SHA-256 `f3d9b697a91174e7…` · **재실행 필요**.
+
+#### 남은 일
+- 재실행 후 N20·N21·N22·N23 확인 → T-18 실측 → v0.19(쓰기·되돌리기).
 
 ### 세션 진행 (2026-10-22 20:40) — 안전장치 사고 대응 (`rm -rf /` 로 앱이 멈춤)
 

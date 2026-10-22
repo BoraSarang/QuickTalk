@@ -108,8 +108,9 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var webSearchMode: WebSearchMode = .inject
 
   // 공통 메모리 (PLAN_v0.16) — 모든 대화에 적용되는 사용자 작성 사실.
-  /// 공통 메모리 사용 여부(기본 켜짐). 꺼도 저장된 항목은 남는다.
-  public var globalMemoryEnabled: Bool = true
+  /// 공통 메모리 사용 여부(기본 **꺼짐** — 2026-10-22 사용자 요청: 공용 메모리 기본 Off).
+  /// 꺼도 저장된 항목은 남는다.
+  public var globalMemoryEnabled: Bool = false
   /// 주입 방식 — 항상 모두 / 관련 항목만.
   public var globalMemoryMode: MemoryInjectionMode = .always
   /// 요청에 넣을 공통 메모리 토큰 예산(머리말 포함).
@@ -270,7 +271,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     webSearchMode = Self.decodeEnum(WebSearchMode.self, c, .webSearchMode, default: .inject)
     autoCompact = try c.decodeIfPresent(Bool.self, forKey: .autoCompact) ?? true
     compactKeepTurns = try c.decodeIfPresent(Int.self, forKey: .compactKeepTurns) ?? 6
-    globalMemoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .globalMemoryEnabled) ?? true
+    globalMemoryEnabled = try c.decodeIfPresent(Bool.self, forKey: .globalMemoryEnabled) ?? false
     globalMemoryMode = Self.decodeEnum(MemoryInjectionMode.self, c, .globalMemoryMode, default: .always)
     globalMemoryBudgetTokens = try c.decodeIfPresent(Int.self, forKey: .globalMemoryBudgetTokens) ?? 800
     // 구버전 설정에는 도구 관련 값이 없다 → 기본값(읽기 자동 허용)으로 둔다.
