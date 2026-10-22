@@ -130,7 +130,7 @@ extension L10n {
     "녹음 중지": "Stop recording",
     "눌러서 대화에 첨부": "Click to attach to the conversation",
     "느리게": "Slower",
-    "다른 앱 위에 고정합니다(대화 창 헤더의 📌와 같습니다). 끄면 일반 창처럼 뒤로 가서 설정·시스템 권한 창을 가리지 않습니다.": "Keeps this window above other apps (same as 📌 in the chat header). When off, it behaves like a normal window and won't cover Settings or system permission dialogs.",
+    "다른 앱 위에 고정합니다(대화 창 헤더의 📌와 같습니다). 설정 창은 그 위에 뜹니다. 끄면 일반 창처럼 뒤로 갑니다.": "Keeps this window above other apps (same as 📌 in the chat header). The Settings window opens above it. When off, it behaves like a normal window.",
     "다른 앱 작업 중 바로 질문하고 싶을 때.": "For asking a quick question while working in another app.",
     "다시 실행": "Relaunch",
     "다크": "Dark",

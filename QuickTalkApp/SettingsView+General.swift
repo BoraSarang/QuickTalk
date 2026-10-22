@@ -24,7 +24,7 @@ extension SettingsView {
     }
     groupBox(L("동작")) {
       toggleRow(L("대화 창을 항상 위에"), isOn: $store.settings.alwaysOnTop,
-                description: L("다른 앱 위에 고정합니다(대화 창 헤더의 📌와 같습니다). 끄면 일반 창처럼 뒤로 가서 설정·시스템 권한 창을 가리지 않습니다."))
+                description: L("다른 앱 위에 고정합니다(대화 창 헤더의 📌와 같습니다). 설정 창은 그 위에 뜹니다. 끄면 일반 창처럼 뒤로 갑니다."))
       pickerRow(L("단축키로 열 때 유지"), selection: $store.settings.shortcutSessionMinutes,
                 options: QuickTalkSettings.sessionMinuteOptions.map {
                   ($0, $0 == 0 ? L("사용 안 함(언제나 새 대화)") : Lf("%d분 이내면 이어서", $0))

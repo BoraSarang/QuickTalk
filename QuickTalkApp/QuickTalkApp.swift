@@ -575,7 +575,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func showAbout() {
     activateApp()
     NSApp.orderFrontStandardAboutPanel(nil)
-    // 정보 패널도 대화 창(항상 위) 뒤로 숨지 않게 추적한다
+    // 정보 패널도 핀 켜진 대화 창 뒤로 숨지 않게 추적한다
     if let w = NSApp.keyWindow, w !== panel { trackAuxWindow(w) }
   }
 
@@ -625,20 +625,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var systemPromptTimer: Timer?
 
   /// 대화 창 레벨 계산 — **기본은 일반 창**.
-  /// 헤더 📌(`settings.alwaysOnTop`)이 켜져 있고, 설정·정보 창이나 시스템 권한 안내가 없을 때만 `.floating`.
+  /// 헤더 📌(`settings.alwaysOnTop`)이 켜져 있으면 `.floating` — **다른 앱 위**에 고정된다.
+  /// ★ 설정·정보 창이 떠 있어도 핀은 유지한다 — 대신 그 창을 **한 단계 위**에 올려 가리지 않게 한다.
+  /// (예전엔 설정 창이 뜨면 대화 창을 내려서, 핀을 켜도 꺼진 것처럼 보였다 — 2026-10-22 사용자 보고)
+  /// 시스템 권한 안내(TCC·시스템 설정 딥링크) 중에는 안내가 뒤로 숨지 않게 잠시 내린다.
   private func applyPanelLevel() {
     guard let panel else { return }
-    let blocked = systemPromptDepth > 0 || auxWindows.contains { $0.isVisible }
     let wantTop = store.settings.alwaysOnTop
-    let level: NSWindow.Level = (wantTop && !blocked) ? .floating : .normal
+    let systemPrompt = systemPromptDepth > 0
+    let level = Self.appKitLevel(WindowLevelPolicy.panel(wantTop: wantTop, systemPrompt: systemPrompt))
     if panel.level != level {
       panel.level = level
-      NSLog("[QuickTalk] 대화 창 레벨 %@ (항상위=%@ 가림방지=%@)",
-            level == .floating ? "floating" : "normal", wantTop ? "Y" : "N", blocked ? "Y" : "N")
+      NSLog("[QuickTalk] 대화 창 레벨 %@ (항상위=%@ 시스템안내=%@)",
+            level == .floating ? "floating" : "normal", wantTop ? "Y" : "N", systemPrompt ? "Y" : "N")
+    }
+    // 설정·정보 창은 **지금 쓰고 있을 때만** 대화 창 위에 — 읽는 창(대화)을 가리지 않게.
+    let auxLevel = Self.appKitLevel(WindowLevelPolicy.aux(
+      wantTop: wantTop, systemPrompt: systemPrompt, appActive: NSApp.isActive,
+      inUse: auxWindows.contains(where: Self.isInUse)))
+    for w in auxWindows where w.isVisible && w.level != auxLevel {
+      w.level = auxLevel
+      NSLog("[QuickTalk] 설정 창 레벨 %@ (항상위=%@)",
+            auxLevel == .normal ? "normal" : "위", wantTop ? "Y" : "N")
     }
   }
 
-  /// 설정·정보 창을 추적해 그 창이 떠 있는 동안 대화 창을 내린다.
+  /// 그 창(또는 그 창의 시트)이 지금 키 창인지 — 시트가 떠 있어도 설정 창을 위로 유지한다.
+  private static func isInUse(_ window: NSWindow) -> Bool {
+    if window.isKeyWindow { return true }
+    if let sheet = window.attachedSheet, sheet.isKeyWindow { return true }
+    return false
+  }
+
+  /// 정책 → AppKit 레벨. `floatingAbove` 는 `.floating` 바로 위(4).
+  private static func appKitLevel(_ kind: WindowLevelPolicy.Kind) -> NSWindow.Level {
+    switch kind {
+    case .normal: return .normal
+    case .floating: return .floating
+    case .floatingAbove: return NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+    }
+  }
+
+  /// 설정·정보 창을 추적한다 — 그 창을 쓰는 동안에만 대화 창(핀)보다 위에 올린다.
   private func trackAuxWindow(_ window: NSWindow) {
     if !auxWindows.contains(where: { $0 === window }) { auxWindows.append(window) }
     applyPanelLevel()
@@ -667,13 +695,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     applyPanelLevel()
   }
 
-  /// 창이 닫히면 가림 방지 상태를 다시 계산하고, 앱이 다시 활성화되면 시스템 안내 상태를 푼다.
+  /// 창이 닫히면 레벨을 다시 계산하고, 앱이 다시 활성화되면 시스템 안내 상태를 푼다.
+  /// 비활성화되면 설정·정보 창을 일반 레벨로 내린다(다른 앱을 가리지 않게) — 핀 켜진 대화 창은 그대로 둔다.
   private func installWindowLevelObservers() {
     NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
       DispatchQueue.main.async { self?.applyPanelLevel() }
     }
     NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
       self?.endSystemPrompt(force: true)
+    }
+    NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+      self?.applyPanelLevel()
+    }
+    NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] _ in
+      self?.applyPanelLevel()
     }
   }
 

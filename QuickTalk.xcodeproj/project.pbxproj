@@ -19,6 +19,7 @@
 		20B41BFB743D43FAC6406C08 /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65BDBEF0EEC3BD5742E2AF7 /* GlobalHotKey.swift */; };
 		26DE68043908C26F79D28EFD /* PiperSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */; };
 		27F58EA21C0F5824B8D811D7 /* AgentAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E06491B69C97E83E1540CA /* AgentAudit.swift */; };
+		2A6FD199E9ED55383691BEA0 /* WindowLevelPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51CE7C204B4A2CBE4C190205 /* WindowLevelPolicy.swift */; };
 		2AC52600A183ED00A6C8457F /* AppDelegate+RenderHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805003EED0F85E535E94DD1C /* AppDelegate+RenderHarness.swift */; };
 		2C2BD381918D760466257D30 /* OutgoingAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6F7E15FBDB5674F84A5739 /* OutgoingAttachment.swift */; };
 		2EDB1EEB1B221ABCF14A467F /* SandboxRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF440F448282A93D1CFE776C /* SandboxRunner.swift */; };
@@ -106,6 +107,7 @@
 		46AB59036E6CDC9C1D797893 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
 		4AEB9B4D98927B08C68C5DDA /* AgentTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTypes.swift; sourceTree = "<group>"; };
 		4BDA30A073442043AE6BCCAE /* QuickTalk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = QuickTalk.entitlements; sourceTree = "<group>"; };
+		51CE7C204B4A2CBE4C190205 /* WindowLevelPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLevelPolicy.swift; sourceTree = "<group>"; };
 		54E6ECE09008A24E1EEEB89E /* GlobalMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalMemory.swift; sourceTree = "<group>"; };
 		59BAB723416C088EFEEE3C3E /* AttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreview.swift; sourceTree = "<group>"; };
 		59DF2B1F53868ED7E3A10D2C /* ShelfView+Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShelfView+Clipboard.swift"; sourceTree = "<group>"; };
@@ -281,6 +283,7 @@
 				D95F7F96477810C260032BED /* WebSearch.swift */,
 				4340B244244ED63B5DEF0D28 /* WebTools.swift */,
 				46AB59036E6CDC9C1D797893 /* WhisperService.swift */,
+				51CE7C204B4A2CBE4C190205 /* WindowLevelPolicy.swift */,
 				F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */,
 			);
 			name = QuickTalkCore;
@@ -435,6 +438,7 @@
 				C9709D03BD65F3FF7B18377B /* WebSearch.swift in Sources */,
 				AECA4A0F7457C6FC3A20BE4E /* WebTools.swift in Sources */,
 				3A29D6B52BA10E0CCDCF36D8 /* WhisperService.swift in Sources */,
+				2A6FD199E9ED55383691BEA0 /* WindowLevelPolicy.swift in Sources */,
 				A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
