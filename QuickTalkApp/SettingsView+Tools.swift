@@ -90,23 +90,122 @@ extension SettingsView {
         showAgentAudit.toggle()
       }
       if showAgentAudit {
-        let lines = AgentAudit.recent(limit: 30)
-        if lines.isEmpty {
-          caption(L("아직 실행 기록이 없습니다."))
-        } else {
-          VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-              Text(line)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+        AgentAuditLogView()
+      }
+      caption(L("대화 속 실행 내역은 답변 아래 카드에 보입니다. 이 목록은 앱이 실행한 모든 명령의 감사 기록입니다 — 대화를 지워도 남고, 토큰·키·비밀번호는 가려집니다."))
+    }
+  }
+}
+
+// MARK: - 실행 기록 목록
+
+/// 감사 기록을 **읽을 수 있게** 그린다(2026-10-22 사용자 지적: "실행 기록 보기.. 어떻게 보라는 건지").
+/// 예전에는 JSON 한 줄을 그대로 보여 줬다 — 시간·판정·결과·명령을 열로 나눠 보여 준다.
+private struct AgentAuditLogView: View {
+  @State private var entries: [AgentAuditEntry] = []
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if entries.isEmpty {
+        Text(L("아직 실행 기록이 없습니다."))
+          .font(.caption)
+          .foregroundColor(.secondary)
+      } else {
+        ScrollView {
+          VStack(spacing: 0) {
+            ForEach(entries) { entry in
+              AgentAuditRow(entry: entry)
+              if entry.id != entries.last?.id {
+                Divider()
+              }
             }
           }
-          Button(L("기록 지우기")) { AgentAudit.clear() }
+          .padding(.horizontal, 8)
+          .padding(.vertical, 2)
+        }
+        .frame(maxHeight: 190)
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.4),
+                    in: RoundedRectangle(cornerRadius: 8))
+
+        HStack {
+          Text(Lf("최근 %d건", entries.count))
+            .font(.caption)
+            .foregroundColor(.secondary)
+          Spacer()
+          Button(L("기록 지우기")) {
+            AgentAudit.clear()
+            entries = []
+          }
         }
       }
-      caption(L("무엇을 언제 실행했는지 남습니다. 명령에 붙은 토큰·키·비밀번호는 가려집니다."))
     }
+    .onAppear { reload() }
+  }
+
+  private func reload() {
+    entries = AgentAudit.recentEntries(limit: 30)
+  }
+}
+
+/// 감사 기록 1행 — 판정 · 명령 · 결과 · 시각.
+private struct AgentAuditRow: View {
+  let entry: AgentAuditEntry
+
+  private var tint: Color { entry.allowed ? .green : .orange }
+
+  private var outcome: String {
+    if !entry.allowed { return L("실행 안 함") }
+    if entry.exitCode == 0 { return L("성공") }
+    return Lf("실패 · 종료 코드 %d", Int(entry.exitCode))
+  }
+
+  private var duration: String? {
+    guard entry.elapsedMs > 0 else { return nil }
+    if entry.elapsedMs < 1000 { return Lf("%dms", entry.elapsedMs) }
+    return Lf("%.1fs", Double(entry.elapsedMs) / 1000)
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Text(entry.allowed ? L("허용") : L("거부"))
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundColor(tint)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(tint.opacity(0.14), in: Capsule())
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text(entry.command)
+          .font(.system(size: 11, design: .monospaced))
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .textSelection(.enabled)
+        HStack(spacing: 6) {
+          Text(entry.levelName)
+          Text("·")
+          Text(outcome)
+          if let duration {
+            Text("·")
+            Text(duration)
+          }
+          if let risk = entry.riskName {
+            Text("·")
+            Text(risk).foregroundColor(.orange)
+          }
+        }
+        .font(.system(size: 10))
+        .foregroundColor(.secondary)
+      }
+
+      Spacer(minLength: 8)
+
+      Text(entry.date.map { RelativeTime.text(for: $0) } ?? "—")
+        .font(.system(size: 10))
+        .foregroundColor(.secondary)
+        .help(entry.date.map { RelativeTime.absolute($0) } ?? entry.raw)
+    }
+    .padding(.vertical, 5)
+    .contentShape(Rectangle())
+    .help(entry.raw)
   }
 }

@@ -83,6 +83,16 @@ public enum AgentDecision: Equatable {
   case deny(String)
 }
 
+/// ★ 실행 계획 — **실행은 마지막**에 온다.
+public enum AgentPlan: Equatable {
+  /// 실행 금지(사유 있음)
+  case deny(String)
+  /// 사용자 확인 필요 — `request.capability` 에 실측 결과(또는 미실측)가 들어 있다.
+  case ask(AgentApprovalRequest)
+  /// 그대로 실행 (이 범위만)
+  case allow(AgentCapability)
+}
+
 public enum PolicyEngine {
   /// ★ 결정 — 단계(사용자 설정) × 위험도(시스템 판정).
   public static func decide(command: String,
@@ -113,6 +123,36 @@ public enum PolicyEngine {
     case .alwaysAsk:
       return .ask(request(command: command, capability: capability, risk: risk,
                           reason: reason(for: capability)))
+    }
+  }
+
+  /// ★ 실행 **이전**의 순서를 지킨다 — 위험 판정 → 정책 → (일반 명령만) 실측.
+  ///
+  /// 2026-10-22 사고: 이전 흐름은 [실측(실행) → 정책] 이라 `rm -rf /` 같은 치명적 명령이
+  /// **정책 판단 전에 실제로 실행**됐다(읽기 전용 샌드박스라 지워지진 않았지만 명령이 끝나지
+  /// 않아 앱이 멈췄다). 이제는 위험·중요 명령은 실행 없이 확인/차단만 하고,
+  /// 일반 명령만 실측(=실행)한다.
+  public static func plan(command: String, policy: AgentPolicy) -> AgentPlan {
+    let risk = RiskClassifier.classify(command)
+    if risk == .critical && !policy.allowCritical {
+      return .deny(L("치명적인 명령이라 실행하지 않았습니다. 설정 › 도구에서 허용할 수 있습니다."))
+    }
+    if risk != .normal {
+      // 중요한 명령은 **실측(=실행)하지 않는다** — 승인을 먼저 받고 나서 실측한다.
+      let capability: AgentCapability = RiskClassifier.requiresElevation(command) ? .elevated : .blocked
+      return asPlan(decide(command: command, capability: capability, risk: risk, policy: policy),
+                    capability)
+    }
+    let capability = SandboxRunner.probe(command).capability
+    return asPlan(decide(command: command, capability: capability, risk: risk, policy: policy),
+                  capability)
+  }
+
+  private static func asPlan(_ decision: AgentDecision, _ capability: AgentCapability) -> AgentPlan {
+    switch decision {
+    case .allow: return .allow(capability)
+    case .ask(let request): return .ask(request)
+    case .deny(let reason): return .deny(reason)
     }
   }
 
