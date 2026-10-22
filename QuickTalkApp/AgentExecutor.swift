@@ -36,6 +36,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "shell": return await runShell(call)
     case "read_file": return await readFile(call)
     case "list_dir": return await listDir(call)
+    case "processes": return await runProcesses(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
@@ -94,7 +95,14 @@ final class AgentExecutor: AgentToolExecutor {
       return await executeShell(call, command: command, capability: capability, risk: risk)
 
     case .allow(let capability):
-      return await executeShell(call, command: command, capability: capability, risk: risk)
+      // 승인만으로 떨어져도 **실측 없이** 실행하지 않는다(중요·치명적 명령).
+      let resolved: AgentCapability
+      if capability == .unprobed {
+        resolved = await Self.probeApprovedOffMain(command).capability
+      } else {
+        resolved = capability
+      }
+      return await executeShell(call, command: command, capability: resolved, risk: risk)
     }
   }
 
@@ -105,12 +113,17 @@ final class AgentExecutor: AgentToolExecutor {
 
   /// 승인된 범위만 열고 실행한다.
   private func executeShell(_ call: AgentToolCall, command: String,
-                            capability: AgentCapability,
+                            capability input: AgentCapability,
                             risk: AgentRiskLevel) async -> AgentToolOutcome {
+    var capability = input
+    // 실측 전(중요·치명적 명령)이면 여기서 한 번 실측한다 — 승인은 이미 받았다.
+    if capability == .unprobed {
+      capability = await Self.probeApprovedOffMain(command).capability
+    }
     store.updateAgentEvent(id: call.id) { $0.state = .running }
     let profile: String
     switch capability {
-    case .read:
+    case .read, .unprobed:
       profile = SandboxRunner.readOnlyProfile()
     case .write(let path):
       // ★ 시스템 전역 경로에는 쓰기를 열지 않는다(디스크 전체가 지워질 수 있다).
@@ -128,7 +141,12 @@ final class AgentExecutor: AgentToolExecutor {
     case .elevated:
       profile = SandboxRunner.elevatedProfile(writablePaths: [])
     case .blocked:
-      profile = SandboxRunner.readOnlyProfile()
+      // ★ 샌드박스가 **실행 자체**를 막는 명령(setuid ps·top 등) — 권한을 열어도 해결되지 않는다.
+      //   실행하지 않고 이유를 모델에게 돌려준다(재시도 금지 안내 포함).
+      return await finishShell(call, command: command, risk: risk, level: capability.level,
+                               result: SandboxResult(exitCode: -1, stdout: "",
+                                                     stderr: SandboxRunner.blockedNote(for: command)),
+                               denied: true)
     }
     let started = Date()
     // ★ 실행도 메인 스레드 밖에서 — 오래 걸리는 명령이 UI 를 얼리지 않게.
@@ -217,6 +235,31 @@ final class AgentExecutor: AgentToolExecutor {
     store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
                                       command: path, level: level, risk: risk,
                                       state: .done, output: Lf("(파일 %d자)", text.count)))
+    return AgentToolOutcome(output: text, level: level, risk: risk)
+  }
+
+  /// 프로세스 사용량 — `ps`·`top` 은 setuid 라 샌드박스가 실행을 막는다. 앱이 libproc 으로 직접 읽는다.
+  private func runProcesses(_ call: AgentToolCall) async -> AgentToolOutcome {
+    let level = AgentPermissionLevel.read
+    let risk = AgentRiskLevel.normal
+    let limit = min(max(call.intArgument("limit") ?? 5, 1), 30)
+    let sort = ProcessSort(rawValue: call.stringArgument("sort") ?? "cpu") ?? .cpu
+    store.appendAgentEvent(AgentEvent(
+      id: call.id, toolName: call.name,
+      title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
+      command: "", level: level, risk: risk, state: .running))
+    let started = Date()
+    // 표본 사이에 쉬므로 메인 스레드 밖에서(400ms) — UI 가 끊기지 않게.
+    let rows = await Task.detached(priority: .userInitiated) {
+      ProcessSampler.top(sort, limit: limit)
+    }.value
+    let text = ProcessSampler.report(rows)
+    let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    store.updateAgentEvent(id: call.id) {
+      $0.state = rows.isEmpty ? .failed : .done
+      $0.output = text
+      $0.elapsedMs = elapsed
+    }
     return AgentToolOutcome(output: text, level: level, risk: risk)
   }
 

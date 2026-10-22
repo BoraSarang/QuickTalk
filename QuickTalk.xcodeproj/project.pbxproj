@@ -82,6 +82,7 @@
 		F06A7D16B0027C4E173E3A35 /* ShelfPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B27D2AFFA346E1FB886FED /* ShelfPanel.swift */; };
 		F4BBBDC9664636EF6E07F955 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AEE95E9756FB6329F5C014 /* Store.swift */; };
 		F50845130EA63F4522C409A8 /* SettingsView+Archive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDFC26990BB20F9BEE4815D1 /* SettingsView+Archive.swift */; };
+		F5449F15EFD31DD1D51C2BFE /* ProcessSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA9BCCA747D217A179117D3A /* ProcessSampler.swift */; };
 		F5C5DFA30D02D21416C2BC23 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC6202DA471E06B93A3E247 /* VoiceService.swift */; };
 		F660BB9F67412ED01863EDD2 /* SettingsView+AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D681E358377CD1E20730FA9 /* SettingsView+AI.swift */; };
 /* End PBXBuildFile section */
@@ -138,6 +139,7 @@
 		AF188D635D4F46E486935089 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
 		B2A02B9140976F463DA5AB0D /* SpeechCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechCatalog.swift; sourceTree = "<group>"; };
 		B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGeometry.swift; sourceTree = "<group>"; };
+		BA9BCCA747D217A179117D3A /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
 		BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTTS.swift; sourceTree = "<group>"; };
 		BDFC26990BB20F9BEE4815D1 /* SettingsView+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Archive.swift"; sourceTree = "<group>"; };
 		BF6F7E15FBDB5674F84A5739 /* OutgoingAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutgoingAttachment.swift; sourceTree = "<group>"; };
@@ -261,6 +263,7 @@
 				AF188D635D4F46E486935089 /* Persistence.swift */,
 				61862A22D0D26A7FD8353492 /* PiperTTS.swift */,
 				D7384EC161F1050F560476B8 /* PolicyEngine.swift */,
+				BA9BCCA747D217A179117D3A /* ProcessSampler.swift */,
 				02D71ACB493AA7E5B659FB8F /* ProviderFallback.swift */,
 				9635760D97508C2A50A0618D /* RiskClassifier.swift */,
 				CF440F448282A93D1CFE776C /* SandboxRunner.swift */,
@@ -391,6 +394,7 @@
 				9B81D3B83509FF5189FA3963 /* PiperTTS.swift in Sources */,
 				383446CB170F6CF76CE851E3 /* PointerPill.swift in Sources */,
 				50A6E25B690910E8A214FD48 /* PolicyEngine.swift in Sources */,
+				F5449F15EFD31DD1D51C2BFE /* ProcessSampler.swift in Sources */,
 				D2FD79560F4A1B153C59D078 /* ProcessSpeechService.swift in Sources */,
 				B48481475211453118E44468 /* ProviderEditorSheet.swift in Sources */,
 				83153F15B5E2F4D8BBBBC62B /* ProviderFallback.swift in Sources */,

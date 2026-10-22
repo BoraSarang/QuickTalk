@@ -139,7 +139,7 @@ public enum PolicyEngine {
     }
     if risk != .normal {
       // 중요한 명령은 **실측(=실행)하지 않는다** — 승인을 먼저 받고 나서 실측한다.
-      let capability: AgentCapability = RiskClassifier.requiresElevation(command) ? .elevated : .blocked
+      let capability: AgentCapability = RiskClassifier.requiresElevation(command) ? .elevated : .unprobed
       return asPlan(decide(command: command, capability: capability, risk: risk, policy: policy),
                     capability)
     }
@@ -171,6 +171,7 @@ public enum PolicyEngine {
     case .network: return L("네트워크 접근이 필요합니다.")
     case .elevated: return L("상승 권한이 필요합니다.")
     case .blocked: return L("샌드박스가 막았습니다.")
+    case .unprobed: return L("실행 권한이 필요합니다.")
     }
   }
 

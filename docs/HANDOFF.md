@@ -1,9 +1,9 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-22 21:10 KST
+> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-22 21:34 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
-> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08` 로 병합됐다.
+> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787` 로 병합됐다.
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -12,14 +12,53 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 21:10 공용 메모리 기본값 Off + 헤더 🧠** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `f3d9b697a91174e7…` |
-| 테스트 | **376/376**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 2 = 공용 메모리 기본 OFF · 기존 13 = 안전장치) |
-| 마지막 완료 | **공용 메모리 기본값 Off + 헤더 아이콘**(2026-10-22 21:10) — 공용 메모리 `globalMemoryEnabled` 기본값 `true`→`false`, 저장값 갱신, 헤더 🧠 꺼도 항상 표시. **재실행 필요** |
+| 현재 빌드 | **2026-10-22 21:33 🧠 표시 · 카드 순서 · `processes` 도구** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `c701008c270e79de…` |
+| 테스트 | **385/385**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 9 = setuid/`processes`/표 · 기존 13 = 안전장치) |
+| 마지막 완료 | **N22 원인 수정 + 카드 순서 + `ps`/`top` 차단 + `processes` 도구**(2026-10-22 21:33) — `brain.slash` 는 **없는 SF Symbol** 이라 🧠 가 빈 뷰였다 → `brain`+색. 실행 카드는 답변 **위**. setuid(`ps`·`top`)는 샌드박스가 exec 거부 → `.blocked` + libproc 샘플러. **재실행 필요** |
 | 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
-| 실측 대기 | **N21 안전장치 2건** + **N20 중복 실행 1건** + **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
+| 실측 대기 | **N22·N24·N25 3건** + **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 건 직전 빌드. 이번 변경(안전장치·공용 메모리 기본 OFF)은 재실행 후 반영 |
-| git | `main` = **`53c23c4`** (안전장치 · PR #13) — 이번 변경은 `fix/global-memory-off` 브랜치 |
+| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 것은 21:05 빌드(`f3d9b697…`). 이번 변경(🧠·카드 순서·`processes`)은 재실행 후 반영 |
+| git | `main` = **`998f787`** (공용 메모리 기본 OFF · PR #15) — 이번 변경은 `fix/brain-icon-tool-order` 브랜치 |
+
+### 세션 진행 (2026-10-22 21:34) — 🧠 표시 · 카드 순서 · `ps`/`top` 실행 불가
+
+#### 사용자 보고
+- N22 **ERR** — "회색 으로 안보임, 기존과 동일"
+- "지금 실행한 쉘 명령이 응답 하단에 뜨는데… 순서로 보면 쉘 명령 후 응답이잖아? 검색은 참고니까 하단이 자연스러운데 **쉘 명령은 이질적**이네"
+- "Operation not permitted 문제 확인하고"
+
+#### 원인 (실측)
+1. **🧠**: `brain.slash` 는 macOS 27.2 에 **존재하지 않는 SF Symbol** → `Image(systemName:)` 이 **빈 뷰**(회색도 안 보임).
+   예전 코드가 전역 OFF 일 때 아이콘을 숨긴 것과 겹쳐 "안 보임"이 두 번 발생했다.
+2. **카드 순서**: `ContentView` 가 `MarkdownText`(답변) → 시간 → 출처 → `AgentCard`(도구) 순으로 그렸다.
+3. **`ps`/`top`**: 둘 다 **setuid root**(`-rwsr-xr-x`). `sandbox-exec` 은 프로파일과 무관하게 setuid 바이너리 **exec 를 거부**
+   (`(version 1)(allow default)` 만으로도 실패 — 실측). 실측은 이 메시지를 **쓰기 거부**로 오분류해 "쓰기(/usr/bin/top)" 카드를 띄웠고,
+   `ps … | head` 는 파이프 종료코드가 0 이라 **읽기 성공(state=done, 빈 출력)** 으로 오판됐다.
+
+#### 수정
+- `ContentView`: 🧠 는 `brain` **하나**로 그리고 **색**으로 상태 구분(켜짐 보라 / 꺼짐 회색). 앱 전체 SF Symbol 이름 자동 점검(오류는 이것 하나).
+- `ContentView`: `AgentCard` 를 답변 **위**로 이동(검색 출처 카드는 아래 유지).
+- `SandboxRunner`: `isSetuidBinary` · `setuidPrograms(in:)`(실행 위치만 — `grep ps` 오탐 방지) · `blockedNote(for:)`.
+  `runProbe` 는 setuid 를 **실행해 보지 않고** `.blocked` 로 돌려준다(파이프 오판 방지).
+- `AgentCapability.unprobed` 신설 — 중요·치명적 명령은 **승인 후 실측**(기존 `.blocked` placeholder 와 의미 분리).
+- `ProcessSampler`(Core 신설) + **`processes` 도구** — libproc 으로 CPU%/RSS. 셸·권한 불필요.
+- `AgentExecutor`: `.blocked` 는 **실행하지 않고** 이유를 모델에 반환, `processes` 핸들러 추가.
+- 지시문: `ps`·`top` 은 샌드박스 불가 → `processes` 사용(프로세스 목록에서 `ps` 를 뺐다).
+
+#### 검증
+- `swift test` **385/385**(6 skip, 신규 9) · BUILD SUCCEEDED(경고 0).
+- 오프스크린 렌더: 헤더에 **회색 🧠 표시**, `--demo-agent` 에서 **도구 카드가 답변 위**.
+- 헤드리스: `--agent-test="CPU 많이 쓰는 프로세스 3개만 알려줘"` → `tool=processes state=done` **2스텝**,
+  메모리 질문 → WebKit 1.63 GiB · opencode-cli 1.02 GiB 등 실제 값.
+- 배포 2026-10-22 21:33 · `codesign --verify --strict` OK · SHA-256 `c701008c270e79de…`.
+
+#### 한계
+- 온디바이스 Apple FM 은 짧은 지시문에서 `ps` 를 반복 시도한다(차단 안내는 받지만 도구를 안 고름). 주 모델(원격)에서는 정상.
+
+#### 남은 일
+- **재실행** 후 N22(회색 🧠 + 눌러서 보라) · N24(`ps`/`top` → 실행 불가 + `processes` 값) · N25(카드가 답변 위) 확인
+  → T-18 실측 → v0.19(쓰기·되돌리기).
 
 ### 세션 진행 (2026-10-22 21:10) — 공용 메모리 기본값 Off
 
@@ -877,7 +916,7 @@ Document Music, Download 폴더의 접근 권한을 물어 봄 · 심각한 문�
 | 원격 20턴 | 2,100 → **903** 토큰, recent 5, 3.5초, 요약 323자 |
 | 자동 트리거 20턴 | `expected=YES → summary=YES` (**Apple FM 기준** — 원격·Ollama 예산은 훨씬 커서 트리거되지 않음) |
 | 자동 트리거 10턴 | `expected=NO → summary=NO` |
-| 테스트 | `swift test` **247/247**, 6 skip, BUILD SUCCEEDED (T-71 검증 시점) |
+| 테스트 | **385/385**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 9 = setuid/`processes`/표 · 기존 13 = 안전장치) |
 | QA 렌더 | `docs/qa/memory-chat-ko` · `-en`, `memory-settings-ko` · `-en` |
 
 **사용자 확인 (이 순서)**
