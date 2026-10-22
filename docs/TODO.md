@@ -1,9 +1,23 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-22 21:34 KST
+> 마지막 갱신: 2026-10-22 21:50 KST
 
-## 지금 (2026-10-22 21:34) — 🧠 표시·카드 순서·`ps`/`top` 실행 불가
+## 지금 (2026-10-22 21:50) — 대화 창 위치 조율 (pill 은 입력한 자리 · 설정 3옵션)
+
+- **사용자 지적**: "pill 대화는 언제나 마우스 포인터 잖아?? … 이거 설정 핵갈리지 않니??"
+- **원인**: pill 은 항상 `NSEvent.mouseLocation`(설정 무시), 창은 열 때마다 `newWindowPosition` 으로 재배치
+  → 중앙 모드에서 **포인터에서 입력 → 화면 중앙으로 점프**. 창을 옮겨도 다음에 설정 위치로 되돌아감.
+- **결정**(사용자 선택): **"입력한 자리 유지"** + **"마지막 위치" 옵션 추가**
+- **한 것**: ① Core `WindowPlacement` — pill 자리(anchor) 우선 · 중앙/포인터 · `lastPosition` 은 지금 자리 유지
+  · 화면 밖 클램프 ② `NewWindowPosition.lastPosition`(3옵션) ③ `PointerPillController.lastAnchor` →
+  `showPanel(tab:anchor:)` → `positionPanel(anchor:)` ④ 라벨 "대화 창 위치" + 캡션 2줄, 번역 4키
+- **검증**: `swift test` **395/395**(6 skip, 신규 10) · BUILD SUCCEEDED · 렌더 `settings-general-ko`
+- **배포**: 2026-10-22 21:50 · SHA-256 `344e6c486613a7ca…` · **앱 재실행 필요**
+- **재실행 후 확인**: **N26**(pill → 입력한 자리 / 보관함·Hub → 설정 / 마지막 위치 기억) · N22·N24·N25(직전 변경)
+  → T-18 실측 → v0.19
+
+## 이전 (2026-10-22 21:34) — 🧠 표시·카드 순서·`ps`/`top` 실행 불가
 
 - **사용자 보고**: ① N22 `ERR`(🧠 가 회색으로도 안 보임) ② 실행 카드가 응답 **아래**에 뜬다
   ③ `top`/`ps` 가 `Operation not permitted`

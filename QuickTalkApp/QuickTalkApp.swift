@@ -729,22 +729,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   /// pill에서 고른 다음 동작 — 같은 대화 창으로 이어받는다.
+  /// ★ 창은 **입력한 자리(포인터)** 에서 열린다 — 중앙 모드여도 점프하지 않는다(2026-10-22 사용자 결정).
   private func handlePill(_ outcome: PillOutcome) {
+    let anchor = PointerPillController.shared.lastAnchor
     switch outcome {
     case .send(let text):
       store.startShortcutSession()
       store.draft = text
-      showPanel(tab: 0)
+      showPanel(tab: 0, anchor: anchor)
       store.send()
     case .openChat(let draft):
       store.startShortcutSession()
       store.draft = draft
-      showPanel(tab: 0)
+      showPanel(tab: 0, anchor: anchor)
     case .resume(let conversation):
       store.openConversation(conversation)
-      showPanel(tab: 0)
+      showPanel(tab: 0, anchor: anchor)
     case .archive:
-      showPanel(tab: 1)
+      showPanel(tab: 1, anchor: anchor)
     }
   }
 
@@ -771,9 +773,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   /// 대화 창 표시 — 배치 후 앱을 앞으로 가져온다.
   /// NSPanel은 키 창이 되면서도 앱은 활성화되지 않을 수 있어(그러면 ⌘C/⌘V/⌘Z가 메뉴로 전달되지 않는다),
   /// 활성화를 명시적으로 한 번 더 밀어 준다.
-  private func showPanel(tab: Int) {
+  /// `anchor` = pill 에서 넘어온 자리(입력한 자리에서 창이 이어진다).
+  private func showPanel(tab: Int, anchor: NSPoint? = nil) {
     activateApp()
-    positionPanel()
+    positionPanel(anchor: anchor)
     applyPanelLevel()
     panel.makeKeyAndOrderFront(nil)
     NotificationCenter.default.post(name: .openQuickTalk, object: tab)
@@ -879,37 +882,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     return false
   }
 
-  /// 새 대화 창 배치 — 독립 창이므로 설정에 따라 화면 중앙 또는 마우스 포인터에 띄운다.
+  /// 새 대화 창 배치 — 독립 창이므로 설정에 따라 화면 중앙 / 마우스 포인터 / 마지막 위치에 띄운다.
+  /// ★ 단, **pill 에서 넘어온 경우**(anchor)는 설정보다 그 자리가 우선한다 — 입력한 자리에서 이어진다.
   /// (메뉴바 아이콘 하단 고정은 쓰지 않는다. 팝오버는 Hub 뿐이다.)
   /// 포인터 모드에서 현재 커서가 메뉴바·Dock 위(작업 영역 밖)면 "직전 작업 위치"를 쓴다.
-  private func positionPanel() {
+  private func positionPanel(anchor: NSPoint? = nil) {
     let size = panel.frame.size
     let mode = Self.qaPanelPosition() ?? store.settings.newWindowPosition
-    let pointerNow = NSEvent.mouseLocation
-    // 창 중심이 놓일 좌표. nil이면 화면 중앙.
-    let target: NSPoint?
-    switch mode {
-    case .center:
-      target = nil
-    case .mousePointer:
+    // 창 중심이 놓일 좌표. nil 이면 설정(중앙·마지막 위치)을 따른다.
+    var target = anchor
+    if target == nil, mode == .mousePointer {
+      let pointerNow = NSEvent.mouseLocation
       target = Self.screenContaining(pointerNow) != nil ? pointerNow : pointerCache
     }
-    // 기준 화면: 목표 지점이 속한 화면 → 없으면 메인
-    let screen = target.flatMap { Self.screenContaining($0) } ?? NSScreen.main
+    // 기준 화면: 목표 지점이 속한 화면 → 창이 지금 있는 화면 → 메인
+    let screen = target.flatMap { Self.screenContaining($0) }
+      ?? Self.screenContaining(NSPoint(x: panel.frame.midX, y: panel.frame.midY))
+      ?? NSScreen.main
     guard let vis = screen?.visibleFrame else { panel.center(); return }
 
-    var origin: NSPoint
-    if let t = target {
-      origin = NSPoint(x: t.x - size.width / 2, y: t.y - size.height / 2)
-      NSLog("[QuickTalk] 창 배치: 포인터 모드 origin=(%.0f, %.0f)", origin.x, origin.y)
-    } else {
-      origin = NSPoint(x: vis.midX - size.width / 2, y: vis.midY - size.height / 2)
-      NSLog("[QuickTalk] 창 배치: 중앙 모드 origin=(%.0f, %.0f)", origin.x, origin.y)
+    guard let origin = WindowPlacement.origin(mode: mode, size: size,
+                                              anchor: target, visibleFrame: vis) else {
+      // 마지막 위치 — 지금 자리를 유지하되, 화면 밖이면 안으로 민다.
+      let current = panel.frame.origin
+      let fixed = WindowPlacement.clamped(current, size: size, in: vis)
+      if fixed != current { panel.setFrameOrigin(fixed) }
+      NSLog("[QuickTalk] 창 배치: 마지막 위치 유지 origin=(%.0f, %.0f)", fixed.x, fixed.y)
+      return
     }
-    // 화면 밖으로 나가지 않게 클램프
-    origin.x = min(max(origin.x, vis.minX), max(vis.minX, vis.maxX - size.width))
-    origin.y = min(max(origin.y, vis.minY), max(vis.minY, vis.maxY - size.height))
     panel.setFrameOrigin(origin)
+    NSLog("[QuickTalk] 창 배치: %@ origin=(%.0f, %.0f)",
+          target == nil ? "중앙 모드" : (anchor == nil ? "포인터 모드" : "pill 자리"), origin.x, origin.y)
   }
 
   /// QA용: `--panel-position=<center|mousePointer>` (설정값 대신 이번 실행만 override)

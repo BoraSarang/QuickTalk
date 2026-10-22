@@ -118,6 +118,9 @@ final class PointerPillController {
   private var anchorBottom: CGFloat = 0
   /// pill 의 가로 위치(열 때 정해지고 이후 유지)
   private var anchorX: CGFloat = 0
+  /// pill 이 마지막으로 놓인 **캐럿 지점** — 대화 창이 같은 자리에서 이어진다.
+  /// (finish() 는 dismiss() 뒤에 콜백을 부르므로, 닫히기 전에 기록해 둬야 한다)
+  private(set) var lastAnchor: NSPoint?
 
   func start(store: UIStore, onOutcome: @escaping (PillOutcome) -> Void) {
     guard panel == nil else { return }
@@ -149,6 +152,9 @@ final class PointerPillController {
     let base = frame(totalHeight: PillMetrics.height)
     anchorX = base.origin.x
     anchorBottom = base.origin.y
+    // 입력을 시작한 자리 — 대화 창이 여기서 이어진다(설정보다 우선).
+    lastAnchor = NSPoint(x: anchorX + PillMetrics.caretOffset,
+                         y: anchorBottom + PillMetrics.height / 2)
     panel.setFrame(currentFrame(), display: false)
     panel.alphaValue = 0
     NSApp.activate(ignoringOtherApps: true)

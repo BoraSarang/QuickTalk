@@ -1,9 +1,15 @@
 import Foundation
 
-/// 새 대화 창(독립 창)을 띄울 위치 — 메뉴바 아이콘 하단 고정은 쓰지 않는다.
+/// 대화 창(독립 창)을 띄울 위치 — 메뉴바 아이콘 하단 고정은 쓰지 않는다.
+///
+/// - `center`: 화면 중앙
+/// - `mousePointer`: 마우스 포인터 자리(창 중심). 메뉴바에서 열면 마지막 작업 위치.
+/// - `lastPosition`: 사용자가 옮긴 자리(NSWindow 자동 저장). **pill에서 넘어온 경우는 예외** —
+///   입력한 자리에서 창이 이어진다.
 public enum NewWindowPosition: String, Codable, CaseIterable, Identifiable {
   case center
   case mousePointer
+  case lastPosition
 
   public var id: String { rawValue }
 
@@ -11,6 +17,7 @@ public enum NewWindowPosition: String, Codable, CaseIterable, Identifiable {
     switch self {
     case .center: return L("화면 중앙")
     case .mousePointer: return L("마우스 포인터")
+    case .lastPosition: return L("마지막 위치")
     }
   }
 }
@@ -31,7 +38,8 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var previewLines: Int = 2
   public var keepDays: Int = 30
   public var globalShortcut: String = "Cmd+Space"
-  /// 새 대화 창 위치 (기본: 화면 중앙 / 마우스 포인터 선택 가능)
+  /// 대화 창 위치 (기본: 화면 중앙 / 마우스 포인터 / 마지막 위치)
+  /// — pill 에서 넘어온 대화는 설정과 무관하게 **입력한 자리**에서 창이 이어진다.
   public var newWindowPosition: NewWindowPosition = .center
   /// 퀵셸프 열기/닫기(기본 ⌥⌘V)
   public var shelfShortcut: String = "Option+Shift+V"
