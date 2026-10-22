@@ -154,6 +154,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
       }
     }
+    // QA: `--open-pill` — 포인터 pill 을 두 줄로 채워 띄운다(입력창이 위로 자라는지 확인용)
+    if CommandLine.arguments.contains("--open-pill") {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+        guard let self else { return }
+        PointerPillController.shared.setDraftForQA("내일 서울 날씨 알려줘\n그리고 이번 주 일정도 같이 보여줘")
+        PointerPillController.shared.present()
+      }
+    }
+    // QA: `--capture-selftest` — 드래그 캡처 오버레이 → Space → 윈도우 모드 전환과 창 목록 확인
+    if CommandLine.arguments.contains("--capture-selftest") {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+        guard let self else { return }
+        CaptureService.shared.captureRegion(into: self.store)     // 드래그 모드로 시작
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+          let r = CaptureService.shared.overlaySelfTest()
+          NSLog("[CAPTURE-SELFTEST] mode=%@ windows=%d highlight=%@",
+                r.mode, r.windows, r.highlight ? "Y" : "N")
+          NSApp.terminate(nil)
+        }
+      }
+    }
     // QA: `--prefill=<문구>` — 전송하지 않고 입력창만 채운다(입력창 높이·스크롤·플레이스홀더 확인용)
     if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--prefill=") }) {
       let text = String(arg.dropFirst("--prefill=".count)).replacingOccurrences(of: "\\n", with: "\n")

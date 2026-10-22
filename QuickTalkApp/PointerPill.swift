@@ -26,6 +26,7 @@ enum PillOutcome {
 
 enum PillMetrics {
   static let width: CGFloat = 380
+  /// 1줄일 때 pill 높이
   static let height: CGFloat = 56
   /// pill 왼쪽 끝 → 캐럿(입력 시작점)까지. 포인터가 캐럿 자리에 오도록 창을 이만큼 왼쪽으로 둔다.
   static let caretOffset: CGFloat = 55
@@ -35,13 +36,21 @@ enum PillMetrics {
   static let rowHeight: CGFloat = 34
   static let footerHeight: CGFloat = 32
   static let maxRows = 4
+  /// 텍스트 상자 위/아래 여백 — 아이콘·텍스트가 pill 안에 정렬되는 기준선
+  static let textPad: CGFloat = 13
+  /// 입력창 최소 높이(1줄)
+  static let minTextHeight: CGFloat = 24
+  /// pill 입력 폰트
+  static let font = NSFont.systemFont(ofSize: 15.5)
 
   static func listHeight(rows: Int) -> CGFloat {
     CGFloat(min(max(rows, 1), maxRows)) * rowHeight + 1 + footerHeight
   }
 
-  static func totalHeight(showList: Bool, rows: Int) -> CGFloat {
-    showList ? height + gap + listHeight(rows: rows) : height
+  /// pill 본체 높이 — 입력창이 여러 줄로 자라면 **위로** 커진다.
+  static func capsuleHeight(inputHeight: CGFloat) -> CGFloat {
+    let text = max(minTextHeight, inputHeight)
+    return max(height, text + textPad * 2)
   }
 }
 
@@ -51,6 +60,8 @@ final class PillModel: ObservableObject {
   @Published var recent: [Conversation] = []
   /// 값이 바뀌면 입력창에 포커스를 준다(pill을 열 때·목록을 닫을 때).
   @Published var focusToken = UUID()
+  /// 입력창이 측정한 높이 — 여러 줄이 되면 pill 이 위로 자란다.
+  @Published var inputHeight: CGFloat = 0
 }
 
 // MARK: - 창
@@ -103,6 +114,10 @@ final class PointerPillController {
   /// Esc·단축키로 닫을 때 되돌려 줄 앱(다른 앱에서 ⌘Space를 눌렀던 경우).
   private var previousApp: NSRunningApplication?
   private var openedAt = Date.distantPast
+  /// pill 본체(capsule)의 아래쪽 기준선 — 입력창이 위로 자라도 이 선은 그대로
+  private var anchorBottom: CGFloat = 0
+  /// pill 의 가로 위치(열 때 정해지고 이후 유지)
+  private var anchorX: CGFloat = 0
 
   func start(store: UIStore, onOutcome: @escaping (PillOutcome) -> Void) {
     guard panel == nil else { return }
@@ -127,9 +142,14 @@ final class PointerPillController {
     }
     model.recent = recentConversations()
     model.showList = false
+    model.inputHeight = 0
     model.focusToken = UUID()
 
-    panel.setFrame(frame(totalHeight: PillMetrics.height), display: false)
+    // 기준선: 1줄 pill 의 아래쪽(포인터 중심 배치에서 파생)
+    let base = frame(totalHeight: PillMetrics.height)
+    anchorX = base.origin.x
+    anchorBottom = base.origin.y
+    panel.setFrame(currentFrame(), display: false)
     panel.alphaValue = 0
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
@@ -206,6 +226,12 @@ final class PointerPillController {
     finish(.archive)
   }
 
+  /// QA 전용 — pill 을 미리 채운다(입력창 높이·위로 성장 확인용)
+  func setDraftForQA(_ text: String) {
+    model.text = text
+    model.focusToken = UUID()
+  }
+
   private func finish(_ outcome: PillOutcome) {
     let callback = onOutcome
     model.text = ""
@@ -228,6 +254,7 @@ final class PointerPillController {
   }
 
   /// 포인터가 **캐럿 자리**에 오도록 — 세로는 포인터 중심, 가로는 입력 시작점.
+  /// (이 위치는 열 때 한 번 정하고, 이후엔 그대로 둔다 — 입력창이 자라도 pill 이 흔들리지 않는다)
   private func frame(totalHeight: CGFloat) -> NSRect {
     let p = NSEvent.mouseLocation
     let vf = screenForPointer()?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -239,16 +266,30 @@ final class PointerPillController {
     return NSRect(x: x.rounded(), y: y.rounded(), width: PillMetrics.width, height: totalHeight)
   }
 
-  private func resizeForList() {
-    guard let panel, isVisible else { return }
-    let h = PillMetrics.totalHeight(showList: model.showList, rows: model.recent.count)
-    var f = panel.frame
-    let top = f.maxY
-    f.size.height = h
-    f.origin.y = top - h
+  /// 현재 크기 — 입력창이 자라면 **위로**, 목록이 열리면 **아래로** 커진다.
+  /// 기준선은 pill 본체(capsule)의 아래쪽 — 입력창이 위로 자라도 이 선은 움직이지 않는다.
+  private func currentFrame() -> NSRect {
+    let capsuleH = PillMetrics.capsuleHeight(inputHeight: model.inputHeight)
+    let extra = capsuleH - PillMetrics.height
+    let listPart = model.showList
+      ? PillMetrics.gap + PillMetrics.listHeight(rows: model.recent.count)
+      : 0
+    let total = extra + capsuleH + listPart
+    var f = NSRect(x: anchorX,
+                   y: anchorBottom - extra - capsuleH,
+                   width: PillMetrics.width,
+                   height: total)
+    // 화면을 벗어나면 안쪽으로 민다
     if let vf = screenForPointer()?.visibleFrame {
-      f.origin.y = max(f.origin.y, vf.minY + 8)          // 아래로 넘치면 위로 밀어 넣는다
+      if f.minY < vf.minY + 8 { f.origin.y = vf.minY + 8 }
+      if f.maxY > vf.maxY - 8 { f.origin.y = vf.maxY - 8 - f.height }
     }
+    return f
+  }
+
+  private func resize() {
+    guard let panel, isVisible else { return }
+    let f = currentFrame()
     NSAnimationContext.runAnimationGroup { ctx in
       ctx.duration = 0.14
       ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -263,6 +304,7 @@ final class PointerPillController {
       model: model,
       onSubmit: { [weak self] in self?.submit($0) },
       onCancel: { [weak self] in self?.dismiss() },
+      onCommandReturn: { [weak self] in self?.openChatWindow() },
       onToggleList: { [weak self] in self?.toggleList() },
       onResume: { [weak self] in self?.resume($0) },
       onOpenArchive: { [weak self] in self?.openArchive() }
@@ -283,11 +325,17 @@ final class PointerPillController {
     win.onOpenArchive = { [weak self] in self?.openArchive() }
     panel = win
 
-    // 목록이 열리면 창을 아래로 늘이고(위 가장자리 고정), 닫히면 pill 높이로 되돌린다.
+    // 목록이 열리면 창을 아래로 늘리고(위 가장자리 고정), 닫히면 pill 높이로 되돌린다.
     model.$showList
       .removeDuplicates()
       .receive(on: RunLoop.main)
-      .sink { [weak self] _ in self?.resizeForList() }
+      .sink { [weak self] _ in self?.resize() }
+      .store(in: &bag)
+    // 입력창이 여러 줄이 되면 pill 이 **위로** 자란다(기준선은 그대로).
+    model.$inputHeight
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in self?.resize() }
       .store(in: &bag)
 
     // 바깥을 클릭해 key를 잃으면 닫는다(Spotlight처럼). 여는 도중의 일시적 resign은 무시한다.
@@ -312,12 +360,15 @@ struct PillRootView: View {
   @ObservedObject var model: PillModel
   let onSubmit: (String) -> Void
   let onCancel: () -> Void
+  let onCommandReturn: () -> Void
   let onToggleList: () -> Void
   let onResume: (Conversation) -> Void
   let onOpenArchive: () -> Void
 
   var body: some View {
     VStack(spacing: PillMetrics.gap) {
+      // 입력창이 자란 만큼 위를 비운다 → pill 이 위로 자란다(기준선은 그대로).
+      Color.clear.frame(height: inputExtra)
       capsule
       if model.showList { list }
     }
@@ -325,36 +376,56 @@ struct PillRootView: View {
     .frame(maxHeight: .infinity, alignment: .top)
   }
 
+  /// pill 본체가 1줄보다 커진 만큼 — 위쪽 여백으로 쓴다
+  private var inputExtra: CGFloat {
+    max(0, capsuleHeight - PillMetrics.height)
+  }
+
+  private var capsuleHeight: CGFloat {
+    PillMetrics.capsuleHeight(inputHeight: model.inputHeight)
+  }
+
   // MARK: pill
 
   private var capsule: some View {
-    HStack(spacing: 12) {
+    // 하단 정렬 — 아이콘과 텍스트가 pill 의 아래쪽 기준선에 붙는다(위로 자라도 안 움직인다)
+    HStack(alignment: .bottom, spacing: 12) {
       PillOrb()
+        .padding(.bottom, PillMetrics.textPad)
 
-      ZStack(alignment: .leading) {
+      ZStack(alignment: .topLeading) {
         if model.text.isEmpty {
           Text(L("무엇이든 물어보세요"))
             .font(.system(size: 15.5))
             .foregroundColor(Color.secondary.opacity(0.8))
             .allowsHitTesting(false)
+            .padding(.top, 3)
         }
-        PillTextField(text: $model.text,
-                      focusToken: model.focusToken,
-                      onSubmit: onSubmit,
-                      onCancel: onCancel)
-          .frame(height: 24)
+        // 대화 입력창과 **같은 컴포넌트** — Enter 전송 · Shift+Enter 줄바꿈 · 위로 성장
+        ChatInputField(text: $model.text,
+                       height: $model.inputHeight,
+                       isBusy: false,
+                       maxLines: 4,
+                       focusToken: model.focusToken,
+                       font: PillMetrics.font,
+                       onCommandReturn: onCommandReturn,
+                       onCancel: onCancel,
+                       onSubmit: onSubmit)
+          .frame(height: max(PillMetrics.minTextHeight, model.inputHeight))
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.bottom, PillMetrics.textPad)
 
       PillIconButton(system: "archivebox", active: model.showList,
                      help: L("보관함 — 최근 대화 이어가기")) {
         onToggleList()
       }
+      .padding(.bottom, 12)
     }
     .padding(.leading, 13)
     .padding(.trailing, 12)
-    .frame(width: PillMetrics.width, height: PillMetrics.height)
+    .frame(width: PillMetrics.width, height: capsuleHeight)
     .background {
       // Capsule 대신 같은 반지름의 RoundedRectangle — Capsule의 strokeBorder는 좌우 끝에
       // 1pt 세로 이음새를 남긴다(macOS 26, 오프스크린 렌더에서 확인).
@@ -364,7 +435,7 @@ struct PillRootView: View {
       RoundedRectangle(cornerRadius: PillMetrics.corner, style: .circular)
         .strokeBorder(Color.primary.opacity(0.16), lineWidth: 1)
     )
-    .help(L("Enter 전송 · ⌘Return 대화 창 · Esc 닫기"))
+    .help(L("Enter 전송 · Shift+Enter 줄바꿈 · ⌘Return 대화 창 · Esc 닫기"))
   }
 
   // MARK: 보관함 목록
@@ -518,80 +589,5 @@ private struct PillRecentRow: View {
 
   private var title: String {
     conversation.title.isEmpty ? L("새 대화") : conversation.title
-  }
-}
-
-// MARK: - 입력창 (단일 행 NSTextField)
-
-/// 한글 IME 조합 Enter를 먼저 확정하고, Esc·Enter를 창에 정확히 전달한다.
-struct PillTextField: NSViewRepresentable {
-  @Binding var text: String
-  var focusToken: UUID
-  var onSubmit: (String) -> Void
-  var onCancel: () -> Void
-
-  func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-  func makeNSView(context: Context) -> NSTextField {
-    let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
-    field.isBordered = false
-    field.drawsBackground = false
-    field.focusRingType = .none
-    field.font = .systemFont(ofSize: 15.5)
-    field.textColor = .labelColor
-    field.delegate = context.coordinator
-    field.cell?.wraps = false
-    field.cell?.isScrollable = true
-    field.cell?.usesSingleLineMode = true
-    field.cell?.truncatesLastVisibleLine = true
-    field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    field.stringValue = text
-    return field
-  }
-
-  func updateNSView(_ field: NSTextField, context: Context) {
-    context.coordinator.parent = self
-    let editing = field.currentEditor() as? NSTextView
-    if field.stringValue != text, !(editing?.hasMarkedText() ?? false) {
-      field.stringValue = text
-    }
-    if context.coordinator.lastFocusToken != focusToken {
-      context.coordinator.lastFocusToken = focusToken
-      DispatchQueue.main.async { [weak field] in
-        guard let field, let window = field.window else { return }
-        window.makeFirstResponder(field)
-      }
-    }
-  }
-
-  final class Coordinator: NSObject, NSTextFieldDelegate {
-    var parent: PillTextField
-    var lastFocusToken: UUID?
-
-    init(_ parent: PillTextField) { self.parent = parent }
-
-    func controlTextDidChange(_ notification: Notification) {
-      guard let field = notification.object as? NSTextField else { return }
-      if parent.text != field.stringValue { parent.text = field.stringValue }
-    }
-
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-      if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-        parent.onCancel()
-        return true
-      }
-      guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
-      // 한글 조합 중 Enter — 조합을 먼저 확정해야 글자가 남지 않는다(대화 입력창과 같은 규칙)
-      if textView.hasMarkedText() {
-        let marked = (textView.string as NSString).substring(with: textView.markedRange())
-        textView.insertText(marked, replacementRange: textView.markedRange())
-      }
-      if NSApp.currentEvent?.modifierFlags.contains(.command) == true { return false } // 창이 ⌘Return 처리
-      let value = control.stringValue
-      guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return true }
-      parent.onSubmit(value)
-      return true
-    }
   }
 }

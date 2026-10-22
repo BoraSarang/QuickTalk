@@ -17,12 +17,16 @@ final class CaptureOverlayController: NSObject {
   let mode: Mode
   let screen: NSScreen
   let frozen: CGImage
-  let windows: [CaptureWindowTarget]
+  /// 잡을 수 있는 창 목록 — **모드와 무관하게** 항상 채워 둔다
+  /// (드래그 모드 → Space → 윈도우 모드 전환 시에도 필요)
+  var windows: [CaptureWindowTarget]
   /// 드래그 선택(로컬 좌표) 완료
   var onFinish: ((CGImage, ShelfCapture.Source) -> Void)?
   /// 윈도우 모드에서 창 선택 — 그 창만 다시 캡처한다(화면 자르기가 아님)
   var onPickWindow: ((CaptureWindowTarget) -> Void)?
   var onCancel: (() -> Void)?
+  /// 윈도우 모드로 전환할 때 창 목록을 다시 읽는다
+  var onRefreshWindows: (() -> [CaptureWindowTarget])?
 
   private var window: NSWindow?
   /// Esc 보조 경로 — 창이 key가 아니어도 앱이 이벤트를 받으면 취소한다
@@ -58,6 +62,13 @@ final class CaptureOverlayController: NSObject {
     }
     view.onCancel = { [weak self] in
       self?.cancel()
+    }
+    // 윈도우 모드로 전환할 때 목록을 다시 읽는다
+    view.onRefreshWindows = { [weak self] in
+      guard let self else { return [] }
+      let fresh = self.onRefreshWindows?() ?? []
+      self.windows = fresh
+      return fresh
     }
     win.contentView = view
     NSApp.activate(ignoringOtherApps: true)
@@ -111,6 +122,24 @@ final class CaptureOverlayController: NSObject {
     window?.orderOut(nil)
     window = nil
   }
+
+  // MARK: - QA
+
+  /// QA 전용 — Space 키를 흉내내 모드 전환을 확인한다(드래그 → 윈도우).
+  /// 반환: (모드, 잡을 수 있는 창 수, 강조 여부)
+  func simulateSpaceForQA() -> (mode: String, windows: Int, highlight: Bool) {
+    guard let window, let view = window.contentView as? CaptureOverlayView else {
+      return ("none", 0, false)
+    }
+    if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                   timestamp: ProcessInfo.processInfo.systemUptime,
+                                   windowNumber: window.windowNumber, context: nil,
+                                   characters: " ", charactersIgnoringModifiers: " ",
+                                   isARepeat: false, keyCode: 49) {
+      view.keyDown(with: event)
+    }
+    return (view.modeLabel, view.windowCount, view.hasHighlight)
+  }
 }
 
 final class CaptureOverlayView: NSView {
@@ -118,10 +147,13 @@ final class CaptureOverlayView: NSView {
   private(set) var mode: CaptureOverlayController.Mode
   private let frozen: NSImage
   private let screenFrame: NSRect
-  private let windows: [CaptureWindowTarget]
+  /// 잡을 수 있는 창 목록 — 모드와 무관하게 채워 둔다
+  private var windows: [CaptureWindowTarget]
   var onSelect: ((NSRect) -> Void)?
   var onPickWindow: ((CaptureWindowTarget) -> Void)?
   var onCancel: (() -> Void)?
+  /// 윈도우 모드 진입 시 목록을 다시 읽는 훅
+  var onRefreshWindows: (() -> [CaptureWindowTarget])?
 
   private var startPoint: NSPoint?
   private var currentPoint: NSPoint?
@@ -193,6 +225,11 @@ final class CaptureOverlayView: NSView {
 
   // MARK: 이벤트
 
+  /// QA 전용 접근자 — 모드·창 수·강조 여부
+  var modeLabel: String { mode == .window ? "window" : "region" }
+  var windowCount: Int { windows.count }
+  var hasHighlight: Bool { highlighted != nil }
+
   override func mouseDown(with event: NSEvent) {
     keepCrosshair()
     let p = convert(event.locationInWindow, from: nil)
@@ -252,6 +289,10 @@ final class CaptureOverlayView: NSView {
     guard startPoint == nil, currentPoint == nil else { return }
     mode = (mode == .region) ? .window : .region
     if mode == .window {
+      // 창 목록을 다시 읽는다 — 오버레이가 뜬 뒤 새로 열린 창도 잡히도록
+      if let refreshed = onRefreshWindows?(), !refreshed.isEmpty {
+        windows = refreshed
+      }
       highlighted = windowTarget(at: mouse)
     } else {
       highlighted = nil
@@ -295,7 +336,12 @@ final class CaptureOverlayView: NSView {
         drawLabel(Lf("%@ — 클릭하여 캡처", name), at: NSPoint(x: hl.minX, y: hl.maxY + 8),
                   background: NSColor(red: 0.48, green: 0.36, blue: 1, alpha: 0.95))
       }
-      drawHint(L("클릭 = 윈도우 캡처 · Space = 드래그 · Esc = 취소"))
+      // 잡을 수 있는 창이 하나도 없으면 이유를 알려준다(라벨만 바뀌고 아무것도 안 되는 상태 방지)
+      if windows.isEmpty {
+        drawHint(L("잡을 수 있는 창이 없습니다 · Space = 드래그 · Esc = 취소"))
+      } else {
+        drawHint(L("클릭 = 윈도우 캡처 · Space = 드래그 · Esc = 취소"))
+      }
       return
     }
 

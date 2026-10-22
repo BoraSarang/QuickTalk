@@ -180,12 +180,19 @@ extension AppDelegate {
         listed.recent = recent
         let typed = PillModel()
         typed.text = "내일 서울 날씨 알려줘"
+        let multiline = PillModel()
+        multiline.text = "내일 서울 날씨 알려줘\n그리고 이번 주 일정도 같이 보여줘"
+        // 렌더는 값을 프로그램적으로 넣어(textDidChange 없음) 측정이 일어나지 않는다 → 높이를 명시한다
+        multiline.inputHeight = 2 * 18 + 12   // 2줄 × 줄높이 18 + 위아래 여백 12
         self.renderPNG(AnyView(Self.pillStage(empty)),
                        size: NSSize(width: 460, height: 140),
                        to: "\(dir)/pill-\(suffix).png")
         self.renderPNG(AnyView(Self.pillStage(typed)),
                        size: NSSize(width: 460, height: 140),
                        to: "\(dir)/pill-typed-\(suffix).png")
+        self.renderPNG(AnyView(Self.pillStage(multiline)),
+                       size: NSSize(width: 460, height: 200),
+                       to: "\(dir)/pill-multiline-\(suffix).png")
         self.renderPNG(AnyView(Self.pillStage(listed)),
                        size: NSSize(width: 460, height: 320),
                        to: "\(dir)/pill-list-\(suffix).png")
@@ -649,7 +656,7 @@ extension AppDelegate {
       RadialGradient(colors: [Color.purple.opacity(0.22), .clear],
                      center: .topLeading, startRadius: 0, endRadius: 380)
       PillRootView(model: model,
-                   onSubmit: { _ in }, onCancel: {}, onToggleList: {},
+                   onSubmit: { _ in }, onCancel: {}, onCommandReturn: {}, onToggleList: {},
                    onResume: { _ in }, onOpenArchive: {})
         .padding(.top, 24)
     }
