@@ -1,9 +1,9 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-22 00:20 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-22 18:30 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
-> **현재 작업 브랜치 `feat/t18-agent-runtime`** (T-18 에이전트 런타임) — `main` 기준 분기, 아직 push 전.
+> **현재 작업 브랜치 `fix/single-instance`** (중복 실행 방지) — `main`(`bb1a4c6`) 기준 분기.
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -12,14 +12,49 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 00:06 T-18 도우미 도구(v0.18)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `a261f40ba070a92baf33875906bbe37e2f249c8cec9def6a8d85ab0767a87327` |
-| 테스트 | **354/354**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 22 = 도구·권한·샌드박스) |
-| 마지막 완료 | **T-18 v0.18 구현·배포**(2026-10-22 00:06) — 자연어 한마디로 앱이 **직접 명령을 실행**하고 답한다. 권한 3단계(읽기/쓰기/실행)·샌드박스 실측·확인 카드·감사 기록. **사용자 실측 대기** |
+| 현재 빌드 | **2026-10-22 18:27 단일 인스턴스 가드** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `99308aec19542e10499c74f7ce809de37b6e19b4f4d51bc717778220ff7610aa` |
+| 테스트 | **362/362**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 4 = 단일 실행 잠금) |
+| 마지막 완료 | **중복 실행 방지**(2026-10-22 18:27) — 앱은 **한 번에 하나만** 실행된다. 두 번째 실행은 기존 인스턴스를 앞으로 올리고 스스로 종료. **재실행 필요** |
 | 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
-| 실측 대기 | **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
+| 실측 대기 | **중복 실행 1건** + **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 건 직전 빌드. 이번 변경(캡처 윈도우 모드·pill 다중줄·에이전트 라우팅·실행 내역 보기)은 재실행 후 반영 |
-| git | `main` = **`fc9e848`** (에이전트 라우팅) — 이번 작업은 `feat/agent-execution-view` 브랜치 |
+| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 건 직전 빌드. 이번 변경(단일 인스턴스 가드)은 재실행 후 반영 |
+| git | `main` = **`bb1a4c6`** (실행 내역 보기) — 이번 작업은 `fix/single-instance` 브랜치 |
+
+### 세션 진행 (2026-10-22 18:27) — 중복 실행 방지 (앱은 하나만)
+
+#### 사용자 보고
+"앱이 동시에 두개가 실행중이다. 이 앱은 하나만 실행 되어야 함. 중복 실행이 되면 안됨"
+(스크린샷: pill 창 `무엇이든 물어보세요` 가 두 개 겹쳐 뜸)
+
+#### 원인
+- 같은 번들 ID(`com.borasarang.QuickTalk`)의 프로세스가 **3개** 떠 있었다 —
+  설치본 1개 + 이전 QA `--ask=` 디버그 실행 2개(4시간 넘게 대기 중).
+- 앱에는 **단일 인스턴스 장치가 없었다.** 설치본과 디버그 빌드는 실행 경로가 달라
+  LaunchServices 도 막지 않으므로, 두 프로세스가 각각 메뉴바 아이콘·단축키·pill 창을 만들었다.
+
+#### 구현
+- **`InstanceLock`(Core)** — `flock(2)` 기반 파일 잠금. 프로세스가 끝나면 OS 가 자동으로 푼다
+  (PID 파일만 쓰면 비정상 종료 뒤 찌꺼기로 앱이 영영 안 뜰 수 있다).
+- **`QuickTalkLauncher`(새 진입점)** — `QuickTalkApp.main()` **전에** 잠금을 잡는다.
+  UIStore·AppKit 창·클립보드 감시가 만들어지기 전이라 두 번째 인스턴스는 흔적을 남기지 않는다.
+- 두 번째 실행은 **기존 인스턴스에 분산 알림**을 보내 창을 앞으로 올리고 `exit(0)`.
+  기존 인스턴스는 그 알림을 받아 대화 창을 연다(`applicationShouldHandleReopen` 도 같은 동작).
+- **예외는 오프스크린 QA 하네스만**(`--render=`·`--*-test`·`--selftest=`). `--ask=`·`--open-panel` 처럼
+  **창을 띄우는** 실행은 일반 실행과 똑같이 중복이 막힌다 — 정확히 그 경우에 두 개가 떴기 때문.
+- `Info.plist` 에 `LSMultipleInstancesProhibited` 추가(2차 방어).
+
+#### 검증
+- `swift test` **362/362**(6 skip, 신규 4 — 두 번째 잠금 실패·해제 후 재실행·자식 프로세스 종료 시 자동 해제·멱등)
+- `xcodebuild` BUILD SUCCEEDED(경고 0)
+- 실제 바이너리 `--instance-selftest[=hold]` — `ACQUIRED(0)` → 동시 실행 `BLOCKED(3)` → 해제 후 `ACQUIRED(0)`
+- 배포 2026-10-22 18:27, `codesign --verify --strict` OK,
+  SHA-256 `99308aec19542e10499c74f7ce809de37b6e19b4f4d51bc717778220ff7610aa`
+- 남아 있던 QA 중복 프로세스 2개는 종료(설치본은 건드리지 않음)
+
+#### 다음
+- **사용자가 재실행한 뒤** 앱을 한 번 더 실행해 **새 인스턴스가 뜨지 않는지** 확인
+- T-18 실측 → v0.19(쓰기·되돌리기) → v0.20(실행 고도화)
 
 ### 세션 진행 (2026-10-22 14:25) — 도구 실행 내역 보기 (실제 쉘 실행 화면)
 
