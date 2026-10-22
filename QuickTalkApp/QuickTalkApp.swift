@@ -5,7 +5,32 @@ import Carbon
 
 // QuickTalk v0.10: 메뉴바 좌클릭 Hub(실행/설정) + 우클릭 컨텍스트 메뉴 (ApexKey 형식)
 // + AI 프로바이더 목록(기본 3종, 추가 가능) + 기본 프로바이더 Apple FM
+
+// [FEATURE] 단일 인스턴스 진입점 — 중복 실행 판정은 **UIStore·AppKit 창이 만들어지기 전**에 한다.
+// 두 번째 인스턴스가 기록을 읽거나 클립보드를 감시하지 않게 하려면 여기서 끝내야 한다.
 @main
+enum QuickTalkLauncher {
+  static func main() {
+    // QA: `--instance-selftest[=hold]` — 창 없이 잠금만 검사(첫 실행 0 · 중복 3)
+    if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--instance-selftest") }) {
+      let acquired = SingleInstance.acquire()
+      print("[INSTANCE-SELFTEST] \(acquired ? "ACQUIRED" : "BLOCKED") pid=\(getpid())")
+      if acquired, arg.hasSuffix("=hold") {
+        Thread.sleep(forTimeInterval: 3)
+        SingleInstance.release()
+      }
+      exit(acquired ? 0 : 3)
+    }
+    // 오프스크린 렌더·헤드리스 자가진단만 예외 — 나머지(창을 띄우는 실행 포함)는 하나만 뜬다.
+    if !SingleInstance.isHeadlessHarness, !SingleInstance.acquire() {
+      NSLog("[QuickTalk] E-MAC-APP-0001 이미 실행 중 — 중복 실행을 막고 기존 인스턴스를 앞으로 가져옵니다")
+      SingleInstance.activateExisting()
+      exit(0)
+    }
+    QuickTalkApp.main()
+  }
+}
+
 struct QuickTalkApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
   var body: some Scene {
@@ -31,6 +56,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var languageOverride: AppLanguage?
   private var appearanceOverride: AppAppearance?
 
+  /// 앱 종료 — 잠금을 명시적으로 푼다(OS 가 어차피 풀지만, 즉시 재실행이 막히지 않게).
+  func applicationWillTerminate(_ notification: Notification) {
+    SingleInstance.release()
+  }
+
+  /// Dock/Launchpad 에서 다시 열었을 때 — 새 인스턴스 대신 기존 창을 보여 준다.
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    openPanel(tab: 0)
+    return false
+  }
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     applyLaunchOverrides()
     applyLanguage(store.settings)
@@ -52,6 +88,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(forName: .quickTalkOpenSettings, object: nil, queue: .main) { [weak self] _ in
       self?.openSettings()
     }
+    // 중복 실행 시도가 있었으면 기존 인스턴스(이 앱)가 창을 앞으로 낸다 — 두 번째 앱은 뜨지 않는다.
+    DistributedNotificationCenter.default().addObserver(
+      forName: SingleInstance.activateNotification, object: nil, queue: .main) { [weak self] _ in
+        guard let self else { return }
+        NSLog("[QuickTalk] 중복 실행 요청 — 기존 창을 앞으로 가져옵니다")
+        self.openPanel(tab: 0)
+      }
     // 시스템 권한 안내(화면 기록·마이크·받아쓰기)가 대화 창에 가리지 않게 잠시 창을 내린다
     NotificationCenter.default.addObserver(forName: .quickTalkSystemPromptBegin, object: nil, queue: .main) { [weak self] _ in
       self?.beginSystemPrompt()
@@ -156,8 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     // QA: `--open-pill` — 포인터 pill 을 두 줄로 채워 띄운다(입력창이 위로 자라는지 확인용)
     if CommandLine.arguments.contains("--open-pill") {
-      DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
-        guard let self else { return }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
         PointerPillController.shared.setDraftForQA("내일 서울 날씨 알려줘\n그리고 이번 주 일정도 같이 보여줘")
         PointerPillController.shared.present()
       }

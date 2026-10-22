@@ -46,6 +46,7 @@
 		7964EE720816B7E2F379CA8C /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C68BF0B37038A795DA94C559 /* LLMProvider.swift */; };
 		7C7D875E3C4C6D701A815180 /* MenuBarHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3BA3DBC6AFA968606E34D9B /* MenuBarHubView.swift */; };
 		7D28FDB5019E2F0241109E2E /* AgentExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37CDDB2204F4936E0652DA8C /* AgentExecutor.swift */; };
+		7F28B9045857176BA1C4D784 /* SingleInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */; };
 		83153F15B5E2F4D8BBBBC62B /* ProviderFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D71ACB493AA7E5B659FB8F /* ProviderFallback.swift */; };
 		92DDD592E4609F2C5B4F119C /* SecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC0E0A49E9FAE4A8DC1DC4C /* SecretStore.swift */; };
 		989D731C586EC0079F02E54E /* CaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF65943E24398BA1601E016F /* CaptureService.swift */; };
@@ -62,6 +63,7 @@
 		BD0D181F3B0507A51A874335 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C765AE231078C7BE029074BD /* SpeechService.swift */; };
 		BD4AC968FCB5678578F10B51 /* ShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193BAC3ECAE8EDFC362DE39E /* ShelfView.swift */; };
 		C04B283E2EFE8FC662954C71 /* AttachmentRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B2D0681DEA0AF92CD486A7 /* AttachmentRetry.swift */; };
+		C2B717A2E70AF5711D6EABB9 /* InstanceLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D7F59DE08B3A9E05FC9678 /* InstanceLock.swift */; };
 		C54C70BB38F99664AF2CD2F7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16AE56A6897A359876CF86FC /* SettingsView.swift */; };
 		C73010FE32434ECCD4D16965 /* ShelfView+Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DF2B1F53868ED7E3A10D2C /* ShelfView+Clipboard.swift */; };
 		C9709D03BD65F3FF7B18377B /* WebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D95F7F96477810C260032BED /* WebSearch.swift */; };
@@ -144,8 +146,10 @@
 		C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeSpeechService.swift; sourceTree = "<group>"; };
 		C68BF0B37038A795DA94C559 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
 		C765AE231078C7BE029074BD /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
+		C7D7F59DE08B3A9E05FC9678 /* InstanceLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstanceLock.swift; sourceTree = "<group>"; };
 		CCC6202DA471E06B93A3E247 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		CF440F448282A93D1CFE776C /* SandboxRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxRunner.swift; sourceTree = "<group>"; };
+		D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstance.swift; sourceTree = "<group>"; };
 		D365FF5FF18A22A715651BBC /* ServerFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailure.swift; sourceTree = "<group>"; };
 		D36FB7D6B72920A828D78C84 /* PointerPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerPill.swift; sourceTree = "<group>"; };
 		D7384EC161F1050F560476B8 /* PolicyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolicyEngine.swift; sourceTree = "<group>"; };
@@ -209,6 +213,7 @@
 				FBCE96CEC85C13FDBFF74E2E /* ShelfView+Capture.swift */,
 				59DF2B1F53868ED7E3A10D2C /* ShelfView+Clipboard.swift */,
 				6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */,
+				D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */,
 				C765AE231078C7BE029074BD /* SpeechService.swift */,
 				EF08B4A7902C3727A3EFE83B /* UIStore.swift */,
 				C1F7B5A8E2365B16A7EB2007 /* UIStore+Agent.swift */,
@@ -245,6 +250,7 @@
 				8AE0D8197FF437735FFD029E /* ConversationMemory.swift */,
 				BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */,
 				54E6ECE09008A24E1EEEB89E /* GlobalMemory.swift */,
+				C7D7F59DE08B3A9E05FC9678 /* InstanceLock.swift */,
 				9370ED6612F49EC6C6433957 /* Keychain.swift */,
 				C68BF0B37038A795DA94C559 /* LLMProvider.swift */,
 				6A6AD7A5FD9FEE38DBEFCCA6 /* Localization.swift */,
@@ -370,6 +376,7 @@
 				514B962038882A9C03B10ACD /* EdgeTTS.swift in Sources */,
 				20B41BFB743D43FAC6406C08 /* GlobalHotKey.swift in Sources */,
 				D7D8D487CEC9C251E33CF6D8 /* GlobalMemory.swift in Sources */,
+				C2B717A2E70AF5711D6EABB9 /* InstanceLock.swift in Sources */,
 				39717BDB98AB7E8BD6EA0C03 /* Keychain.swift in Sources */,
 				7964EE720816B7E2F379CA8C /* LLMProvider.swift in Sources */,
 				41C9DFB768BFB22D67D26C70 /* Localization.swift in Sources */,
@@ -410,6 +417,7 @@
 				BD4AC968FCB5678578F10B51 /* ShelfView.swift in Sources */,
 				1E98097CE2505F620BB5EE8A /* Shortcut.swift in Sources */,
 				B28D62906DD82AFC5FAC5F57 /* ShortcutEntry.swift in Sources */,
+				7F28B9045857176BA1C4D784 /* SingleInstance.swift in Sources */,
 				E42DC23D1B42C59918FB3F52 /* SpeechCatalog.swift in Sources */,
 				BD0D181F3B0507A51A874335 /* SpeechService.swift in Sources */,
 				F4BBBDC9664636EF6E07F955 /* Store.swift in Sources */,
