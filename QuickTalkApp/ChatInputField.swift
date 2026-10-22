@@ -17,13 +17,40 @@ struct ChatInputField: NSViewRepresentable {
   var maxLines: Int = 5
   /// 값이 바뀌면 입력창에 포커스를 준다(질문 수정·다시 응답에서 사용)
   var focusToken: UUID?
+  /// 폰트 — pill 은 더 큰 폰트를 넘긴다(줄 높이도 이 값으로 계산한다)
+  var font: NSFont = ChatInputField.defaultFont
+  /// ⌘Return — 지정하면 Enter 대신 이 동작을 맡는다(pill: 대화 창 열기)
+  var onCommandReturn: (() -> Void)?
+  /// Esc — 지정하면 취소 동작을 맡는다(pill: 닫기)
+  var onCancel: (() -> Void)?
   /// 전송 요청 — 확정된 현재 문자열을 함께 넘긴다(IME 조합 확정분 포함)
   var onSubmit: (String) -> Void
 
   /// 글자 상자 위/아래 여백(1줄일 때 마이크 버튼 높이에 맞춘다)
   static let verticalPadding: CGFloat = 6
   static let horizontalPadding: CGFloat = 3
-  static let font = NSFont.systemFont(ofSize: 13)
+  /// 대화 입력창 기본 폰트
+  static let defaultFont = NSFont.systemFont(ofSize: 13)
+
+  /// 폰트별 한 줄 높이(캐시) — 크기만으로 구분한다
+  private static var lineHeightCache: [CGFloat: CGFloat] = [:]
+
+  /// AppKit이 실제로 쓰는 줄 높이(폰트 기준) — 상자 높이와 스크롤 오프셋을 이 값의 배수로 맞춘다
+  static func lineHeight(for font: NSFont) -> CGFloat {
+    let key = font.pointSize
+    if let cached = lineHeightCache[key] { return cached }
+    let storage = NSTextStorage(string: "가나다", attributes: [.font: font])
+    let lm = NSLayoutManager()
+    let container = NSTextContainer(size: NSSize(width: 1000, height: CGFloat.greatestFiniteMagnitude))
+    container.lineFragmentPadding = 0
+    storage.addLayoutManager(lm)
+    lm.addTextContainer(container)
+    lm.ensureLayout(for: container)
+    let h = lm.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height
+    let value = h > 1 ? h : 16
+    lineHeightCache[key] = value
+    return value
+  }
 
   func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -32,7 +59,7 @@ struct ChatInputField: NSViewRepresentable {
     tv.delegate = context.coordinator
     tv.drawsBackground = false
     tv.isRichText = false
-    tv.font = Self.font
+    tv.font = font
     tv.textColor = .labelColor
     tv.insertionPointColor = .labelColor
     tv.isAutomaticQuoteSubstitutionEnabled = false
@@ -53,6 +80,11 @@ struct ChatInputField: NSViewRepresentable {
     tv.textContainer?.lineFragmentPadding = 2
     tv.string = text
     tv.onScroll = { [weak coordinator = context.coordinator] dy in coordinator?.scroll(by: dy) }
+    // 폭이 확정된 뒤에 한 번 더 측정한다(초기 폭 0 상태에서 재는 것을 막는다)
+    tv.onWidthSettled = { [weak coordinator = context.coordinator, weak tv] in
+      guard let tv else { return }
+      coordinator?.layoutPass(width: tv.bounds.width)
+    }
     context.coordinator.textView = tv
     return tv
   }
@@ -63,6 +95,9 @@ struct ChatInputField: NSViewRepresentable {
     if tv.string != text, !tv.hasMarkedText() {
       tv.string = text
       tv.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+      // 값을 직접 넣은 경우엔 textDidChange 가 오지 않는다 → 여기서 다시 잰다.
+      // (pill 처럼 "나중에 채워 넣는" 입력창의 높이가 1줄로 남던 문제)
+      context.coordinator.layoutPass(width: tv.bounds.width)
     }
     context.coordinator.layoutPass(width: tv.bounds.width)
     let coordinator = context.coordinator
@@ -83,23 +118,26 @@ struct ChatInputField: NSViewRepresentable {
 
   // MARK: - 측정 (뷰 상태에 의존하지 않는다)
 
-  /// AppKit이 실제로 쓰는 줄 높이(폰트 기준) — 상자 높이와 스크롤 오프셋을 이 값의 배수로 맞춘다
-  static let oneLineHeight: CGFloat = {
-    let storage = NSTextStorage(string: "가나다", attributes: [.font: font])
-    let lm = NSLayoutManager()
-    let container = NSTextContainer(size: NSSize(width: 1000, height: CGFloat.greatestFiniteMagnitude))
-    container.lineFragmentPadding = 0
-    storage.addLayoutManager(lm)
-    lm.addTextContainer(container)
-    lm.ensureLayout(for: container)
-    let h = lm.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height
-    return h > 1 ? h : 16
-  }()
+  /// 이 입력창이 쓰는 한 줄 높이
+  var oneLineHeight: CGFloat { ChatInputField.lineHeight(for: font) }
 
   // MARK: - 스크롤 휠을 받는 텍스트 뷰
 
   final class ChatTextView: NSTextView {
     var onScroll: ((CGFloat) -> Void)?
+    /// **폭이 정해지면** 알려준다 — 측정은 폭이 잡힌 뒤에야 정확하다
+    /// (SwiftUI 는 update 시점의 view 폭이 0일 수 있다 — pill 입력창이 여기에 걸렸었다)
+    var onWidthSettled: (() -> Void)?
+    private var lastWidth: CGFloat = 0
+
+    override func layout() {
+      super.layout()
+      if abs(bounds.width - lastWidth) > 0.5 {
+        lastWidth = bounds.width
+        onWidthSettled?()
+      }
+    }
+
     override func scrollWheel(with event: NSEvent) {
       onScroll?(event.scrollingDeltaY)
     }
@@ -147,28 +185,30 @@ struct ChatInputField: NSViewRepresentable {
       let w = width > 4 ? width : tv.bounds.width
       guard w > 4 else { return }
       let info = measure(tv)
-      let total = max(1, info?.tops.count ?? 1)
+      guard let info else { return }   // 글자가 없으면 측정할 것이 없다(빈 입력창)
+      let total = max(1, info.tops.count)
       let visible = min(total, parent.maxLines)
 
       // 캐럿이 있는 줄이 보이도록 첫 줄을 맞춘다(직접 스크롤한 경우엔 유지)
       var first = min(firstLine, max(0, total - visible))
       if caretFollows {
-        let caret = min(max(0, info?.caretLine ?? 0), total - 1)
+        let caret = min(max(0, info.caretLine), total - 1)
         if caret >= first + visible { first = min(caret - visible + 1, max(0, total - visible)) }
         if caret < first { first = caret }
       }
       firstLine = first
 
-      let tops = info?.tops ?? []
-      let bots = info?.bots ?? []
+      let tops = info.tops
+      let bots = info.bots
       let topY = first < tops.count ? tops[first] : 0
       // 높이는 **화면에 보이는 줄 경계까지**로 딱 맞춘다(T-27).
       // 전체 높이(usedRect)를 쓰면 줄 경계와 어긋나 맨 위 줄이 반쯤 잘려 보인다.
       let lastVisible = min(first + visible - 1, max(0, total - 1))
+      let lineHeight = parent.oneLineHeight
       let bottomY = lastVisible < bots.count
         ? bots[lastVisible]
-        : topY + ChatInputField.oneLineHeight * CGFloat(visible)
-      let area = max(ChatInputField.oneLineHeight, bottomY - topY)
+        : topY + lineHeight * CGFloat(visible)
+      let area = max(lineHeight, bottomY - topY)
       let inset = ChatInputField.verticalPadding - topY
       if abs(tv.textContainerInset.height - inset) > 0.01 {
         tv.textContainerInset = NSSize(width: ChatInputField.horizontalPadding, height: inset)
@@ -262,10 +302,22 @@ struct ChatInputField: NSViewRepresentable {
     }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+      // Esc — 지정된 취소 동작이 있으면 그쪽으로 넘긴다(pill: 닫기)
+      if commandSelector == #selector(NSResponder.cancelOperation(_:)),
+         let onCancel = parent.onCancel {
+        onCancel()
+        return true
+      }
       guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
       let shift = NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false
       if shift {
         textView.insertNewlineIgnoringFieldEditor(nil)      // Shift+Enter = 줄바꿈
+        return true
+      }
+      // ⌘Return — 지정된 동작이 있으면 전송 대신 그걸 한다(pill: 대화 창 열기)
+      if let onCommandReturn = parent.onCommandReturn,
+         NSApp.currentEvent?.modifierFlags.contains(.command) == true {
+        onCommandReturn()
         return true
       }
       // 한글 등 조합 중이면 먼저 확정한다(첫 Enter에도 바로 전송되게)

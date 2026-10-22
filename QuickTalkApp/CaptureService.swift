@@ -131,8 +131,13 @@ final class CaptureService {
       do {
         let image = try await Self.snapshot(screen: screen)
         self.busy = false
+        // 창 목록은 **모드와 무관하게 항상** 모은다.
+        // (드래그 모드에서 Space로 윈도우 모드로 바꿀 때도 목록이 필요했다 —
+        //  모드에 따라 목록을 비우면 라벨만 "윈도우"로 바뀌고 어떤 창도 잡히지 않았다)
         let controller = CaptureOverlayController(mode: mode, screen: screen, frozen: image,
-                                                  windows: mode == .window ? Self.windowTargets(on: screen) : [])
+                                                  windows: Self.windowTargets(on: screen))
+        // 윈도우 모드로 전환하는 시점에 창 목록을 다시 읽는다(그사이 새로 열린 창도 잡히도록)
+        controller.onRefreshWindows = { Self.windowTargets(on: screen) }
         // CaptureService는 앱 수명 동안 유지되는 싱글턴이라 강한 캡처가 안전하다(순환은 overlay=nil로 끊긴다)
         controller.onFinish = { cropped, source in
           self.overlay = nil
@@ -291,5 +296,13 @@ final class CaptureService {
   static func pngData(_ image: CGImage) -> Data {
     let rep = NSBitmapImageRep(cgImage: image)
     return rep.representation(using: .png, properties: [:]) ?? Data()
+  }
+
+  // MARK: - QA
+
+  /// QA 전용 — 오버레이 상태 확인(드래그 모드 → Space → 윈도우 모드 전환)
+  func overlaySelfTest() -> (mode: String, windows: Int, highlight: Bool) {
+    guard let overlay else { return ("none", 0, false) }
+    return overlay.simulateSpaceForQA()
   }
 }
