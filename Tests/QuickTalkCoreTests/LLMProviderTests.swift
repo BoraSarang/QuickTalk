@@ -146,6 +146,13 @@ final class LLMProviderTests: XCTestCase {
     s.newWindowPosition = .mousePointer
     let back = try JSONDecoder().decode(QuickTalkSettings.self, from: try JSONEncoder().encode(s))
     XCTAssertEqual(back.newWindowPosition, .mousePointer)
+    // 마지막 위치(2026-10-22 추가)도 왕복한다.
+    s.newWindowPosition = .lastPosition
+    let back2 = try JSONDecoder().decode(QuickTalkSettings.self, from: try JSONEncoder().encode(s))
+    XCTAssertEqual(back2.newWindowPosition, .lastPosition)
+    // 모르는 값(다른 버전에서 저장)은 중앙으로 폴백 — 설정이 깨져도 앱은 뜬다.
+    let unknown = #"{"newWindowPosition":"somewhereElse"}"#.data(using: .utf8)!
+    XCTAssertEqual(try JSONDecoder().decode(QuickTalkSettings.self, from: unknown).newWindowPosition, .center)
     // 구버전(필드 없음) 설정도 중앙으로 폴백
     let legacy = #"{"globalShortcut":"Cmd+Space"}"#.data(using: .utf8)!
     XCTAssertEqual(try JSONDecoder().decode(QuickTalkSettings.self, from: legacy).newWindowPosition, .center)

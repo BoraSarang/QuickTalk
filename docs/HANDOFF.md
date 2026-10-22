@@ -3,7 +3,7 @@
 > **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-22 21:34 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
-> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9` 로 병합됐다.
+> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 로 병합 예정이다.
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -12,14 +12,45 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 21:33 🧠 표시 · 카드 순서 · `processes` 도구** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `c701008c270e79de…` |
-| 테스트 | **385/385**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 9 = setuid/`processes`/표 · 기존 13 = 안전장치) |
-| 마지막 완료 | **N22 원인 수정 + 카드 순서 + `ps`/`top` 차단 + `processes` 도구**(2026-10-22 21:33) — `brain.slash` 는 **없는 SF Symbol** 이라 🧠 가 빈 뷰였다 → `brain`+색. 실행 카드는 답변 **위**. setuid(`ps`·`top`)는 샌드박스가 exec 거부 → `.blocked` + libproc 샘플러. **재실행 필요** |
+| 현재 빌드 | **2026-10-22 21:50 대화 창 위치 조율(pill=입력한 자리 · 마지막 위치)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `344e6c486613a7ca…` |
+| 테스트 | **395/395**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 10 = 창 배치 9 · 설정 왕복/미지값 1) |
+| 마지막 완료 | **대화 창 위치 조율**(2026-10-22 21:50) — pill 은 `lastAnchor`(입력한 자리)에서 창이 이어지고, 설정(중앙/포인터/**마지막 위치**)은 보관함·Hub·QuickShelf·이어서 열기에만 적용. `WindowPlacement`(Core)로 규칙을 테스트 가능하게 분리. **재실행 필요** |
 | 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
-| 실측 대기 | **N22·N24·N25 3건** + **T-18 19건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1) |
+| 실측 대기 | **N22·N24·N25·N26 4건** + **T-18 19건** + **T-21 27건** + **QA 미체크 53건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1 · N26 1) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **재실행 필요** — 지금 돌아있는 것은 21:05 빌드(`f3d9b697…`). 이번 변경(🧠·카드 순서·`processes`)은 재실행 후 반영 |
-| git | `main` = **`9fdc9b9`** (🧠 표시·카드 순서·`processes` · PR #16, squash merge) |
+| 실행 중 앱 | **재실행 필요** — 돌아있는 것은 21:05 빌드(`f3d9b697…`). 🧠·카드 순서·`processes`(PR #16) + 창 위치(PR #18)가 재실행 후 함께 반영된다 |
+| git | `main` = **`3560fc9`** (HANDOFF SHA 갱신 · PR #17) · 창 위치 조율 = PR #18 (squash merge 예정) |
+
+### 세션 진행 (2026-10-22 21:50) — 대화 창 위치 조율 (pill 은 입력한 자리)
+
+#### 사용자 지적
+- "pill 대화는 언제나 마우스 포인터 잖아?? 저게 마우스 포인터라고 되어 있으면 pill 에서 대화 입력하면
+  그 포인터 위치에서 대화창이 열리나?? 이거 설정 핵갈리지 않니?? 먼가 조율이 필요 할 것 같은데?"
+
+#### 원인
+1. `PointerPillController.frame()` 은 `NSEvent.mouseLocation` 만 보고 pill 을 놓는다 — **설정을 읽지 않는다**.
+2. 대화 창은 `showPanel` → `positionPanel()` 이 열 때마다 `newWindowPosition` 으로 **재배치**한다
+   (`setFrameAutosaveName` 이 사실상 무력화 — 옮긴 자리를 기억하지 못했다).
+3. 그래서 중앙 모드에서는 **포인터에서 입력 → 창이 화면 중앙으로 점프**했고, 포인터 모드에서만 이어졌다.
+   메뉴바에서 열면 포인터가 작업 영역 밖이라 `pointerCache`(0.6초 샘플)를 쓰는데 설명이 없었다.
+
+#### 결정 (사용자 선택)
+- **입력한 자리 유지** — pill 로 시작한 대화는 포인터 자리에서 창이 이어진다(설정보다 우선).
+- **마지막 위치 옵션 추가** — 중앙 / 마우스 포인터 / 마지막 위치 3개.
+
+#### 구현
+- `Sources/QuickTalkCore/WindowPlacement.swift` 신설 — `origin(mode:size:anchor:visibleFrame:)`,
+  `centered`, `clamped`. anchor 가 있으면 설정을 무시하고 그 자리, `lastPosition` 은 nil(유지).
+- `NewWindowPosition.lastPosition` + 라벨 "대화 창 위치" · 캡션 2줄 · 번역 4키.
+- `PointerPillController.lastAnchor`(캐럿 지점, `present()` 에서 기록 — `finish()` 는 dismiss 뒤에 콜백).
+- `showPanel(tab:anchor:)` · `positionPanel(anchor:)` · `handlePill` 이 anchor 전달.
+  보관함(.archive)도 pill 자리에서 열린다 — "입력한 자리에서 이어진다" 규칙 하나로 통일.
+
+#### 검증
+- `swift test` **395/395**(6 skip, 신규 10: 중앙·anchor 우선·포인터 폴백·lastPosition 유지·클램프·음수 원점 /
+  설정 왕복·미지값 폴백), BUILD SUCCEEDED, 오프스크린 렌더 `settings-general-ko`(3옵션·캡션 2줄) 확인.
+- `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict` OK · SHA-256 `344e6c486613a7ca…`.
+- **실측 대기** — N26(점프 없음·설정 적용 범위·마지막 위치 기억·화면 밖 클램프).
 
 ### 세션 진행 (2026-10-22 21:34) — 🧠 표시 · 카드 순서 · `ps`/`top` 실행 불가
 
@@ -916,7 +947,7 @@ Document Music, Download 폴더의 접근 권한을 물어 봄 · 심각한 문�
 | 원격 20턴 | 2,100 → **903** 토큰, recent 5, 3.5초, 요약 323자 |
 | 자동 트리거 20턴 | `expected=YES → summary=YES` (**Apple FM 기준** — 원격·Ollama 예산은 훨씬 커서 트리거되지 않음) |
 | 자동 트리거 10턴 | `expected=NO → summary=NO` |
-| 테스트 | **385/385**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 9 = setuid/`processes`/표 · 기존 13 = 안전장치) |
+| 테스트 | **395/395**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 10 = 창 배치 9 · 설정 왕복/미지값 1) |
 | QA 렌더 | `docs/qa/memory-chat-ko` · `-en`, `memory-settings-ko` · `-en` |
 
 **사용자 확인 (이 순서)**
