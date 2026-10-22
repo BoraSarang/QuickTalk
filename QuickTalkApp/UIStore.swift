@@ -1507,6 +1507,24 @@ final class UIStore: ObservableObject {
     syncArchive()
   }
 
+  /// 헤더의 공통 메모리 아이콘 — 상태에 따라 켜기/끄기.
+  ///  · **전역 OFF** → 전역을 켠다(꺼진 뒤 헤더에서 되돌릴 수 있어야 한다)
+  ///  · 전역 ON + 이 대화 OFF → 이 대화에서만 켠다
+  ///  · 켜짐 → 이 대화에서만 끈다
+  ///
+  /// 예전엔 전역에서 꺼져 있으면 아이콘을 아예 숨겼다 → 끈 뒤 켤 방법이 헤더에
+  /// 없어서 혼란스러웠다(2026-10-22 사용자 지적).
+  func toggleCommonMemory() {
+    if !settings.globalMemoryEnabled {
+      settings.globalMemoryEnabled = true
+      core.setCommonMemoryDisabled(false)
+      conversation = core.conversation
+      syncArchive()
+      return
+    }
+    setCommonMemory(enabledForConversation: !commonMemoryActive)
+  }
+
   /// 항목 추가·수정 — 같은 ID가 있으면 덮어쓰고 `updatedAt`을 갱신한다.
   func upsertMemory(_ entry: GlobalMemoryEntry) {
     var copy = entry

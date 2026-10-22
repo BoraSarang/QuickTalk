@@ -146,10 +146,17 @@ final class GlobalMemoryTests: XCTestCase {
   func testLegacySettingsUseGlobalMemoryDefaults() throws {
     let json = #"{"showMenuBarIcon":true,"showDockIcon":false}"#
     let decoded = try JSONDecoder().decode(QuickTalkSettings.self, from: Data(json.utf8))
-    XCTAssertTrue(decoded.globalMemoryEnabled)
+    // 2026-10-22 사용자 요청 — 공용 메모리 기본값 Off.
+    XCTAssertFalse(decoded.globalMemoryEnabled)
     XCTAssertEqual(decoded.globalMemoryMode, .always)
     XCTAssertEqual(decoded.globalMemoryBudgetTokens, 800)
     XCTAssertEqual(decoded.webSearchMode, .inject)
+  }
+
+  func testGlobalMemoryDefaultIsOff() {
+    // 신규 사용자(설정 파일 없음)는 공용 메모리가 기본 OFF다.
+    let settings = QuickTalkSettings()
+    XCTAssertFalse(settings.globalMemoryEnabled)
   }
 
   func testConversationCommonMemoryFlagRoundTrip() throws {

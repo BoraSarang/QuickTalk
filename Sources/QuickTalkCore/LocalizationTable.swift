@@ -656,6 +656,7 @@ extension L10n {
     "예: “내 맥은 M4 Pro 24GB이고 개발은 Xcode·SwiftUI를 쓴다.”처럼 변하지 않는 사실을 적으면 매번 다시 묻지 않습니다.": "Write stable facts, such as “My Mac is an M4 Pro with 24GB and I use Xcode and SwiftUI,” so you are not asked again.",
     "이 대화에서는 공통 메모리를 쓰지 않습니다 — 눌러서 켜기": "Global memory is off for this conversation — click to enable",
     "공통 메모리 사용 중 — 눌러서 이 대화에서만 끄기": "Global memory is on — click to disable for this conversation only",
+    "공통 메모리가 꺼져 있습니다 — 눌러서 켜기": "Global memory is off — click to turn it on",
     "메모리 %d개를 내보냈습니다.": "Exported %d memories.",
     "메모리 내보내기에 실패했습니다: %@": "Failed to export memories: %@",
     "메모리 %d개를 가져왔습니다.": "Imported %d memories.",
