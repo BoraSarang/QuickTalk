@@ -245,49 +245,57 @@ struct ContentView: View {
     return (current, trigger, Double(current) / Double(trigger))
   }
 
+  /// 토큰 칩을 띄울지 — 대화가 있고 활성 모델이 있을 때만.
+  private var showsMemoryChip: Bool {
+    !store.conversation.turns.isEmpty && memoryStatus != nil
+  }
+
+  /// 기억 사용량 칩 — **헤더가 아니라 대화 영역 위에 띄운다**(2026-10-22).
+  /// 헤더에 두 번째 줄로 넣으면 탭마다 헤더 높이가 달라져 보관함·설정으로 옮길 때 화면이 울렁인다.
+  @ViewBuilder private var memoryChip: some View {
+    if let status = memoryStatus, !store.conversation.turns.isEmpty {
+      let percent = Int((status.ratio * 100).rounded())
+      HStack(spacing: 3) {
+        Image(systemName: "brain.head.profile").font(.system(size: 9))
+        // 좁은 창(기본 460pt)에서 줄바꿈되지 않게 축약 표기 — 정확한 값은 툴팁에 있다.
+        Text("\(Self.compactTokens(status.current)) / \(Self.compactTokens(status.trigger)) · \(percent)%")
+          .font(.system(size: 10, weight: .medium, design: .monospaced))
+          .lineLimit(1)
+      }
+      .foregroundColor(status.current >= status.trigger ? .orange : .secondary)
+      .padding(.horizontal, 7).padding(.vertical, 3)
+      .background(Capsule().fill(.ultraThinMaterial))
+      .overlay(Capsule().stroke(Color.primary.opacity(0.10), lineWidth: 1))
+      .help(Lf("현재 약 %d토큰 · 자동 정리 기준 %d토큰", status.current, status.trigger)
+            + " " + L("기준을 넘으면 다음 답변을 마친 뒤 백그라운드에서 정리합니다."))
+      .padding(.top, 6).padding(.trailing, 10)
+    }
+  }
+
   // MARK: - 헤더
 
   private var headerRow: some View {
     HStack(spacing: 4) {
       Circle().fill(Color.purple).frame(width: 10, height: 10)
       if tab == 0 {
-        // 제목 = 첫 질문에서 자동 생성 · 클릭하면 바로 바꿀 수 있다
-        // 아래 줄에는 현재 토큰/자동 정리 기준을 항상 보여 준다(설정을 열지 않아도 확인).
-        VStack(alignment: .leading, spacing: 1) {
-          Button {
-            renameTarget = RenameTarget(id: store.conversation.id,
-                                        title: store.conversation.displayTitle)
-          } label: {
-            Text(store.conversation.displayTitle)
-              .bold()
-              .lineLimit(1)
-              .truncationMode(.middle)
-              .layoutPriority(1)
-              // 호버하면 밑줄 — 클릭해서 이름을 바꿀 수 있다는 표시
-              .underline(titleHover, color: .secondary)
-          }
-          .buttonStyle(.plain)
-          .onHover { titleHover = $0 }
-          .help(L("제목 변경 — 클릭하여 이 대화의 이름을 바꿉니다"))
-
-          if !store.conversation.turns.isEmpty,
-             let status = memoryStatus {
-            let percent = Int((status.ratio * 100).rounded())
-            HStack(spacing: 3) {
-              Image(systemName: "brain.head.profile")
-                .font(.system(size: 9))
-              // 좁은 창(기본 460pt)에서 줄바꿈되지 않게 축약 표기 — 정확한 값은 툴팁에 있다.
-              Text("\(Self.compactTokens(status.current)) / \(Self.compactTokens(status.trigger)) · \(percent)%")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .foregroundColor(status.current >= status.trigger ? .orange : .secondary)
-            .help(Lf("현재 약 %d토큰 · 자동 정리 기준 %d토큰", status.current, status.trigger)
-                  + " " + L("기준을 넘으면 다음 답변을 마친 뒤 백그라운드에서 정리합니다."))
-          }
+        // 제목 = 첫 질문에서 자동 생성 · 클릭하면 바로 바꿀 수 있다.
+        // ★ 기억 사용량(토큰)은 여기 두지 않는다 — 두 줄이 되면 탭(보관함·설정)마다 헤더 높이가
+        //   달라져 탭을 옮길 때 화면이 울렁인다(2026-10-22 사용자 지적). 대화 영역 위에 띄운다.
+        Button {
+          renameTarget = RenameTarget(id: store.conversation.id,
+                                      title: store.conversation.displayTitle)
+        } label: {
+          Text(store.conversation.displayTitle)
+            .bold()
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .layoutPriority(1)
+            // 호버하면 밑줄 — 클릭해서 이름을 바꿀 수 있다는 표시
+            .underline(titleHover, color: .secondary)
         }
+        .buttonStyle(.plain)
+        .onHover { titleHover = $0 }
+        .help(L("제목 변경 — 클릭하여 이 대화의 이름을 바꿉니다"))
       } else {
         Text(tab == 1 ? L("보관함") : L("설정"))
           .bold()
@@ -503,6 +511,8 @@ struct ContentView: View {
             Color.clear.frame(height: 1).id(Self.bottomID)
           }
           .padding(12)
+          // 토큰 칩이 위에 떠 있어도 첫 메시지를 가리지 않게 그만큼 비워 둔다(헤더 높이는 그대로).
+          .padding(.top, showsMemoryChip ? 14 : 0)
           .frame(maxWidth: .infinity, alignment: .leading)
           // 내용 **끝(마커)** 의 위치를 스크롤 좌표계에서 잰다 — 뷰포트 높이와 비교해 맨 아래 여부를 안다.
           // (macOS 14라 `onScrollGeometryChange`(15+)를 못 쓰므로 GeometryReader+PreferenceKey를 쓴다)
@@ -528,6 +538,8 @@ struct ContentView: View {
           if abs(contentBottom - bottom) > 0.5 { contentBottom = bottom }
           refreshAtBottom()
         }
+        // 기억 사용량 — 헤더가 아니라 대화 영역 위에 띄운다(탭 전환 시 헤더 높이 고정).
+        .overlay(alignment: .topTrailing) { memoryChip }
         .overlay(alignment: .bottomTrailing) { hoverPreviewCard }
         // 맨 아래가 아닐 때만 — 우하단에 "맨 아래로" 플로팅 버튼
         .overlay(alignment: .bottomTrailing) {
