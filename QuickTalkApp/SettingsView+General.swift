@@ -33,7 +33,8 @@ extension SettingsView {
                  ShortcutCombo.display(store.settings.globalShortcut)))
       pickerRow(L("대화 창 위치"), selection: $store.settings.newWindowPosition,
                 options: NewWindowPosition.allCases.map { ($0, $0.displayName) })
-      caption(L("⌘Space 새 대화는 포인터 자리 pill에서 입력을 시작하고, 대화 창도 그 자리에서 열립니다. 이 설정은 이어서 열기·보관함·Hub·QuickShelf에서 창을 열 때만 적용됩니다."))
+      caption(Lf("%@ 새 대화는 포인터 자리 pill에서 입력을 시작하고, 대화 창도 그 자리에서 열립니다. 이 설정은 이어서 열기·보관함·Hub·QuickShelf에서 창을 열 때만 적용됩니다.",
+                 ShortcutCombo.display(store.settings.globalShortcut)))
       caption(L("마지막 위치 = 옮긴 자리를 기억합니다(처음엔 화면 중앙). 포인터 모드에서 메뉴바로 열면 마지막 작업 위치를 씁니다. 화면 밖으로 나가면 보이는 영역 안으로 밀어 넣습니다."))
       valueRow(L("메뉴바 좌클릭"), L("Hub 팝오버 (실행·설정 탭)"))
       valueRow(L("메뉴바 우클릭"), L("컨텍스트 메뉴"))

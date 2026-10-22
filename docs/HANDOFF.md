@@ -12,7 +12,7 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 21:50 대화 창 위치 조율(pill=입력한 자리 · 마지막 위치)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `344e6c486613a7ca…` |
+| 현재 빌드 | **2026-10-22 21:50 대화 창 위치 조율(pill=입력한 자리 · 마지막 위치)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `759918eaf13a93f1…` |
 | 테스트 | **395/395**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 10 = 창 배치 9 · 설정 왕복/미지값 1) |
 | 마지막 완료 | **대화 창 위치 조율**(2026-10-22 21:50) — pill 은 `lastAnchor`(입력한 자리)에서 창이 이어지고, 설정(중앙/포인터/**마지막 위치**)은 보관함·Hub·QuickShelf·이어서 열기에만 적용. `WindowPlacement`(Core)로 규칙을 테스트 가능하게 분리. **재실행 필요** |
 | 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
@@ -49,7 +49,7 @@
 #### 검증
 - `swift test` **395/395**(6 skip, 신규 10: 중앙·anchor 우선·포인터 폴백·lastPosition 유지·클램프·음수 원점 /
   설정 왕복·미지값 폴백), BUILD SUCCEEDED, 오프스크린 렌더 `settings-general-ko`(3옵션·캡션 2줄) 확인.
-- `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict` OK · SHA-256 `344e6c486613a7ca…`.
+- `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict` OK · SHA-256 `759918eaf13a93f1…`.
 - **실측 대기** — N26(점프 없음·설정 적용 범위·마지막 위치 기억·화면 밖 클램프).
 
 ### 세션 진행 (2026-10-22 21:34) — 🧠 표시 · 카드 순서 · `ps`/`top` 실행 불가

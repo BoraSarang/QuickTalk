@@ -13,7 +13,7 @@
   · 화면 밖 클램프 ② `NewWindowPosition.lastPosition`(3옵션) ③ `PointerPillController.lastAnchor` →
   `showPanel(tab:anchor:)` → `positionPanel(anchor:)` ④ 라벨 "대화 창 위치" + 캡션 2줄, 번역 4키
 - **검증**: `swift test` **395/395**(6 skip, 신규 10) · BUILD SUCCEEDED · 렌더 `settings-general-ko`
-- **배포**: 2026-10-22 21:50 · SHA-256 `344e6c486613a7ca…` · **앱 재실행 필요**
+- **배포**: 2026-10-22 21:50 · SHA-256 `759918eaf13a93f1…` · **앱 재실행 필요**
 - **재실행 후 확인**: **N26**(pill → 입력한 자리 / 보관함·Hub → 설정 / 마지막 위치 기억) · N22·N24·N25(직전 변경)
   → T-18 실측 → v0.19
 
