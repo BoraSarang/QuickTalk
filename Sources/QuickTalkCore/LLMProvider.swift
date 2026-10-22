@@ -242,6 +242,8 @@ public struct OpenAIClient: LLMClient {
       case .delta(let d):
         full += d
         await onDelta(d)
+      case .toolCallDelta, .reasoning:
+        continue        // 도구 호출·사고 내용은 도구 없는 경로에서는 무시한다
       case .ignore:
         continue
       }
@@ -255,11 +257,15 @@ public struct OpenAIClient: LLMClient {
     return full
   }
 
-  /// SSE 한 줄 → 델타/종료/무시. (단위 테스트로 고정)
+  /// SSE 한 줄 → 델타/도구호출/생각/종료/무시. (단위 테스트로 고정)
   public enum SSEEvent: Equatable {
     case delta(String)
     case done
     case ignore
+    /// 도구 호출 조각 — arguments 는 조각으로 와서 누적한다.
+    case toolCallDelta(index: Int, id: String?, name: String?, args: String?)
+    /// thinking 모드 모델의 사고 내용 — 다음 요청에 그대로 되돌려야 한다
+    case reasoning(String)
   }
 
   public static func sseEvent(_ line: String) -> SSEEvent {
@@ -269,9 +275,26 @@ public struct OpenAIClient: LLMClient {
     if payload == "[DONE]" { return .done }
     guard !payload.isEmpty, let data = payload.data(using: .utf8),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .ignore }
-    let delta = ((obj["choices"] as? [[String: Any]])?.first?["delta"] as? [String: Any])?["content"] as? String
-    guard let delta, !delta.isEmpty else { return .ignore }
-    return .delta(delta)
+    guard let choices = obj["choices"] as? [[String: Any]], let first = choices.first else { return .ignore }
+    guard let delta = first["delta"] as? [String: Any] else { return .ignore }
+    // 도구 호출 조각이 먼저 온다 — content 보다 우선한다
+    if let calls = delta["tool_calls"] as? [[String: Any]] {
+      for (i, raw) in calls.enumerated() {
+        let index = (raw["index"] as? Int) ?? i
+        let fn = raw["function"] as? [String: Any] ?? [:]
+        let id = raw["id"] as? String
+        let name = fn["name"] as? String
+        let args = fn["arguments"] as? String ?? ""
+        if id == nil && name == nil && args.isEmpty { continue }
+        return .toolCallDelta(index: index, id: id, name: name, args: args)
+      }
+    }
+    if let reasoning = delta["reasoning_content"] as? String, !reasoning.isEmpty {
+      return .reasoning(reasoning)
+    }
+    let content = delta["content"] as? String
+    guard let content, !content.isEmpty else { return .ignore }
+    return .delta(content)
   }
 
   static func failure(data: Data, status: Int, hasImage: Bool) -> QuickTalkError {
@@ -344,12 +367,59 @@ public struct OpenAIClient: LLMClient {
       case .delta(let d):
         full += d
         await onDelta(d)
+      case .toolCallDelta, .reasoning:
+        continue        // 도구 호출·사고 내용은 도구 없는 경로에서는 무시한다
       case .ignore:
         continue
       }
     }
     guard !full.isEmpty else { throw QuickTalkError.serverFailure(.emptyResponse(status: status)) }
     return full
+  }
+
+  /// 스트리밍 + **도구 호출 수집** — 본 모델이 직접 도구를 고르게 한다.
+  /// - 본문은 그대로 흘려보내고(스트리밍 유지), 도구 호출 조각은 모아서 돌려준다.
+  /// - 도구가 없으면 `toolCalls` 는 비어 있고, 호출이 있으면 본문이 비어 있을 수 있다.
+  public func streamWithTools(messages: [[String: Any]],
+                              tools: [[String: Any]],
+                              onDelta: @escaping @MainActor (String) -> Void) async throws
+    -> (text: String, toolCalls: [AgentToolCall], reasoning: String?) {
+    var req = try makeMessageRequest(messages: messages, tools: tools, stream: true)
+    req.timeoutInterval = 60
+    let (bytes, resp) = try await URLSession.shared.bytes(for: req)
+    let http = resp as? HTTPURLResponse
+    let status = http?.statusCode ?? 0
+    guard status == 200 else {
+      throw Self.failure(data: try await HTTPStream.collect(bytes), status: status, hasImage: false)
+    }
+    var full = ""
+    var reasoning = ""
+    var calls: [Int: (id: String, name: String, args: String)] = [:]
+    loop: for try await raw in bytes.lines {
+      switch Self.sseEvent(raw) {
+      case .done:
+        break loop
+      case .delta(let d):
+        full += d
+        await onDelta(d)
+      case .reasoning(let r):
+        reasoning += r
+      case .toolCallDelta(let index, let id, let name, let args):
+        var entry = calls[index] ?? (id: "", name: "", args: "")
+        if let id, !id.isEmpty { entry.id = id }
+        if let name, !name.isEmpty { entry.name = name }
+        entry.args += args ?? ""
+        calls[index] = entry
+      case .ignore:
+        continue
+      }
+    }
+    let list = calls.keys.sorted().compactMap { key -> AgentToolCall? in
+      guard let entry = calls[key], !entry.name.isEmpty else { return nil }
+      return AgentToolCall(id: entry.id.isEmpty ? "call_\(key)" : entry.id,
+                           name: entry.name, arguments: entry.args.isEmpty ? "{}" : entry.args)
+    }
+    return (full, list, reasoning.isEmpty ? nil : reasoning)
   }
 
   private func makeMessageRequest(messages: [[String: Any]],
@@ -462,6 +532,63 @@ public struct OllamaClient: LLMClient {
       return text
     }
     return full
+  }
+
+  /// 스트리밍 + **도구 호출 수집** (Ollama `/api/chat`).
+  /// Ollama 는 NDJSON 한 줄에 `message.content` 과 `message.tool_calls` 가 함께 온다.
+  public func streamWithTools(messages: [[String: Any]],
+                              tools: [[String: Any]],
+                              onDelta: @escaping @MainActor (String) -> Void) async throws
+    -> (text: String, toolCalls: [AgentToolCall], reasoning: String?) {
+    var body: [String: Any] = ["model": model, "messages": messages, "stream": true]
+    if !tools.isEmpty {
+      body["tools"] = tools
+      body["tool_choice"] = "auto"
+    }
+    var req = URLRequest(url: host.appendingPathComponent("api/chat"))
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.timeoutInterval = Self.requestTimeout
+    req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+    let (bytes, resp) = try await URLSession.shared.bytes(for: req)
+    let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+    guard status == 200 else {
+      throw Self.failure(data: try await HTTPStream.collect(bytes), status: status,
+                         hasImage: false, bodyText: nil)
+    }
+    var full = ""
+    var calls: [AgentToolCall] = []
+    for try await raw in bytes.lines {
+      let line = raw.trimmingCharacters(in: .whitespaces)
+      guard !line.isEmpty, let data = line.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+      if let msg = obj["message"] as? [String: Any] {
+        if let d = msg["content"] as? String, !d.isEmpty {
+          full += d
+          await onDelta(d)
+        }
+        if let rawCalls = msg["tool_calls"] as? [[String: Any]], !rawCalls.isEmpty {
+          for (i, raw) in rawCalls.enumerated() {
+            let fn = raw["function"] as? [String: Any] ?? [:]
+            let name = fn["name"] as? String ?? "shell"
+            let args: String
+            if let text = fn["arguments"] as? String {
+              args = text
+            } else if let object = fn["arguments"],
+                      let encoded = try? JSONSerialization.data(withJSONObject: object) {
+              args = String(data: encoded, encoding: .utf8) ?? "{}"
+            } else {
+              args = "{}"
+            }
+            calls.append(AgentToolCall(id: raw["id"] as? String ?? "call_\(i)",
+                                       name: name, arguments: args))
+          }
+        }
+      }
+      if (obj["done"] as? Bool) == true { break }
+    }
+    return (full, calls, nil)
   }
 
   static func failure(data: Data, status: Int, hasImage: Bool, bodyText: String?) -> QuickTalkError {

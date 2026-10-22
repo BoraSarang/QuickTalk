@@ -1174,10 +1174,6 @@ final class UIStore: ObservableObject {
         var precomputedAnswer: String?
         let forced = self.forceWebSearch
         self.forceWebSearch = false
-        // 도우미 도구 판정(PLAN_v0.18) — **웹 검색과 병렬로** 돌려 지연을 더하지 않는다.
-        let agentDecisionTask: Task<Bool, Never>? = ws.agentToolsEnabled
-          ? Task { @MainActor in await self.decidesToUseTools(prompt, history: history) }
-          : nil
 
         // P3-a) 툴 콜링 — 모델이 `web_search`를 직접 호출한다. OpenAI 호환에서만 시도하고,
         // 프록시가 tools를 모르면(400) 아래 기존 주입 경로로 조용히 폴백한다.
@@ -1293,9 +1289,6 @@ final class UIStore: ObservableObject {
         }
         // 검색 중 사용자가 다른 대화방으로 옮겼으면 이 답변은 버린다(다른 방에 섞이지 않게).
         guard self.conversation.id == convID else { return }
-        // ── 도우미 도구 (PLAN_v0.18) — 모델에게 "도구가 필요한가"를 짧게 묻는다 ──
-        // 필요 없으면 아래 기존 경로(스트리밍) 그대로. 필요 있으면 에이전트 루프로 넘어간다.
-        let useAgent = await agentDecisionTask?.value ?? false
         // 초기 400토큰 예약보다 검색 컨텍스트가 크면 기록을 다시 맞춘다.
         // (검색은 기록 fitting 뒤에 일어나므로 실제 컨텍스트 크기를 그때 알 수 있다.)
         var finalHistory = history
@@ -1348,12 +1341,29 @@ final class UIStore: ObservableObject {
             reply = precomputedAnswer
             self.core.appendStreaming(precomputedAnswer, to: aid)
             self.conversation = self.core.conversation
-          } else if useAgent {
-            // 도우미 도구 — 모델이 직접 명령을 실행하고, 그 결과로 답한다.
-            reply = try await self.runAgentTurn(provider: p, prompt: modelPrompt,
-                                                history: finalHistory, turnID: aid)
-            self.core.setAssistantText(reply, id: aid)
-            self.conversation = self.core.conversation
+          } else if let agentClient = self.makeAgentClientIfEnabled(provider: p) {
+            // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
+            // (별도 판정 호출이 "메모리" 질문을 오해해 도구를 안 쓰는 문제를 만들었었다)
+            do {
+              reply = try await self.runAgentTurn(client: agentClient, prompt: modelPrompt,
+                                                  history: finalHistory, turnID: aid,
+                                                  attachments: outgoing,
+                                                  onDelta: { delta in
+                                                    buffer += delta
+                                                    flush(false)
+                                                  })
+            } catch {
+              // 도구를 모르는 서버(400 등)면 도구 없는 일반 경로로 되돌린다.
+              if buffer.isEmpty, WebToolError.isToolUnsupported(error) {
+                NSLog("[QuickTalk] E-MAC-TOOL-0001 도구 미지원 → 일반 경로로 폴백")
+                reply = try await Self.streamReplyWithFallback(
+                  settings: self.settings, provider: p, prompt: modelPrompt,
+                  history: finalHistory, attachments: outgoing,
+                  onDelta: { delta in buffer += delta; flush(false) })
+              } else {
+                throw error
+              }
+            }
           } else {
             reply = try await Self.streamReplyWithFallback(
               settings: self.settings, provider: p, prompt: modelPrompt,

@@ -15,6 +15,26 @@ final class StreamingTests: XCTestCase {
     XCTAssertEqual(OpenAIClient.sseEvent("data: [DONE]"), .done)
   }
 
+  // MARK: - 도구 호출 조각 (스트리밍 중 tools 를 받는 프로바이더)
+
+  func testSSEToolCallDelta() {
+    let line = #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"shell","arguments":"{\"comm"}}]}}]}"#
+    XCTAssertEqual(OpenAIClient.sseEvent(line),
+                   .toolCallDelta(index: 0, id: "call_1", name: "shell", args: "{\"comm"))
+  }
+
+  func testSSEToolCallArgumentFragment() {
+    // 두 번째 조각 — id·이름 없이 arguments 만 온다
+    let line = #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"and\"}"}}]}}]}"#
+    XCTAssertEqual(OpenAIClient.sseEvent(line),
+                   .toolCallDelta(index: 0, id: nil, name: nil, args: "and\"}"))
+  }
+
+  func testSSEReasoningContent() {
+    let line = #"data: {"choices":[{"delta":{"reasoning_content":"생각 중"}}]}"#
+    XCTAssertEqual(OpenAIClient.sseEvent(line), .reasoning("생각 중"))
+  }
+
   func testSSEIgnoresNonDataAndEmptyDelta() {
     XCTAssertEqual(OpenAIClient.sseEvent(": keep-alive"), .ignore)
     XCTAssertEqual(OpenAIClient.sseEvent("event: message"), .ignore)
