@@ -6,8 +6,8 @@ import Foundation
 // 실행 카드(AgentEvent)는 앱 화면에 그리기 위한 기록이고, 감사로그와도 같은 데이터를 쓴다.
 
 /// 도구 실행 1건의 기록 — 화면 카드·감사 로그 공용.
-public struct AgentEvent: Equatable, Identifiable {
-  public enum State: String, Equatable {
+public struct AgentEvent: Codable, Equatable, Identifiable {
+  public enum State: String, Codable, Equatable {
     /// 승인을 기다리는 중
     case pending
     /// 실행 중

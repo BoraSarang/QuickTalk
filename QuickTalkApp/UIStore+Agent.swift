@@ -13,10 +13,13 @@ import Foundation
 extension UIStore {
   // MARK: - 실행 카드
 
-  /// 실행 1건을 카드에 붙인다.
+  /// 실행 1건을 카드에 붙인다 — **턴에도 저장**한다(대화 기록에 함께 남아 다음에 다시 보인다)
   @MainActor
   func appendAgentEvent(_ event: AgentEvent) {
     agentEvents.append(event)
+    if let turnID = agentTurnID {
+      appendAgentEventToTurn(event, turnID: turnID)
+    }
   }
 
   /// 카드 한 건을 고친다(상태·출력·경과시간).
@@ -24,6 +27,9 @@ extension UIStore {
   func updateAgentEvent(id: String, _ mutate: (inout AgentEvent) -> Void) {
     guard let idx = agentEvents.firstIndex(where: { $0.id == id }) else { return }
     mutate(&agentEvents[idx])
+    if let turnID = agentTurnID {
+      updateAgentEventInTurn(id: id, turnID: turnID, mutate)
+    }
   }
 
   /// "항시 허용"을 눌렀을 때 — 그 명령을 허용 규칙으로 저장한다.

@@ -104,15 +104,31 @@ extension AppDelegate {
         $0 == "--demo-chat" || $0.hasPrefix("--demo-chat=") || $0.hasPrefix("--demo-search")
           || $0.hasPrefix("--demo-fallback")
           || $0.hasPrefix("--demo-draft-lines=")
+          || $0 == "--demo-agent"
       }) {
         self.seedDemoConversation()
+        if CommandLine.arguments.contains("--demo-agent") {
+          // 도구 실행 카드 — 실제 명령·출력이 그대로 보이는지 확인
+          var agentDemo = Conversation(title: L("지금 메모리 얼마나 차지 하고 있냐?"))
+          agentDemo.turns = [
+            Turn(role: .user, text: L("지금 메모리 얼마나 차지 하고 있냐?"),
+                 createdAt: Date().addingTimeInterval(-60)),
+            Turn(role: .assistant,
+                 text: L("**32 GiB 중 약 15.7 GiB 사용 중**입니다. 사용 여유는 90% — 아주 여유로운 상태입니다."),
+                 elapsedMs: 4700,
+                 createdAt: Date().addingTimeInterval(-50),
+                 agentEvents: Self.agentDemoEvents())
+          ]
+          self.store.conversation = agentDemo
+        }
         let draftLines = CommandLine.arguments
           .first { $0.hasPrefix("--demo-draft-lines=") }
           .flatMap { Int($0.dropFirst("--demo-draft-lines=".count)) } ?? 0
         let initialHeight = draftLines > 0 ? CGFloat((draftLines + 1) * 16 + 12) : 28
+        let chatName = CommandLine.arguments.contains("--demo-agent") ? "chat-agent" : "chat"
         self.renderPNG(AnyView(ContentView(initialInputHeight: initialHeight).environmentObject(self.store)),
                        size: NSSize(width: 460, height: 620),
-                       to: "\(dir)/chat-\(suffix).png")
+                       to: "\(dir)/\(chatName)-\(suffix).png")
       }
       if CommandLine.arguments.contains("--demo-settings-wide") {
         if CommandLine.arguments.contains("--demo-ping") {
@@ -620,6 +636,29 @@ extension AppDelegate {
       // 끝의 빈 줄까지 포함해 Shift+Enter 직후 커서가 보이는지 확인한다.
       store.draft = body + "\n"
     }
+  }
+
+  /// QA 견본 — 도구 실행 기록(실제 명령 + 실제 출력)
+  private static func agentDemoEvents() -> [AgentEvent] {
+    [
+      AgentEvent(id: "e1", toolName: "shell",
+                 title: L("메모리 사용량 확인"),
+                 command: "vm_stat | head -6; echo \"---\"; sysctl -n hw.memsize",
+                 level: .read, risk: .normal, state: .done,
+                 output: "Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+                        + "Pages free:                              264599.\n"
+                        + "Pages active:                            723342.\n"
+                        + "Pages inactive:                          713622.\n"
+                        + "Pages speculative:                        44702.\n"
+                        + "---\n34359738368",
+                 elapsedMs: 815),
+      AgentEvent(id: "e2", toolName: "shell",
+                 title: L("스왑 사용량"),
+                 command: "sysctl vm.swapusage",
+                 level: .read, risk: .normal, state: .done,
+                 output: "vm.swapusage: total = 1024.00M  used = 215.00M  free = 809.00M  (encrypted)",
+                 elapsedMs: 120)
+    ]
   }
 
   /// QA 견본 — 목록·체크박스·표·코드·인용·인라인 서식이 한 번에 보이게
