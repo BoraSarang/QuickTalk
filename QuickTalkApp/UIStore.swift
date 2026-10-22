@@ -909,8 +909,21 @@ final class UIStore: ObservableObject {
     conversation = core.conversation
     NSLog("[QuickTalk] 마지막 대화 복원 — %d턴 pinned=%@",
           conversation.turns.count, conversation.pinned ? "Y" : "N")
+    markInterruptedQuestion()
     // 앱을 다시 켰을 때 이미 예산을 넘었으면 백그라운드로 정리한다(첫 답변 지연 방지).
     startAutoCompact(convID: conversation.id)
+  }
+
+  /// ★ 앱이 꺼진 사이에 응답이 끝나지 못한 질문이 남아 있으면 — "사라짐" 대신
+  ///   왜 끊겼는지 알리고 다시 물어볼 수 있게 한다(2026-10-22 사고: 앱이 멈춰서
+  ///   강제 종료되면 마지막 질문의 답이 기록에 남지 않았다).
+  private func markInterruptedQuestion() {
+    guard let last = conversation.turns.last, last.role == .user else { return }
+    let note = L("앱이 종료되어 응답이 끊겼습니다. 같은 질문을 다시 보내 주세요.")
+    core.appendAssistant(text: note)
+    conversation = core.conversation
+    syncArchive()
+    NSLog("[QuickTalk] E-MAC-AGENT-0002 응답이 끊긴 질문을 표시했습니다")
   }
 
   /// 현재 대화를 기록에 반영하고 파일에 쓴다 — 핀 여부와 무관(모든 대화 자동 저장).

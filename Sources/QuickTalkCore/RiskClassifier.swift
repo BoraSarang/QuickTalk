@@ -22,8 +22,10 @@ public enum RiskClassifier {
   /// 파이프 → 인터프리터(원격 코드 실행 형태).
   private static let interpreters = ["sh", "bash", "zsh", "python", "python3", "perl", "node", "ruby"]
   /// 재귀+강제 삭제로 시스템 전체를 지우는 대상(정확히 일치할 때만).
-  private static let catastrophicTargets: Set<String> = ["/", "/System", "/Users", "/Volumes",
-                                                          "/Library", "/private", "~", "$HOME"]
+  /// **소문자로만 쓴다** — 비교 대상도 소문자로 정규화한다.
+  /// (2026-10-22 수정: "/Users" 가 대문자라 `rm -rf /Users` 이 치명적으로 잡히지 않았다)
+  private static let catastrophicTargets: Set<String> = ["/", "/system", "/users", "/volumes",
+                                                           "/library", "/private", "~", "$home"]
   /// **파일을 바꾸는** 명령 — 시스템 경로를 "대상으로" 다룰 때만 위험 신호가 된다.
   /// (/usr/bin/df 처럼 **실행 경로를 참조**하는 것은 읽기라 문제가 없다)
   private static let mutatingCommands: Set<String> = [
@@ -69,6 +71,26 @@ public enum RiskClassifier {
   public static func requiresElevation(_ command: String) -> Bool {
     let lower = command.lowercased()
     return privilegeMarkers.contains { lower.contains($0) }
+  }
+
+  /// ★ 쓰기 범위로 절대 열면 안 되는 경로 — 루트와 시스템 전역.
+  ///
+  /// 실측이 "쓰기 대상"으로 뽑은 경로가 이 목록에 있으면 앱은 쓰기를 열지 않는다.
+  /// (`rm -rf /` 가 실측에서 "/" 를 잡으면 그대로 열면 디스크 전체가 지워진다)
+  public static let systemScopeRoots: Set<String> = [
+    "/", "/System", "/usr", "/bin", "/sbin", "/etc", "/var", "/private",
+    "/Library", "/Volumes", "/Users", "/opt", "/home", "/cores", "/pkg"
+  ]
+
+  /// 경로가 시스템 전역(루트 포함)인가 — 이 경로에는 쓰기를 열지 않는다.
+  public static func isSystemScopePath(_ path: String) -> Bool {
+    var p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+    if p.count > 1 && p.hasSuffix("/") { p.removeLast() }
+    if p == "~" || p == "$HOME" { return true }
+    if p.hasPrefix("~/") { p = NSHomeDirectory() + String(p.dropFirst()) }
+    if p == "/" { return true }
+    if p == NSHomeDirectory() { return true }
+    return systemScopeRoots.contains(p)
   }
 
   /// `rm -rf /` 처럼 시스템 전체를 지우는 경우만 치명적. `/var/tmp/x` 는 아니다.

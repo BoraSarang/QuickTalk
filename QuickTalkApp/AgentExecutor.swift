@@ -50,19 +50,24 @@ final class AgentExecutor: AgentToolExecutor {
       return AgentToolOutcome(output: L("명령이 비어 있습니다."), denied: true, level: .read)
     }
     let risk = RiskClassifier.classify(command)
-    let probe = SandboxRunner.probe(command)
     let policy = store.settings.agentPolicy
-    let decision = PolicyEngine.decide(command: command, capability: probe.capability,
-                                        risk: risk, policy: policy)
 
-    switch decision {
+    // ★ 실행 **이전**의 순서를 지킨다 (2026-10-22 사고).
+    //   이전 흐름은 [실측(실행) → 정책 판단] 이라 `rm -rf /` 가 샌드박스 실측에서
+    //   실제로 실행됐고(읽기 전용이라 지워지진 않았지만) 명령이 끝나지 않아 앱이 멈췄다.
+    //   이제 위험 판정 → 정책 → (일반 명령만) 실측 순서로 간다. 실측·실행은 메인 스레드 밖.
+    let plan = await Task.detached(priority: .userInitiated) {
+      PolicyEngine.plan(command: command, policy: policy)
+    }.value
+
+    switch plan {
     case .deny(let reason):
       store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
-                                        command: command, level: probe.capability.level,
+                                        command: command, level: .execute,
                                         risk: risk, state: .denied, output: reason))
-      AgentAudit.record(command: command, level: probe.capability.level, risk: risk,
+      AgentAudit.record(command: command, level: .execute, risk: risk,
                         decision: "deny", exitCode: nil, elapsedMs: 0)
-      return AgentToolOutcome(output: reason, denied: true, level: probe.capability.level, risk: risk)
+      return AgentToolOutcome(output: reason, denied: true, level: .execute, risk: risk)
 
     case .ask(let request):
       store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
@@ -79,26 +84,45 @@ final class AgentExecutor: AgentToolExecutor {
       if choice == .alwaysAllow {
         store.addAgentRule(pattern: command)
       }
-      return await executeShell(call, command: command, capability: probe.capability,
-                                risk: risk, allowed: true)
+      // 승인된 뒤에야 실측한다 — 필요한 권한(경로)을 알아야 그 범위만 열 수 있다.
+      let capability: AgentCapability
+      if risk == .normal {
+        capability = request.capability
+      } else {
+        capability = await Self.probeApprovedOffMain(command).capability
+      }
+      return await executeShell(call, command: command, capability: capability, risk: risk)
 
-    case .allow:
-      return await executeShell(call, command: command, capability: probe.capability,
-                                risk: risk, allowed: true)
+    case .allow(let capability):
+      return await executeShell(call, command: command, capability: capability, risk: risk)
     }
+  }
+
+  /// 승인을 받은 뒤의 실측 — 위험 판정을 이미 통과한 명령.
+  private static func probeApprovedOffMain(_ command: String) async -> SandboxProbe {
+    await Task.detached(priority: .userInitiated) { SandboxRunner.probeApproved(command) }.value
   }
 
   /// 승인된 범위만 열고 실행한다.
   private func executeShell(_ call: AgentToolCall, command: String,
-                            capability: AgentCapability, risk: AgentRiskLevel,
-                            allowed: Bool) async -> AgentToolOutcome {
+                            capability: AgentCapability,
+                            risk: AgentRiskLevel) async -> AgentToolOutcome {
     store.updateAgentEvent(id: call.id) { $0.state = .running }
     let profile: String
     switch capability {
     case .read:
       profile = SandboxRunner.readOnlyProfile()
     case .write(let path):
-      profile = SandboxRunner.scopedProfile(writablePaths: [Self.writableScope(for: path)])
+      // ★ 시스템 전역 경로에는 쓰기를 열지 않는다(디스크 전체가 지워질 수 있다).
+      //   파일이면 상위 폴더가 쓰기 범위가 되므로 **범위 기준**으로 막는다.
+      let scope = Self.writableScope(for: path)
+      if RiskClassifier.isSystemScopePath(scope) || RiskClassifier.isSystemScopePath(path) {
+        return await finishShell(call, command: command, risk: risk, level: capability.level,
+                                 result: SandboxResult(exitCode: -1, stdout: "",
+                                                       stderr: L("시스템 전역 경로에는 쓰기를 허용하지 않습니다.")),
+                                 denied: true)
+      }
+      profile = SandboxRunner.scopedProfile(writablePaths: [scope])
     case .network:
       profile = SandboxRunner.scopedProfile(writablePaths: [], allowNetwork: true)
     case .elevated:
@@ -107,19 +131,32 @@ final class AgentExecutor: AgentToolExecutor {
       profile = SandboxRunner.readOnlyProfile()
     }
     let started = Date()
-    let result = SandboxRunner.run(command, profile: profile, timeout: 60)
+    // ★ 실행도 메인 스레드 밖에서 — 오래 걸리는 명령이 UI 를 얼리지 않게.
+    let result = await Task.detached(priority: .userInitiated) {
+      SandboxRunner.run(command, profile: profile, timeout: 60)
+    }.value
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    return await finishShell(call, command: command, risk: risk, level: capability.level,
+                             result: result, elapsedMs: elapsed, denied: false)
+  }
+
+  /// 실행 결과를 카드·감사 기록에 반영한다.
+  private func finishShell(_ call: AgentToolCall, command: String,
+                            risk: AgentRiskLevel, level: AgentPermissionLevel,
+                            result: SandboxResult, elapsedMs: Int? = nil,
+                            denied: Bool) async -> AgentToolOutcome {
+    let elapsed = elapsedMs ?? 0
     let output = Self.outputText(result)
     store.updateAgentEvent(id: call.id) {
       $0.state = result.succeeded ? .done : .failed
       $0.output = output
       $0.elapsedMs = elapsed
     }
-    AgentAudit.record(command: command, level: capability.level, risk: risk,
-                      decision: allowed ? "allow" : "deny",
+    AgentAudit.record(command: command, level: level, risk: risk,
+                      decision: denied ? "deny" : "allow",
                       exitCode: result.exitCode, elapsedMs: elapsed)
-    return AgentToolOutcome(output: output, denied: false,
-                             level: capability.level, risk: risk)
+    return AgentToolOutcome(output: output, denied: denied,
+                             level: level, risk: risk)
   }
 
   /// 파일이 대상이면 **상위 폴더**를 쓰기 범위로 연다(파일이 없으면 생성해야 해서).

