@@ -167,6 +167,9 @@ public struct AgentRunner {
       return Lf("파일 읽기 — %@", call.stringArgument("path") ?? "")
     case "list_dir":
       return Lf("폴더 목록 — %@", call.stringArgument("path") ?? "")
+    case "processes":
+      let sort = (call.stringArgument("sort") ?? "cpu") == "memory" ? L("메모리") : L("CPU")
+      return Lf("프로세스 사용량 — %@ 순위", sort)
     default:
       return tools.first { $0.name == call.name }?.name ?? call.name
     }

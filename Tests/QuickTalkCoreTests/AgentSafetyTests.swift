@@ -131,6 +131,50 @@ final class AgentSafetyTests: XCTestCase {
     XCTAssertTrue(allowed.contains("subpath \"/tmp/qt-test\""))
   }
 
+  // MARK: - setuid 프로그램 (샌드박스가 exec 자체를 막는다 — 2026-10-22)
+
+  func testSetuidBinariesAreDetected() {
+    // ps·top 은 setuid root — 샌드박스가 실행을 거부하는 원인이다.
+    XCTAssertTrue(SandboxRunner.isSetuidBinary("/bin/ps"))
+    XCTAssertTrue(SandboxRunner.isSetuidBinary("/usr/bin/top"))
+    XCTAssertFalse(SandboxRunner.isSetuidBinary("/bin/ls"))
+    XCTAssertFalse(SandboxRunner.isSetuidBinary("/없는/파일"))
+  }
+
+  func testSetuidProgramsAreFoundInCommand() {
+    XCTAssertEqual(SandboxRunner.setuidPrograms(in: "ps -Ao pid,comm"), ["/bin/ps"])
+    XCTAssertEqual(SandboxRunner.setuidPrograms(in: "top -l 1 -n 5 -o cpu"), ["/usr/bin/top"])
+    XCTAssertTrue(SandboxRunner.setuidPrograms(in: "ls -la ~/Downloads").isEmpty)
+    XCTAssertTrue(SandboxRunner.setuidPrograms(in: "df -h /").isEmpty)
+  }
+
+  func testSetuidCheckIgnoresArguments() {
+    // 인자로만 등장하는 이름은 setuid 실행이 아니다 — 오탐하면 정상 명령이 차단된다.
+    XCTAssertTrue(SandboxRunner.setuidPrograms(in: "grep ps ~/notes.txt").isEmpty)
+    XCTAssertTrue(SandboxRunner.setuidPrograms(in: "echo top").isEmpty)
+    // 파이프·세미콜론 뒤의 실행 위치는 잡는다.
+    XCTAssertEqual(SandboxRunner.setuidPrograms(in: "df -h / | head -3; ps aux"), ["/bin/ps"])
+  }
+
+  func testProbeOfSetuidBinaryIsBlockedNotWrite() throws {
+    // ★ 예전에는 exec 거부 메시지("/bin/ps: Operation not permitted")를 **쓰기 거부**로 오분류해
+    //   카드에 "쓰기(/bin/ps)"가 뜨고 승인을 받아도 계속 실패했다.
+    guard SandboxRunner.isAvailable else {
+      throw XCTSkip("sandbox-exec 없음")
+    }
+    let probe = SandboxRunner.probe("ps -Ao pid,comm")
+    XCTAssertEqual(probe.capability, .blocked)
+    if case .write = probe.capability {
+      XCTFail("exec 거부를 쓰기 요구로 오분류했습니다")
+    }
+  }
+
+  func testBlockedNoteExplainsItCannotBeFixedByPermission() {
+    let note = SandboxRunner.blockedNote(for: "top -l 1 -n 5 -o cpu")
+    XCTAssertTrue(note.contains("top"))
+    XCTAssertTrue(note.contains("processes"))
+  }
+
   // MARK: - 타임아웃
 
   func testRunHonorsTimeout() throws {

@@ -25,14 +25,15 @@ public enum AgentCapability: Equatable {
   case elevated
   /// 샌드박스 외의 이유로 실패
   case blocked
+  /// 아직 실측하지 않음 — 중요·치명적 명령은 **승인을 먼저** 받고 실측한다.
+  case unprobed
 
   /// 이 요구를 충족시키기 위해 필요한 권한 단계.
   public var level: AgentPermissionLevel {
     switch self {
     case .read: return .read
     case .write: return .write
-    case .network, .elevated: return .execute
-    case .blocked: return .execute
+    case .network, .elevated, .blocked, .unprobed: return .execute
     }
   }
 
@@ -42,7 +43,8 @@ public enum AgentCapability: Equatable {
     case .write(let path): return Lf("쓰기(%@)", path)
     case .network: return L("네트워크")
     case .elevated: return L("상승 권한")
-    case .blocked: return L("차단됨")
+    case .blocked: return L("실행 불가")
+    case .unprobed: return L("실행")
     }
   }
 }
@@ -247,17 +249,95 @@ public enum SandboxRunner {
     runProbe(command, timeout: timeout)
   }
 
+  // MARK: - setuid 프로그램 (샌드박스가 exec 자체를 막는다)
+
+  /// setuid/setgid 프로그램인가 — sandbox 안에서는 **exec 자체가 거부**된다.
+  /// (2026-10-22 실측: macOS 27.2 에서 `sandbox-exec` 로 `/bin/ps`·`/usr/bin/top` 실행 →
+  ///  `Operation not permitted`. 둘 다 setuid root 라서 샌드박스가 실행을 막는다)
+  public static func isSetuidBinary(_ path: String) -> Bool {
+    var st = stat()
+    guard stat(path, &st) == 0 else { return false }
+    return (st.st_mode & mode_t(S_ISUID)) != 0 || (st.st_mode & mode_t(S_ISGID)) != 0
+  }
+
+  /// 명령의 **실행 위치**(파이프·세미콜론·`&&` 뒤의 첫 토큰)에서 setuid 프로그램을 찾는다.
+  /// (`grep ps file` 처럼 인자로만 등장하는 이름은 오탐하지 않는다)
+  public static func setuidPrograms(in command: String) -> [String] {
+    var found: [String] = []
+    for segment in commandSegments(command) {
+      let tokens = segment.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+      for token in tokens {
+        if token.hasPrefix("-") { continue }                    // 옵션
+        if token.contains("=") && !token.hasPrefix("/") { continue }  // FOO=bar
+        if wrapperCommands.contains(token) { continue }          // sudo·env·xargs …
+        let path = token.hasPrefix("/") ? token : resolveInPath(token)
+        guard !path.isEmpty, isSetuidBinary(path) else { break }
+        if !found.contains(path) { found.append(path) }
+        break
+      }
+    }
+    return found
+  }
+
+  /// 파이프·세미콜론·`&&`·서브셸로 나눈 명령 조각.
+  private static func commandSegments(_ command: String) -> [String] {
+    let separators = CharacterSet(charactersIn: ";|&\n()`")
+    return command.components(separatedBy: separators)
+  }
+
+  /// 실제 실행 파일 앞에 올 수 있는 껍데기 — 건너뛰고 그다음 토큰을 본다.
+  private static let wrapperCommands: Set<String> = [
+    "sudo", "env", "command", "time", "nohup", "arch", "caffeinate", "nice", "xargs"
+  ]
+
+  /// PATH 안에서 실행 파일을 찾는다 — 없으면 "".
+  private static func resolveInPath(_ name: String) -> String {
+    for dir in ["/bin", "/usr/bin", "/sbin", "/usr/sbin"] {
+      let candidate = dir + "/" + name
+      if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+    }
+    return ""
+  }
+
+  /// 샌드박스가 **실행 자체**를 막는 명령의 안내 — 권한을 열어도 해결되지 않는다.
+  public static func blockedNote(for command: String) -> String {
+    let names = setuidPrograms(in: command).map { ($0 as NSString).lastPathComponent }
+    guard !names.isEmpty else {
+      return L("샌드박스가 이 명령을 실행할 수 없습니다(권한을 열어도 해결되지 않습니다).")
+    }
+    let list = names.joined(separator: ", ")
+    if names.contains(where: { $0 == "ps" || $0 == "top" }) {
+      return Lf("%@ 는 setuid 프로그램이라 샌드박스에서 실행할 수 없습니다. 프로세스 사용량은 `processes` 도구로 확인하세요(권한을 열어도 실행되지 않습니다).", list)
+    }
+    return Lf("%@ 는 setuid 프로그램이라 샌드박스에서 실행할 수 없습니다. 터미널에서 직접 실행하세요.", list)
+  }
+
   private static func runProbe(_ command: String, timeout: TimeInterval) -> SandboxProbe {
     // 상승권은 구조적으로 먼저 판정한다(샌드박스로는 sudo 자체를 막을 수 없다).
     if RiskClassifier.requiresElevation(command) {
       return SandboxProbe(command: command, capability: .elevated,
                           result: SandboxResult(exitCode: -1, stdout: "", stderr: ""))
     }
+    // ★ setuid 프로그램은 샌드박스가 **exec 자체를 거부**한다 — 실행해 보지 않고 바로 차단한다.
+    //   파이프 뒤에 있으면 종료코드가 0(`head`의 성공)이라 "읽기 성공"으로 오판되기도 한다:
+    //   `ps -eo pid,cpu | head -3` → 빈 출력 + state=done (2026-10-22 실측).
+    if !setuidPrograms(in: command).isEmpty {
+      return SandboxProbe(command: command, capability: .blocked,
+                          result: SandboxResult(exitCode: -1, stdout: "",
+                                                stderr: blockedNote(for: command)))
+    }
     let r = run(command, profile: readOnlyProfile(), timeout: timeout)
     if r.succeeded { return SandboxProbe(command: command, capability: .read, result: r) }
 
     // ① 파일 쓰기 차단 — 메시지에 경로가 함께 나온다(/bin/sh: /path: Operation not permitted)
     if let path = deniedPath(in: r.combined) {
+      // ★ setuid 프로그램은 샌드박스에서 **exec 자체가 거부**된다 — 쓰기를 열어도 소용없다
+      //   (ps·top 등. 2026-10-22 "Operation not permitted" 실측).
+      if isSetuidBinary(path) {
+        return SandboxProbe(command: command, capability: .blocked,
+                            result: SandboxResult(exitCode: -1, stdout: r.stdout,
+                                                  stderr: blockedNote(for: command)))
+      }
       // ★ 시스템 전역(루트 포함) 경로의 쓰기는 **절대 열지 않는다.**
       //   실측이 "/" 를 뽑아내면 그대로 열면 디스크 전체가 지워질 수 있다.
       if RiskClassifier.isSystemScopePath(path) {

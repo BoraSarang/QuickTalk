@@ -58,7 +58,27 @@ public enum AgentToolCatalog {
       "required": ["path"]
     ])
 
-  public static let all: [AgentTool] = [shell, readFile, listDir]
+  /// 프로세스 사용량 — `ps`·`top` 은 setuid 라 샌드박스가 실행을 막는다. 앱이 직접 읽는다.
+  public static let processes = AgentTool(
+    name: "processes",
+    description: """
+      Read CPU and memory usage of running processes. This is the **only** way to see per-process \
+      usage here: ps and top are setuid binaries and the sandbox refuses to execute them \
+      ("Operation not permitted"), no matter what permission is granted. \
+      Samples twice over a short window and returns the top processes.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "sort": ["type": "string", "enum": ["cpu", "memory"],
+                 "description": "Sort key (default: cpu)."],
+        "limit": ["type": "integer",
+                  "description": "How many processes to return (default 5, max 30)."]
+      ],
+      "required": []
+    ])
+
+  public static let all: [AgentTool] = [shell, readFile, listDir, processes]
 
   /// 이름으로 도구를 찾는다.
   public static func tool(named name: String) -> AgentTool? {
@@ -79,13 +99,18 @@ public enum AgentInstructions {
       (디스크 용량 · 메모리(RAM) 사용량 · CPU 를 많이 쓰는 프로세스 · 네트워크 속도 · 기기 연결 상태 ·
        파일 목록 · 설치된 앱 · 설치된 도구 · 네트워크 인터페이스 등)
       그렇다면 `shell` 로 명령을 실행해 **실제 값**을 확인한다. 추측으로 답하지 않는다.
+    - 프로세스별 CPU·메모리는 `processes` 도구로 확인한다.
+      `ps`·`top` 은 setuid 프로그램이라 샌드박스가 실행을 거부한다("Operation not permitted").
+      권한을 열어도 해결되지 않으니 **다시 시도하지 말고** `processes` 를 쓴다.
     - "메모리"가 나오면 보통은 **이 컴퓨터의 RAM 사용량**을 뜻한다.
       앱의 대화 기억(저장된 기록)을 물어본다고 **명확히** 말한 경우에만 그쪽을 본다.
     - 사용자가 직접 명령을 주고 싶어 하면(예: "이 명령 실행해줘") 그대로 실행한다.
 
     명령을 실행할 때
-    - 상태를 확인하는 명령(ls, df, ps, top, vm_stat, sw_vers, system_profiler, brew list, adb devices 등)은
+    - 상태를 확인하는 명령(ls, df, vm_stat, sw_vers, system_profiler, brew list, adb devices 등)은
       읽기만 하므로 그대로 실행해도 된다.
+    - `ps`·`top` 은 setuid 프로그램이라 **샌드박스가 실행을 거부한다.** 권한을 열어도 안 되니
+      프로세스별 CPU·메모리는 `processes` 도구로 확인한다.
     - 명령을 정확히 모르면 먼저 `--help` 또는 `man`으로 확인한다. 지식이 낡았을 수 있다.
     - 파일을 만들거나 지우거나, 설정을 바꾸거나, 뭔가를 설치하는 명령은 앱이 사용자에게 먼저 확인한다.
       확인을 받으면 **그 범위에서만** 실행된다.
@@ -104,6 +129,7 @@ public enum AgentInstructions {
   public static let compactText = """
     너는 macOS 도우미다. 질문에 답하려면 직접 확인해야 할 때가 있다.
     - 디스크·메모리(RAM)·CPU·네트워크·파일·앱·기기 같은 건 **shell 도구로 명령을 실행해** 실제 값을 본다.
+    - 프로세스별 CPU·메모리는 processes 도구를 쓴다(ps·top 은 샌드박스가 실행을 막는다).
     - "메모리"는 보통 RAM 사용량이다. 추측하지 말고 실행해서 확인한다.
     - 답에는 실행 결과의 숫자와 사실을 쓴다.
     """

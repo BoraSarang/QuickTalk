@@ -1,9 +1,26 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-22 21:10 KST
+> 마지막 갱신: 2026-10-22 21:34 KST
 
-## 지금 (2026-10-22 21:10) — 공용 메모리 기본값 Off
+## 지금 (2026-10-22 21:34) — 🧠 표시·카드 순서·`ps`/`top` 실행 불가
+
+- **사용자 보고**: ① N22 `ERR`(🧠 가 회색으로도 안 보임) ② 실행 카드가 응답 **아래**에 뜬다
+  ③ `top`/`ps` 가 `Operation not permitted`
+- **원인**: ① `brain.slash` 가 **없는 SF Symbol** (macOS 27.2) → `Image(systemName:)` 이 빈 뷰
+  ② `.ps/top` 은 **setuid root** → 샌드박스가 exec 자체를 거부(프로파일로 해결 불가)
+  ③ 실측이 exec 거부를 **쓰기 거부**로 오분류 → 승인해도 계속 실패, `ps | head` 는 종료코드 0 이라 "성공"으로 오판
+- **한 것**: ① 🧠 = `brain` 하나 + **색**으로 상태 구분(켜짐 보라·꺼짐 회색), 앱 전체 SF Symbol 점검
+  ② 실행 카드를 답변 **위**로(검색 출처는 아래 유지) ③ setuid 실행 위치 탐지 → **`.blocked`**(실행 안 함) +
+  "권한을 열어도 안 됨, `processes` 를 쓰라" 안내 ④ **새 도구 `processes`** — libproc 으로 CPU%/RSS 직접 읽기
+  (`sort=cpu|memory`, `limit≤30`) ⑤ `AgentCapability.unprobed` 분리(중요 명령은 승인 후 실측)
+- **검증**: `swift test` **385/385**(6 skip, 신규 9) · BUILD SUCCEEDED(경고 0) · 렌더 확인(회색 🧠·카드 위)
+  · `--agent-test="CPU 많이 쓰는 프로세스 3개만 알려줘"` → `tool=processes state=done` 2스텝
+- **배포**: 2026-10-22 21:33 · SHA-256 `c701008c270e79de…` · **앱 재실행 필요**
+- **재실행 후 확인**: **N22**(회색 🧠 보임 + 눌러서 보라) · **N24**(ps/top → 실행 불가 + `processes` 값)
+  · **N25**(카드가 답변 위) → N20·N21·N23(직전 확인 OK) → T-18 실측 → v0.19
+
+## 이전 (2026-10-22 21:10) — 공용 메모리 기본값 Off
 
 - **사용자 요청**: "공용 메모리 기본 값 Off 로 해줘"
 - **한 것**: ① `globalMemoryEnabled` 기본값 `true` → `false` ② 구버전 설정 fallback 도 `false` 로 ③

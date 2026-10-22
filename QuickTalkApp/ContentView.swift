@@ -321,7 +321,10 @@ struct ContentView: View {
         // "껐는데 왜 안 보이지?"가 됐다(2026-10-22 사용자 지적). 꺼져 있으면 흐리게 두고
         // 누르면 다시 켜게 한다.
         let memoryOff = !store.commonMemoryActive
-        headerIcon(memoryOff ? "brain.slash" : "brain",
+        // ★ "brain.slash" 는 **존재하지 않는 SF Symbol** 이다(macOS 27.2 실측) —
+        //   Image(systemName:) 이 빈 뷰가 되어 아이콘이 아예 사라진다("회색으로도 안 보임").
+        //   이름은 "brain" 하나로 두고 **색**으로 상태를 구분한다(켜짐 보라 / 꺼짐 회색).
+        headerIcon("brain",
                    tint: memoryOff ? .secondary : .purple,
                    help: memoryOff
                      ? (store.settings.globalMemoryEnabled
@@ -391,6 +394,19 @@ struct ContentView: View {
                 // 보낸 메시지에 붙인 첨부를 그대로 보여준다(썸네일 + 호버 미리보기)
                 VStack(alignment: t.role == .user ? .trailing : .leading, spacing: 4) {
                   if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
+                  // ★ 도구 실행 카드는 **답변보다 위**에 둔다 — 명령이 먼저 돌고 그 결과로 답하기 때문.
+                  //   답변 아래에 두면 "명령 → 응답" 순서와 화면 순서가 반대가 된다(2026-10-22 사용자 지적).
+                  //   (웹 검색 출처는 참고 자료라 아래에 두는 것이 자연스럽다 — 그대로 둔다)
+                  if t.role == .assistant,
+                     let events = t.agentEvents, !events.isEmpty {
+                    AgentCard(events: events,
+                              approval: t.id == store.agentTurnID ? store.agentApproval : nil,
+                              showExecution: store.settings.agentShowExecution,
+                              onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
+                              onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
+                              onDeny: { store.resolveAgentApproval(.deny) })
+                      .padding(.bottom, 2)
+                  }
                   if !t.text.isEmpty {
                     if t.role == .assistant {
                       // AI 답변은 마크다운으로 그린다 — 제목·목록·코드·표·링크
@@ -426,18 +442,6 @@ struct ContentView: View {
                   // 웹 검색 출처 — 답변 아래 카드(클릭하면 기본 브라우저)
                   if t.role == .assistant, let sources = t.sources, !sources.isEmpty {
                     sourceCards(sources)
-                  }
-                  // 도우미 도구 실행 카드 — **이 턴에 저장된** 실행 기록(명령·실제 출력) + 승인 버튼.
-                  // 기록이 하나도 없으면 카드를 그리지 않는다(빈 상자가 보이지 않게).
-                  if t.role == .assistant,
-                     let events = t.agentEvents, !events.isEmpty {
-                    AgentCard(events: events,
-                              approval: t.id == store.agentTurnID ? store.agentApproval : nil,
-                              showExecution: store.settings.agentShowExecution,
-                              onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
-                              onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
-                              onDeny: { store.resolveAgentApproval(.deny) })
-                      .padding(.top, 2)
                   }
                   // 모델이 "검색할 수 없다"고 답했을 때 — 같은 질문을 검색 강제로 재시도
                   if t.role == .assistant, store.shouldOfferWebRetry(t) {

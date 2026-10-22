@@ -123,6 +123,18 @@ public struct AgentToolCall: Equatable {
     self.id = id; self.name = name; self.arguments = arguments
   }
 
+  /// 인자에서 정수 값을 꺼낸다(`{"limit":5}` → 5, 문자열 "5" 도 허용).
+  public func intArgument(_ key: String) -> Int? {
+    guard let data = arguments.data(using: .utf8),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      return nil
+    }
+    if let n = obj[key] as? Int { return n }
+    if let d = obj[key] as? Double { return Int(d) }
+    if let s = obj[key] as? String { return Int(s) }
+    return nil
+  }
+
   /// 인자에서 문자열 값을 꺼낸다(`{"command":"ls"}` → "ls").
   public func stringArgument(_ key: String) -> String? {
     guard let data = arguments.data(using: .utf8),
