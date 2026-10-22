@@ -79,6 +79,22 @@ public final class ConversationStore {
     conversation.turns[i].text = text
   }
 
+  /// 도우미 도구 실행 기록을 턴에 붙인다(대화 기록에 함께 남는다).
+  public func appendAgentEvent(_ event: AgentEvent, to id: UUID) {
+    guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }
+    if conversation.turns[i].agentEvents == nil { conversation.turns[i].agentEvents = [] }
+    conversation.turns[i].agentEvents?.append(event)
+  }
+
+  /// 실행 기록 한 건을 고친다(상태·출력·경과시간).
+  public func updateAgentEvent(id eventID: String, in turnID: UUID, _ mutate: (inout AgentEvent) -> Void) {
+    guard let i = conversation.turns.firstIndex(where: { $0.id == turnID }),
+          var events = conversation.turns[i].agentEvents,
+          let j = events.firstIndex(where: { $0.id == eventID }) else { return }
+    mutate(&events[j])
+    conversation.turns[i].agentEvents = events
+  }
+
   /// 스트리밍 완료 — 응답 시간을 기록하고 대화 수정 시각을 갱신한다.
   public func finishAssistantTurn(_ id: UUID, elapsedMs: Int? = nil, sources: [TurnSource]? = nil) {
     guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }

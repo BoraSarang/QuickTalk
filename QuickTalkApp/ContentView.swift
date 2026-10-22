@@ -426,10 +426,13 @@ struct ContentView: View {
                   if t.role == .assistant, let sources = t.sources, !sources.isEmpty {
                     sourceCards(sources)
                   }
-                  // 도우미 도구 실행 카드 — 이 턴에 붙은 실행 기록 + 승인 버튼
-                  if t.role == .assistant, t.id == store.agentTurnID {
-                    AgentCard(events: store.agentEvents,
-                              approval: store.agentApproval,
+                  // 도우미 도구 실행 카드 — **이 턴에 저장된** 실행 기록(명령·실제 출력) + 승인 버튼.
+                  // 기록이 하나도 없으면 카드를 그리지 않는다(빈 상자가 보이지 않게).
+                  if t.role == .assistant,
+                     let events = t.agentEvents, !events.isEmpty {
+                    AgentCard(events: events,
+                              approval: t.id == store.agentTurnID ? store.agentApproval : nil,
+                              showExecution: store.settings.agentShowExecution,
                               onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
                               onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
                               onDeny: { store.resolveAgentApproval(.deny) })

@@ -58,17 +58,20 @@ public struct Turn: Codable, Equatable {
   public var elapsedMs: Int?
   /// 웹 검색 출처 — 검색을 쓰지 않은 턴·구버전 기록에는 없다(nil).
   public var sources: [TurnSource]?
-  /// 이 턴을 만들거나 받은 시각 — "5분 전" 같은 상대 시간 표시에 쓴다.
+  /// 이 턴을 만들거나 받은 시각 — "5분 전" 같은 상대 시간 표기에 쓴다.
   /// 구버전 기록에는 없으므로 옵션(nil)이며, 없으면 상대 시간을 표시하지 않는다.
   public var createdAt: Date?
+  /// 도우미 도구 실행 기록 — 실제로 실행한 명령·출력(대화 기록에 함께 남는다).
+  /// 구버전 기록에는 없는 값(nil)이며, 없으면 실행 카드를 그리지 않는다.
+  public var agentEvents: [AgentEvent]?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
               elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
-              createdAt: Date? = nil) {
+              createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
-    self.sources = sources; self.createdAt = createdAt
+    self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
   }
 }
 

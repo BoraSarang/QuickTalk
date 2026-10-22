@@ -64,6 +64,18 @@ final class UIStore: ObservableObject {
   @Published var agentApproval: AgentApprovalRequest?
   /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
   @Published var agentTurnID: UUID?
+  /// 실행 기록을 턴에 저장한다 — 대화 기록(history.json)에 함께 남아 다음에 다시 보인다.
+  func appendAgentEventToTurn(_ event: AgentEvent, turnID: UUID) {
+    core.appendAgentEvent(event, to: turnID)
+    conversation = core.conversation
+  }
+
+  /// 턴에 저장된 실행 기록 한 건을 고친다(상태·출력·경과시간).
+  func updateAgentEventInTurn(id eventID: String, turnID: UUID, _ mutate: (inout AgentEvent) -> Void) {
+    core.updateAgentEvent(id: eventID, in: turnID, mutate)
+    conversation = core.conversation
+  }
+
   /// 도구 실행기 — 정책 판단·사용자 확인·감사 기록
   var agentExecutor: AgentExecutor?
   /// 도구 필요 판정 캐시 — 같은 질문이면 10분간 모델을 다시 부르지 않는다.
