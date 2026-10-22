@@ -12,14 +12,37 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 21:50 대화 창 위치 조율(pill=입력한 자리 · 마지막 위치)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `759918eaf13a93f1…` |
-| 테스트 | **395/395**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 10 = 창 배치 9 · 설정 왕복/미지값 1) |
-| 마지막 완료 | **대화 창 위치 조율**(2026-10-22 21:50) — pill 은 `lastAnchor`(입력한 자리)에서 창이 이어지고, 설정(중앙/포인터/**마지막 위치**)은 보관함·Hub·QuickShelf·이어서 열기에만 적용. `WindowPlacement`(Core)로 규칙을 테스트 가능하게 분리. **재실행 필요** |
+| 현재 빌드 | **2026-10-22 22:10 📌 항상 위 + 설정 창 레벨 분리** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `291fe2ea65288b21…` |
+| 테스트 | **403/403**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 18 = 창 배치 10 · 창 레벨 정책 8) |
+| 마지막 완료 | **📌 항상 위 + 설정 창 레벨 분리**(2026-10-22 22:10) — 설정 창이 뜨면 대화 창을 내리던 가림 방지 장치가 **핀까지 껐다** → `WindowLevelPolicy`(Core): 핀 ON 이면 `.floating` 유지, 설정 창은 **쓰는 동안만** 그 위. **재실행 필요** |
 | 다음 작업 | **T-18 실측**(`docs/qa/t18-agent/CHECKLIST.md` P1~P19) → v0.19(쓰기·되돌리기) → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 |
-| 실측 대기 | **N22·N24·N25·N26 4건** + **T-18 19건** + **T-21 27건** + **QA 미체크 53건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1 · N26 1) |
+| 실측 대기 | **N22·N24·N25·N26·N27 5건** + **T-18 19건** + **T-21 27건** + **QA 미체크 54건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1 · N26·N27 2) |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **재실행 필요** — 돌아있는 것은 21:05 빌드(`f3d9b697…`). 🧠·카드 순서·`processes`(PR #16) + 창 위치(PR #18)가 재실행 후 함께 반영된다 |
-| git | `main` = **`0d2d817`** · 창 위치 조율 PR #18 → `8313c56` · HANDOFF SHA PR #19 · 캡션 단축키·배포 SHA PR #20 |
+| 실행 중 앱 | **재실행 필요** — 돌아있는 것은 21:05 빌드(`f3d9b697…`). 🧠·카드 순서·`processes`(PR #16) + 창 위치(PR #18) + 📌 레벨(PR #22)이 재실행 후 함께 반영된다 |
+| git | `main` = **`0d2d817`** · 창 위치 조율 PR #18 → `8313c56` · 📌 레벨 PR #22 (squash merge 예정) |
+
+### 세션 진행 (2026-10-22 22:10) — 📌 항상 위가 설정 창과 함께 뜨면 꺼지던 문제
+
+#### 사용자 보고
+- "대화창에서 최상위 클릭 해 놨는데 동작 안하는데? 다른 창 뜨면 뒤로 가려짐 / 대화창 + 설정창이 떠 있으면 먹히질 않음"
+
+#### 원인
+- `applyPanelLevel()`: `blocked = systemPromptDepth > 0 || auxWindows.contains { $0.isVisible }` →
+  `blocked` 면 `.normal`. 즉 **설정 창이 보이는 동안 핀이 무시**됐다.
+- 이 장치는 2026-10-20 "대화창이 항상 최상위라 설정·권한 창이 뒤로 숨는다" 요청의 결과였다.
+  두 요구가 충돌하므로 **레벨을 분리**해야 한다.
+
+#### 수정
+- Core `WindowLevelPolicy` — `panel(wantTop:systemPrompt:)`, `aux(wantTop:systemPrompt:appActive:inUse:)`.
+- 대화 창: 핀 ON + 시스템 안내 없음 → `.floating` (설정 창과 무관).
+- 설정·정보 창: **키 창(또는 그 시트)일 때만** `.floating + 1`. 앱 비활성·시스템 안내 중에는 `.normal`.
+- `didBecomeKey`·`didResignActive` 관찰 추가 → "클릭한 창이 위로".
+- 시스템 권한 안내(TCC·시스템 설정 딥링크)는 종전대로 대화 창을 내린다(다른 앱 창이라 올릴 수 없음).
+
+#### 검증
+- `swift test` **403/403**(6 skip, 신규 8 = 정책 8), BUILD SUCCEEDED.
+- 22:10 배포 · `codesign --verify --strict` OK · SHA-256 `291fe2ea65288b21…`.
+- **실측 대기** — N27(📌 켜고 설정 창 열기 → 대화 창이 다른 앱 위 유지 / 설정 창은 그 위, 클릭 전환).
 
 ### 세션 진행 (2026-10-22 21:50) — 대화 창 위치 조율 (pill 은 입력한 자리)
 
@@ -947,7 +970,7 @@ Document Music, Download 폴더의 접근 권한을 물어 봄 · 심각한 문�
 | 원격 20턴 | 2,100 → **903** 토큰, recent 5, 3.5초, 요약 323자 |
 | 자동 트리거 20턴 | `expected=YES → summary=YES` (**Apple FM 기준** — 원격·Ollama 예산은 훨씬 커서 트리거되지 않음) |
 | 자동 트리거 10턴 | `expected=NO → summary=NO` |
-| 테스트 | **395/395**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 10 = 창 배치 9 · 설정 왕복/미지값 1) |
+| 테스트 | **403/403**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 18 = 창 배치 10 · 창 레벨 정책 8) |
 | QA 렌더 | `docs/qa/memory-chat-ko` · `-en`, `memory-settings-ko` · `-en` |
 
 **사용자 확인 (이 순서)**
