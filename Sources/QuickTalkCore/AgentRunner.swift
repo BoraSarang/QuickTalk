@@ -86,7 +86,12 @@ public struct AgentRunner {
   }
 
   /// 에이전트 루프 실행.
-  public func run(prompt: String, history: [Turn], tools: [AgentTool]) async throws -> AgentRunResult {
+  /// `onDelta` 로 최종 답변이 토큰 단위로 흘러나온다(스트리밍 유지).
+  public func run(prompt: String,
+                  history: [Turn],
+                  tools: [AgentTool],
+                  attachments: [OutgoingAttachment] = [],
+                  onDelta: @escaping @MainActor (String) -> Void = { _ in }) async throws -> AgentRunResult {
     var messages: [AgentMessage] = history.map {
       AgentMessage(role: $0.role == .user ? .user : .assistant, content: $0.text)
     }
@@ -96,10 +101,13 @@ public struct AgentRunner {
     var hadDenial = false
     var steps = 0
     var collected: [String] = []
+    /// 실행한 명령의 반복 횟수 — 같은 명령 무한 반복 방지
+    var signatures: [String: Int] = [:]
 
     while steps < maxSteps {
       steps += 1
-      let step = try await client.nextStep(messages: messages, tools: tools)
+      let step = try await client.nextStep(messages: messages, tools: tools,
+                                           attachments: attachments, onDelta: onDelta)
       switch step {
       case .finalAnswer(let text, _):
         return AgentRunResult(answer: text, events: events, steps: steps, hadDenial: hadDenial)
@@ -113,6 +121,20 @@ public struct AgentRunner {
         messages.append(AgentMessage(role: .assistant, content: "", toolCalls: calls,
                                       reasoningContent: reasoning))
         for call in calls {
+          // 같은 명령을 몇 번이나 반복하면(특히 작은 온디바이스 모델) 무한 반복이 된다.
+          // 2번 반복된 명령은 다시 실행하지 않고, 모델에게 다른 방법을 쓰라고 알린다.
+          let signature = "\(call.name)|\(call.stringArgument("command") ?? call.stringArgument("path") ?? "")"
+          let repeats = (signatures[signature] ?? 0) + 1
+          signatures[signature] = repeats
+          if repeats > 2 {
+            let note = L("같은 명령이 여러 번 실행되었습니다. 다른 방법을 사용하세요.")
+            events.append(AgentEvent(id: call.id, toolName: call.name,
+                                     title: Self.title(for: call, tools: tools),
+                                     command: call.stringArgument("command") ?? "",
+                                     level: .read, risk: .normal, state: .failed, output: note))
+            messages.append(AgentMessage(role: .tool, content: note, toolCallID: call.id))
+            continue
+          }
           let outcome = await executor.execute(call, tools: tools)
           if outcome.denied { hadDenial = true }
           let summary = Self.summarize(outcome.output)

@@ -187,14 +187,30 @@ final class AgentTests: XCTestCase {
 
   @MainActor
   func testAgentRunnerStopsAtMaxSteps() async throws {
-    let step = AgentStep.toolCalls([AgentToolCall(id: "c1", name: "shell",
-                                                  arguments: #"{"command":"df"}"#)], reasoning: nil)
-    let client = MockAgentClient(steps: Array(repeating: step, count: 20))
+    // 서로 다른 명령이어야 반복 방지(같은 명령 3번째는 실행하지 않는다)에 걸리지 않는다
+    let steps = (0..<20).map { i in
+      AgentStep.toolCalls([AgentToolCall(id: "c\(i)", name: "shell",
+                                        arguments: #"{"command":"echo \#(i)"}"#)], reasoning: nil)
+    }
+    let client = MockAgentClient(steps: steps)
     let executor = MockAgentExecutor()
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 3)
     let result = try await runner.run(prompt: "반복", history: [], tools: AgentToolCatalog.all)
     XCTAssertEqual(result.steps, 3)
     XCTAssertEqual(executor.executed.count, 3)
+  }
+
+  @MainActor
+  func testRepeatedCommandIsNotExecutedAgain() async throws {
+    // 같은 명령을 반복하면(작은 온디바이스 모델이 종종 그러��) 3번째부터는 실행하지 않는다
+    let step = AgentStep.toolCalls([AgentToolCall(id: "c1", name: "shell",
+                                                  arguments: #"{"command":"free -h"}"#)], reasoning: nil)
+    let client = MockAgentClient(steps: Array(repeating: step, count: 5))
+    let executor = MockAgentExecutor()
+    let runner = AgentRunner(client: client, executor: executor, maxSteps: 5)
+    let result = try await runner.run(prompt: "메모리", history: [], tools: AgentToolCatalog.all)
+    XCTAssertEqual(executor.executed.count, 2, "같은 명령은 두 번까지만 실행된다")
+    XCTAssertTrue(result.events.contains { $0.output.contains("같은 명령") })
   }
 
   // MARK: - 도구 정의
@@ -259,7 +275,10 @@ private final class MockAgentClient: AgentClient {
 
   init(steps: [AgentStep]) { self.steps = steps }
 
-  func nextStep(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentStep {
+  func nextStep(messages: [AgentMessage],
+                tools: [AgentTool],
+                attachments: [OutgoingAttachment],
+                onDelta: @escaping @MainActor (String) -> Void) async throws -> AgentStep {
     receivedMessages.append(messages)
     guard index < steps.count else { return .finalAnswer("끝", reasoning: nil) }
     let step = steps[index]

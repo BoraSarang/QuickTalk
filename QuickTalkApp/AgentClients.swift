@@ -23,17 +23,36 @@ final class OpenAICompatibleAgentClient: AgentClient {
     self.systemPrompt = systemPrompt
   }
 
-  func nextStep(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentStep {
+  func nextStep(messages: [AgentMessage],
+                tools: [AgentTool],
+                attachments: [OutgoingAttachment],
+                onDelta: @escaping @MainActor (String) -> Void) async throws -> AgentStep {
     var payload: [[String: Any]] = [["role": "system", "content": systemPrompt]]
-    payload.append(contentsOf: messages.map(\.openAIMessage))
-    let response = try await client.completion(messages: payload,
-                                               tools: AgentTool.schemaArray(tools))
-    if response.hasToolCalls {
-      return .toolCalls(response.calls.map {
-        AgentToolCall(id: $0.id, name: $0.name, arguments: $0.arguments)
-      }, reasoning: response.reasoning)
+    // 마지막 사용자 메시지에 첨부(이미지·문서 본문)를 붙인다 — 일반 대화와 같은 규칙
+    for (i, m) in messages.enumerated() {
+      var dict = m.openAIMessage
+      if i == messages.count - 1, m.role == .user, !attachments.isEmpty {
+        dict = Self.userMessage(text: m.content, attachments: attachments)
+      }
+      payload.append(dict)
     }
-    return .finalAnswer(response.text, reasoning: response.reasoning)
+    let result = try await client.streamWithTools(messages: payload,
+                                                  tools: AgentTool.schemaArray(tools),
+                                                  onDelta: onDelta)
+    if !result.toolCalls.isEmpty {
+      return .toolCalls(result.toolCalls, reasoning: result.reasoning)
+    }
+    return .finalAnswer(result.text, reasoning: result.reasoning)
+  }
+
+  /// 텍스트 + 이미지 파트 — 일반 대화 경로와 동일한 형식
+  static func userMessage(text: String, attachments: [OutgoingAttachment]) -> [String: Any] {
+    let body = AttachmentLoader.composeText(prompt: text, attachments: attachments)
+    let images = attachments.compactMap { $0.hasImage ? $0.imageDataURL : nil }
+    if images.isEmpty { return ["role": "user", "content": body] }
+    var parts: [[String: Any]] = [["type": "text", "text": body.isEmpty ? "첨부한 이미지를 확인해 주세요." : body]]
+    for url in images { parts.append(["type": "image_url", "image_url": ["url": url]]) }
+    return ["role": "user", "content": parts]
   }
 }
 
@@ -52,51 +71,34 @@ final class OllamaAgentClient: AgentClient {
     self.systemPrompt = systemPrompt; self.timeout = timeout
   }
 
-  func nextStep(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentStep {
+  func nextStep(messages: [AgentMessage],
+                tools: [AgentTool],
+                attachments: [OutgoingAttachment],
+                onDelta: @escaping @MainActor (String) -> Void) async throws -> AgentStep {
     var payload: [[String: Any]] = [["role": "system", "content": systemPrompt]]
-    payload.append(contentsOf: messages.map(\.openAIMessage))
-    var body: [String: Any] = ["model": model, "messages": payload, "stream": false]
-    body["tools"] = AgentTool.schemaArray(tools)
-
-    var req = URLRequest(url: host.appendingPathComponent("api/chat"))
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    req.timeoutInterval = timeout
-    req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-    let (data, resp) = try await URLSession.shared.data(for: req)
-    let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
-    guard status == 200 else {
-      throw QuickTalkError.serverFailure(.upstream(status: status, code: nil))
-    }
-    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let message = json["message"] as? [String: Any] else {
-      throw QuickTalkError.serverFailure(.emptyResponse(status: status))
-    }
-    let text = (message["content"] as? String) ?? ""
-    // thinking 모드 모델의 사고 내용 — 다음 요청에 되돌려야 한다(프록시가 요구).
-    let reasoning = (message["reasoning_content"] as? String)
-      ?? (message["reasoning"] as? String)
-      ?? (message["thinking"] as? String)
-    let rawCalls = (message["tool_calls"] as? [[String: Any]]) ?? []
-    if !rawCalls.isEmpty {
-      let calls = rawCalls.enumerated().map { index, raw -> AgentToolCall in
-        let fn = raw["function"] as? [String: Any] ?? [:]
-        let name = fn["name"] as? String ?? "shell"
-        let args: String
-        if let text = fn["arguments"] as? String {
-          args = text
-        } else if let object = fn["arguments"],
-                  let encoded = try? JSONSerialization.data(withJSONObject: object) {
-          args = String(data: encoded, encoding: .utf8) ?? "{}"
-        } else {
-          args = "{}"
-        }
-        return AgentToolCall(id: raw["id"] as? String ?? "call_\(index)", name: name, arguments: args)
+    // 마지막 사용자 메시지에 첨부를 붙인다(이미지는 base64)
+    for (i, m) in messages.enumerated() {
+      var dict = m.openAIMessage
+      if i == messages.count - 1, m.role == .user, !attachments.isEmpty {
+        dict = Self.userMessage(text: m.content, attachments: attachments)
       }
-      return .toolCalls(calls, reasoning: reasoning)
+      payload.append(dict)
     }
-    return .finalAnswer(text, reasoning: reasoning)
+    let result = try await OllamaClient(host: host, model: model)
+      .streamWithTools(messages: payload, tools: AgentTool.schemaArray(tools), onDelta: onDelta)
+    if !result.toolCalls.isEmpty {
+      return .toolCalls(result.toolCalls, reasoning: result.reasoning)
+    }
+    return .finalAnswer(result.text, reasoning: result.reasoning)
+  }
+
+  /// Ollama 용 사용자 메시지 — 이미지 필드는 `images: [base64]`
+  static func userMessage(text: String, attachments: [OutgoingAttachment]) -> [String: Any] {
+    let body = AttachmentLoader.composeText(prompt: text, attachments: attachments)
+    let images = attachments.compactMap { $0.hasImage ? $0.imageBase64 : nil }
+    var m: [String: Any] = ["role": "user", "content": body]
+    if !images.isEmpty { m["images"] = images }
+    return m
   }
 }
 
@@ -188,7 +190,10 @@ final class AppleFMAgentClient: AgentClient {  private let executor: any AgentTo
     self.executor = executor; self.systemPrompt = systemPrompt; self.tools = tools
   }
 
-  func nextStep(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentStep {
+  func nextStep(messages: [AgentMessage],
+                tools: [AgentTool],
+                attachments: [OutgoingAttachment],
+                onDelta: @escaping @MainActor (String) -> Void) async throws -> AgentStep {
     #if canImport(FoundationModels)
     let model = SystemLanguageModel.default
     switch model.availability {

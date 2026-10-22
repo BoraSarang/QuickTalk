@@ -189,5 +189,10 @@ public enum AgentStep: Equatable {
 /// 프로바이더 중립 에이전트 클라이언트 — 3종(Apple FM·Ollama·OpenAI 호환)이 각각 구현한다.
 public protocol AgentClient: AnyObject {
   /// 도구를 넘겨 한 스텝 진행한다. 도구 호출이 없으면 `.finalAnswer`.
-  func nextStep(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentStep
+  /// `onDelta` 로 **최종 답변을 토큰 단위로** 흘려보낼 수 있다(스트리밍 유지).
+  /// `attachments` 는 마지막 사용자 메시지에 첨부 이미지·문서를 붙이는 데 쓴다.
+  func nextStep(messages: [AgentMessage],
+                tools: [AgentTool],
+                attachments: [OutgoingAttachment],
+                onDelta: @escaping @MainActor (String) -> Void) async throws -> AgentStep
 }

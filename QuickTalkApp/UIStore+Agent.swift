@@ -46,93 +46,75 @@ extension UIStore {
   // MARK: - 클라이언트
 
   /// 프로바이더별 에이전트 클라이언트를 만든다(키 없음·주소 오류면 nil).
+  /// 온디바이스(Apple FM)는 **짧은 지시문**을 쓴다 — 작은 모델은 긴 지시문을 따라가지 못한다.
   func makeAgentClient(provider: LLMProviderConfig,
                        executor: any AgentToolExecutor) -> AgentClient? {
-    let system = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings)
+    let instructions: String
+    switch provider.type {
+    case .appleFM:
+      instructions = AgentInstructions.compactText
+    case .ollama, .openAICompatible:
+      instructions = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings)
+    }
     switch provider.type {
     case .appleFM:
       if #available(macOS 26.0, *) {
-        return AppleFMAgentClient(executor: executor, systemPrompt: system,
+        return AppleFMAgentClient(executor: executor, systemPrompt: instructions,
                                    tools: AgentToolCatalog.all)
       }
       return nil
     case .ollama:
       guard let base = URL(string: provider.baseURL), !provider.model.isEmpty else { return nil }
-      return OllamaAgentClient(host: base, model: provider.model, systemPrompt: system)
+      return OllamaAgentClient(host: base, model: provider.model, systemPrompt: instructions)
     case .openAICompatible:
       guard let base = URL(string: provider.baseURL), !provider.model.isEmpty,
             !provider.secretID.isEmpty,
             let key = SecretStore.load(account: provider.secretID), !key.isEmpty else { return nil }
       return OpenAICompatibleAgentClient(
         client: OpenAIClient(baseURL: base, apiKey: key, model: provider.model),
-        systemPrompt: system)
+        systemPrompt: instructions)
     }
   }
 
   // MARK: - 도구 필요 판정
 
-  /// "이 질문에 도구가 필요한가"를 **모델**에게 짧게 묻는다.
-  /// 같은 질문·직전 맥락이면 10분간 캐시한다(추가 지연 방지).
-  func decidesToUseTools(_ prompt: String, history: [Turn] = []) async -> Bool {
-    guard settings.agentToolsEnabled, let provider = settings.activeProvider else { return false }
-    let previous = history.last(where: { $0.role == .user })?.text
-    let key = Self.agentDecisionKey(providerID: provider.id, previous: previous, prompt: prompt)
-    if let hit = agentDecisionCache[key], Date().timeIntervalSince(hit.at) < agentDecisionTTL {
-      return hit.needed
-    }
-    let question = """
-      이 질문에 답하려면 이 컴퓨터를 직접 확인하거나 명령을 실행해야 하나요?
-      (디스크 용량, 프로세스, 네트워크 속도, 일정, 파일 찾기, 기기 연결, 도구 설치 등)
-      질문: \(prompt)
-      답은 YES 또는 NO 중 하나만 적으세요.
-      """
-    // 타임아웃은 프로바이더별 — 온디바이스 8초, 원격 8초, Ollama 25초(콜드 로드 포함)
-    let timeout: TimeInterval = provider.type == .ollama ? 25 : 8
-    do {
-      let answer = try await Self.classifierAnswer(provider: provider, prompt: question,
-                                                   timeout: timeout)
-      let needed = WebSearchQuery.parseNeed(answer)
-      if agentDecisionCache.count >= 50 { agentDecisionCache.removeAll() }
-      agentDecisionCache[key] = (needed, Date())
-      NSLog("[QuickTalk] 도구 필요 판정 %@", needed ? "YES" : "NO")
-      return needed
-    } catch {
-      NSLog("[QuickTalk] 도구 필요 판정 실패 → 도구 미사용")
-      return false
-    }
-  }
-
-  static func agentDecisionKey(providerID: String, previous: String?, prompt: String) -> String {
-    let norm: (String) -> String = { s in
-      s.lowercased().split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-    }
-    return "agent|\(providerID)|\(norm(previous ?? ""))|\(norm(prompt))"
-  }
-
   // MARK: - 에이전트 턴
 
-  /// 에이전트 루프 실행 — 최종 답변 문자열을 돌려준다(실행 카드는 UIStore 에 쌓인다).
+  /// 에이전트 루프 실행 — 최종 답변을 토큰 단위로 흘려보내면서 카드도 쌓는다.
+  /// **도구 필요 판정은 따로 하지 않는다** — 작은 분류기 모델이 "메모리"를 앱의 '기억'으로
+  /// 오해해 도구를 안 쓰는 일이 있었다(2026-10-22). 판정 없이 **본 모델이 직접 고르게** 한다.
   @MainActor
-  func runAgentTurn(provider: LLMProviderConfig, prompt: String, history: [Turn],
-                    turnID: UUID) async throws -> String {
+  func runAgentTurn(client: AgentClient,
+                    prompt: String,
+                    history: [Turn],
+                    turnID: UUID,
+                    attachments: [OutgoingAttachment] = [],
+                    onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
     let executor = AgentExecutor(store: self)
     agentExecutor = executor
     agentEvents = []
     agentTurnID = turnID
     defer { agentApproval = nil }
 
-    guard let client = makeAgentClient(provider: provider, executor: executor) else {
-      throw QuickTalkError.detailed(L("이 프로바이더에서는 도구를 쓸 수 없습니다."),
-                                    code: "E-MAC-AGENT-0001")
-    }
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 12)
-    let result = try await runner.run(prompt: prompt, history: history, tools: AgentToolCatalog.all)
+    let result = try await runner.run(prompt: prompt, history: history,
+                                      tools: AgentToolCatalog.all, attachments: attachments,
+                                      onDelta: onDelta)
     NSLog("[QuickTalk] 에이전트 종료 — 스텝 %d · 실행 %d건 · 거부 %@",
           result.steps, result.events.count, result.hadDenial ? "있음" : "없음")
     if result.answer.isEmpty {
       return L("작업을 마쳤습니다.")
     }
     return result.answer
+  }
+
+  /// 도구를 쓸 수 있는 클라이언트를 만든다(도구 사용이 꺼져 있으면 nil).
+  @MainActor
+  func makeAgentClientIfEnabled(provider: LLMProviderConfig) -> AgentClient? {
+    guard settings.agentToolsEnabled else { return nil }
+    let executor = AgentExecutor(store: self)
+    agentExecutor = executor
+    return makeAgentClient(provider: provider, executor: executor)
   }
 
   /// QA: 헤드리스 에이전트 1회 — 도구 실행·권한 판정·최종 답을 로그로 남긴다.

@@ -184,7 +184,11 @@ public enum SandboxRunner {
     if looksLikeNetworkFailure(r) {
       return SandboxProbe(command: command, capability: .network, result: r)
     }
-    return SandboxProbe(command: command, capability: .blocked, result: r)
+    // ③ 그 밖의 실패(명령 없음·옵션 오류 등)는 **권한 문제가 아니다**
+    //    → 읽기 권한으로 분류한다. 실행은 읽기 전용 프로필로 가고(쓰기는 샌드박스가 막는다),
+    //    오류는 그대로 모델에게 돌아가 다음 시도를 시킨다.
+    //    (요청하지 않은 승인을 떠올리면 안 된다 — 2026-10-22 실측)
+    return SandboxProbe(command: command, capability: .read, result: r)
   }
 
   /// 차단된 경로 추출 — 콜론으로 나눈 조각 중 "/" 로 시작하는 **마지막** 조각.
