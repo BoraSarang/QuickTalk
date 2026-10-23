@@ -3,7 +3,7 @@
 > **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-23 10:10 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
-> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경(pill 높이 회귀·로그인 자동 시작)은 아직 커밋 전.**
+> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경(pill 높이 회귀·로그인 자동 시작)은 PR #27 → squash merge `54a82cd` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -13,13 +13,13 @@
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
 | 현재 빌드 | **2026-10-23 10:15** — `~/Applications/QuickTalk.app` 교체 완료(백업 `.QuickTalk.old`), Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `291d1aa1622e6959…` |
-| 테스트 | **434/434**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 |
+| 테스트 | **434/434**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 · 병합 커밋 `54a82cd` 기준은 **403/403**(v0.19 WIP 제외) |
 | 마지막 완료 | **pill 높이 회귀 + 로그인 시 자동 시작**(2026-10-23 10:10) — ① 입력을 지우면 예전 여러 줄 높이가 남아 pill 내용이 위로 몰리던 문제(빈 입력은 1줄 복귀·본체 56pt) ② 설정 › 일반 › 동작에 `SMAppService` 기반 "로그인 시 자동 시작". **재실행 필요** |
 | 다음 작업 | **N29·N30 실측** → v0.19(쓰기·되돌리기) 설계·구현 → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 · (함께) N22·N24~N28 재확인 |
 | 실측 대기 | **N22·N24~N30 8건** + **T-21 31건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1). **T-18 P1~P19 는 2026-10-22 사용자 확인 완료** |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
 | 실행 중 앱 | **재실행 필요** — 돌아있는 것은 21:05 빌드(`f3d9b697…`). 이번 수정(pill 높이·로그인 자동 시작)은 재실행 후 반영된다 |
-| git | `main` = **`365bcbd`** · T-18 실측 문서 PR #26 → `365bcbd` · **2026-10-23 변경은 커밋 전**(브랜치 → PR 필요) |
+| git | `main` = **`54a82cd`** · T-18 실측 문서 PR #26 → `365bcbd` · **pill 높이·로그인 자동 시작 PR #27 → `54a82cd`**(squash merge) |
 
 ### 세션 진행 (2026-10-23 10:10) — pill 높이 회귀 수정 + 로그인 시 자동 시작
 
@@ -50,6 +50,7 @@
 
 #### 검증
 - `swift test` **434/434**(6 skip) · BUILD SUCCEEDED(경고 0).
+- **PR**: **#27** → squash merge **`54a82cd`**(2026-10-23 17:34 KST). 병합 커밋만으로는 **403/403**(6 skip) — 434 는 작업 트리에 있던 v0.19 WIP 테스트를 포함한 수치다.
 - 렌더 `docs/qa/t21-pill-debug/pill-height-2line.png`(2줄 75pt) · `pill-height-cleared.png`(낡은 측정값 49가 남아도 **56pt**) · `settings-general-ko`(새 토글).
 - **배포**: 2026-10-23 10:15 · `~/Applications/QuickTalk.app` 교체(백업 `~/Applications/.QuickTalk.old`) · `codesign --verify --strict` OK · SHA-256 `291d1aa1622e6959…` · **앱 재실행 필요**.
 - **실측 대기** — **N29**(여러 줄 → 지우기 → pill 1줄 복귀, 내용이 위로 몰리지 않음) · **N30**(로그인 항목 등록/해제 · 시스템 설정과 동기).
