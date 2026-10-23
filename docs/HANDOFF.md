@@ -1,9 +1,9 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-22 21:34 KST
+> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-23 10:10 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
-> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다.
+> **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경(pill 높이 회귀·로그인 자동 시작)은 아직 커밋 전.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 
 ## 0. 30초 요약
@@ -12,14 +12,47 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **2026-10-22 22:30 토큰 칩(헤더 한 줄)** — `~/Applications/QuickTalk.app`, Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `0fa743d736971a19…` |
-| 테스트 | **403/403**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (신규 18 = 창 배치 10 · 창 레벨 정책 8) |
-| 마지막 완료 | **토큰 표시를 대화 영역 위 플로팅 칩으로**(2026-10-22 22:30) — 헤더 2줄(제목+토큰)이 탭마다 높이를 달리해 울렁이던 문제. 헤더는 한 줄, 칩은 우상단 캡슐(툴팁 유지). **재실행 필요** |
-| 다음 작업 | **v0.19(쓰기·되돌리기)** 설계·구현 → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 · (함께) N22·N24~N28 재확인 |
-| 실측 대기 | **N22·N24·N25·N26·N27·N28 6건** + **T-21 27건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1). **T-18 P1~P19 는 2026-10-22 사용자 확인 완료** |
+| 현재 빌드 | **2026-10-23 10:15** — `~/Applications/QuickTalk.app` 교체 완료(백업 `.QuickTalk.old`), Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `291d1aa1622e6959…` |
+| 테스트 | **434/434**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 |
+| 마지막 완료 | **pill 높이 회귀 + 로그인 시 자동 시작**(2026-10-23 10:10) — ① 입력을 지우면 예전 여러 줄 높이가 남아 pill 내용이 위로 몰리던 문제(빈 입력은 1줄 복귀·본체 56pt) ② 설정 › 일반 › 동작에 `SMAppService` 기반 "로그인 시 자동 시작". **재실행 필요** |
+| 다음 작업 | **N29·N30 실측** → v0.19(쓰기·되돌리기) 설계·구현 → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 · (함께) N22·N24~N28 재확인 |
+| 실측 대기 | **N22·N24~N30 8건** + **T-21 31건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1). **T-18 P1~P19 는 2026-10-22 사용자 확인 완료** |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **재실행 필요** — 돌아있는 것은 21:05 빌드(`f3d9b697…`). 🧠·카드 순서·`processes`(PR #16) + 창 위치(PR #18) + 📌 레벨(PR #22) + 토큰 칩(PR #24)이 재실행 후 함께 반영된다 |
-| git | `main` = **`2a6d6e9`** · 창 위치 조율 PR #18 → `8313c56` · 📌 레벨 PR #22 → `f4ade21` · 토큰 칩은 PR #24 → **`3597172`**(squash merge) |
+| 실행 중 앱 | **재실행 필요** — 돌아있는 것은 21:05 빌드(`f3d9b697…`). 이번 수정(pill 높이·로그인 자동 시작)은 재실행 후 반영된다 |
+| git | `main` = **`365bcbd`** · T-18 실측 문서 PR #26 → `365bcbd` · **2026-10-23 변경은 커밋 전**(브랜치 → PR 필요) |
+
+### 세션 진행 (2026-10-23 10:10) — pill 높이 회귀 수정 + 로그인 시 자동 시작
+
+#### 사용자 보고
+- ① "pill UI 깨짐 상단에 몰려 있음" — 스크린샷: 빈 입력인데 pill 이 2줄 높이로 남아 오브·글자·보관함 아이콘이 위쪽에 몰리고 아래가 비어 보임.
+- ② "로그인시 앱 자동 시작 기능 없네?"
+
+#### ① 원인
+- `ChatInputField.layoutPass`: `measure()` 는 **글리프가 없으면 nil** 인데 `guard let info else { return }` 으로 빠져나가
+  **높이를 되돌리지 않았다** → 여러 줄 → 지우기 하면 `inputHeight` 가 예전 값으로 남는다.
+  pill 은 `capsuleHeight = inputHeight + 26` 이므로 본체가 커진 채 유지되고, 1줄짜리 내용은 위쪽에 붙어 보였다.
+  대화 창 입력독도 같은 이유로 지운 뒤 커진 채 남았다.
+- 레이아웃에도 8pt 어긋남이 있었다: `VStack(spacing: PillMetrics.gap)` + 창 높이는 `extra + capsule` → 내용이 창보다 8pt 커서 아래가 잘렸다.
+
+#### ① 수정
+- `ChatInputField` — 빈 입력은 **1줄 높이로 복귀**(공통 `report()` 로 정리, inset·스크롤 위치 리셋).
+  내부 기록과 같아도 **부모 값이 0/다른 값으로 바뀌었으면** 다시 보고한다.
+- `PillMetrics.capsuleHeight(text:inputHeight:)` — **빈 입력은 언제나 56pt**(측정이 늦게 와도 안전), 최대 4줄 클램프.
+  컨트롤러(`currentFrame`)와 뷰가 같은 규칙을 쓴다. `model.$text`(비었는지) 변화에도 창을 다시 맞춘다.
+- `PillRootView` — `VStack(spacing: 0)`, 목록만 `.padding(.top, gap)`, 창이 남아도 **아래 기준선 정렬**.
+  `resize()` 는 같은 프레임이면 애니메이션을 생략한다.
+
+#### ② 로그인 시 자동 시작
+- `QuickTalkApp/LoginItem.swift` — `SMAppService.mainApp`(macOS 13+) 래퍼. **시스템 로그인 항목이 단일 출처**라
+  설정 JSON 에 중복 저장하지 않는다(사용자가 시스템 설정에서 꺼도 화면과 어긋나지 않게).
+- 설정 › 일반 › 동작에 토글 + 승인 대기(`.requiresApproval`) 안내·`시스템 설정 열기` 버튼, 실패 사유 캡션.
+  설정 창 `onAppear`·앱 활성화(`didBecomeActive`) 때 실제 상태를 다시 읽는다.
+
+#### 검증
+- `swift test` **434/434**(6 skip) · BUILD SUCCEEDED(경고 0).
+- 렌더 `docs/qa/t21-pill-debug/pill-height-2line.png`(2줄 75pt) · `pill-height-cleared.png`(낡은 측정값 49가 남아도 **56pt**) · `settings-general-ko`(새 토글).
+- **배포**: 2026-10-23 10:15 · `~/Applications/QuickTalk.app` 교체(백업 `~/Applications/.QuickTalk.old`) · `codesign --verify --strict` OK · SHA-256 `291d1aa1622e6959…` · **앱 재실행 필요**.
+- **실측 대기** — **N29**(여러 줄 → 지우기 → pill 1줄 복귀, 내용이 위로 몰리지 않음) · **N30**(로그인 항목 등록/해제 · 시스템 설정과 동기).
 
 ### 세션 진행 (2026-10-22 22:42) — T-18 도우미 도구 실측 **완료** (사용자 확인)
 
