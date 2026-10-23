@@ -137,6 +137,9 @@ struct SettingsView: View {
   @State var newAgentRule: String = ""
   /// 도우미 도구 — 실행 기록 펼치기
   @State var showAgentAudit = false
+  /// 로그인 시 자동 시작 — 시스템 로그인 항목 상태(설정 JSON 에는 저장하지 않는다)
+  @State var launchAtLogin = LoginItem.isEnabled
+  @State var loginItemError: String?
 
   var body: some View {
     HStack(spacing: 0) {

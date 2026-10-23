@@ -16,6 +16,7 @@
 		1906DF1B64DED0A2ADFC0D53 /* QuickTalkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67ED173AA728EFEE5DAA6135 /* QuickTalkApp.swift */; };
 		1E7F67A52EFF23A1BDCDF755 /* ShelfModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D6C34B22D436052197628 /* ShelfModel.swift */; };
 		1E98097CE2505F620BB5EE8A /* Shortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F0C670FDE6AF2A0F611E90 /* Shortcut.swift */; };
+		F65D50602C8C67E60D444886 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9C2E8044DF78F78332F411 /* LoginItem.swift */; };
 		20B41BFB743D43FAC6406C08 /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65BDBEF0EEC3BD5742E2AF7 /* GlobalHotKey.swift */; };
 		26DE68043908C26F79D28EFD /* PiperSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */; };
 		27F58EA21C0F5824B8D811D7 /* AgentAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E06491B69C97E83E1540CA /* AgentAudit.swift */; };
@@ -117,6 +118,7 @@
 		6935F2B383353B720E54F016 /* LocalizationTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTable.swift; sourceTree = "<group>"; };
 		6A6AD7A5FD9FEE38DBEFCCA6 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		6B8746541C562CA7E95084B3 /* AIErrorText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIErrorText.swift; sourceTree = "<group>"; };
+		6C9C2E8044DF78F78332F411 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItem.swift; sourceTree = "<group>"; };
 		6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShelfView+Files.swift"; sourceTree = "<group>"; };
 		727D6C34B22D436052197628 /* ShelfModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfModel.swift; sourceTree = "<group>"; };
 		72BCC68AF259264132DF4A74 /* SettingsView+Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Voice.swift"; sourceTree = "<group>"; };
@@ -196,6 +198,7 @@
 				C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */,
 				E65BDBEF0EEC3BD5742E2AF7 /* GlobalHotKey.swift */,
 				8694BF8B9A52EA9597BA72EC /* Info.plist */,
+				6C9C2E8044DF78F78332F411 /* LoginItem.swift */,
 				7C2923600C30D5D38ED1A950 /* MarkdownText.swift */,
 				E3BA3DBC6AFA968606E34D9B /* MenuBarHubView.swift */,
 				E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */,
@@ -390,6 +393,7 @@
 				7964EE720816B7E2F379CA8C /* LLMProvider.swift in Sources */,
 				41C9DFB768BFB22D67D26C70 /* Localization.swift in Sources */,
 				5180DDF4D060619C2AA87067 /* LocalizationTable.swift in Sources */,
+				F65D50602C8C67E60D444886 /* LoginItem.swift in Sources */,
 				626D6FE27DBBED777C9F9850 /* Markdown.swift in Sources */,
 				7958CF55C473A7ACD4510CF4 /* MarkdownText.swift in Sources */,
 				7C7D875E3C4C6D701A815180 /* MenuBarHubView.swift in Sources */,

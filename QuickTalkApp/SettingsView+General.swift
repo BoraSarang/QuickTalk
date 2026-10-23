@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 // [REFACTOR] SettingsView — 일반·단축키·퀵셸프 섹션 (2026-10-20 파일 분리)
 extension SettingsView {
@@ -23,6 +24,19 @@ extension SettingsView {
       caption(store.visibilityHint)
     }
     groupBox(L("동작")) {
+      toggleRow(L("로그인 시 자동 시작"), isOn: launchAtLoginBinding,
+                description: L("Mac 에 로그인하면 QuickTalk 가 메뉴바에서 자동으로 시작됩니다. 시스템 설정 › 일반 › 로그인 항목과 같은 값을 씁니다."))
+      if LoginItem.requiresApproval {
+        HStack(spacing: 8) {
+          Text(L("시스템 설정 › 일반 › 로그인 항목에서 QuickTalk를 허용해 주세요."))
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Button(L("시스템 설정 열기")) { LoginItem.openSettings() }
+          Spacer()
+        }
+      }
+      if let loginItemError { caption(loginItemError) }
       toggleRow(L("대화 창을 항상 위에"), isOn: $store.settings.alwaysOnTop,
                 description: L("다른 앱 위에 고정합니다(대화 창 헤더의 📌와 같습니다). 설정 창은 그 위에 뜹니다. 끄면 일반 창처럼 뒤로 갑니다."))
       pickerRow(L("단축키로 열 때 유지"), selection: $store.settings.shortcutSessionMinutes,
@@ -39,6 +53,26 @@ extension SettingsView {
       valueRow(L("메뉴바 좌클릭"), L("Hub 팝오버 (실행·설정 탭)"))
       valueRow(L("메뉴바 우클릭"), L("컨텍스트 메뉴"))
     }
+    // 로그인 항목은 시스템이 단일 출처 — 화면을 열 때·앱이 다시 활성화될 때 실제 상태를 읽는다
+    // (사용자가 시스템 설정에서 직접 껐다 켜도 토글이 어긋나지 않게).
+    .onAppear { refreshLoginItem() }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+      refreshLoginItem()
+    }
+  }
+
+  /// 시스템 상태를 다시 읽어 토글에 반영한다
+  func refreshLoginItem() {
+    let enabled = LoginItem.isEnabled || LoginItem.requiresApproval
+    if launchAtLogin != enabled { launchAtLogin = enabled }
+  }
+
+  var launchAtLoginBinding: Binding<Bool> {
+    Binding(get: { launchAtLogin }, set: { on in
+      let error = LoginItem.setEnabled(on)
+      launchAtLogin = LoginItem.isEnabled || LoginItem.requiresApproval
+      loginItemError = error.map { Lf("로그인 항목을 바꾸지 못했습니다: %@", $0) }
+    })
   }
 
   // MARK: - 단축키

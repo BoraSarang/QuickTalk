@@ -213,6 +213,25 @@ extension AppDelegate {
                        size: NSSize(width: 460, height: 320),
                        to: "\(dir)/pill-list-\(suffix).png")
       }
+      if CommandLine.arguments.contains("--demo-pill-height") {
+        // 회귀(2026-10-23): 빈 입력인데 이전 여러 줄 높이가 남아 pill 내용이 위로 몰려 보이던 문제.
+        // 2줄로 자란 뒤 글자를 지워도 **측정값이 늦게 와도** 본체는 1줄(56)이어야 한다.
+        let m = PillModel()
+        m.text = "가나\n다라"
+        m.inputHeight = 49
+        let grown = PillMetrics.capsuleHeight(text: m.text, inputHeight: m.inputHeight)
+        self.renderPNG(AnyView(Self.pillPanelStage(m)),
+                       size: NSSize(width: PillMetrics.width,
+                                    height: grown + max(0, grown - PillMetrics.height)),
+                       to: "\(dir)/pill-height-2line.png")
+        NSLog("[PILL-HEIGHT] 2줄 → inputHeight=49 capsule=%.1f", grown)
+        m.text = ""
+        let cleared = PillMetrics.capsuleHeight(text: m.text, inputHeight: m.inputHeight)
+        self.renderPNG(AnyView(Self.pillPanelStage(m)),
+                       size: NSSize(width: PillMetrics.width, height: PillMetrics.height),
+                       to: "\(dir)/pill-height-cleared.png")
+        NSLog("[PILL-HEIGHT] 지운 뒤(낡은 측정값 49 유지) → capsule=%.1f (기대 56)", cleared)
+      }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)
     }
@@ -698,6 +717,16 @@ extension AppDelegate {
                    onSubmit: { _ in }, onCancel: {}, onCommandReturn: {}, onToggleList: {},
                    onResume: { _ in }, onOpenArchive: {})
         .padding(.top, 24)
+    }
+  }
+
+  /// pill 실제 창 크기 그대로 — 창 여백(투명)이 보이도록 초록 바탕을 깐다
+  private static func pillPanelStage(_ model: PillModel) -> some View {
+    ZStack(alignment: .bottom) {
+      Color.green.opacity(0.35)
+      PillRootView(model: model,
+                   onSubmit: { _ in }, onCancel: {}, onCommandReturn: {}, onToggleList: {},
+                   onResume: { _ in }, onOpenArchive: {})
     }
   }
 

@@ -42,15 +42,26 @@ enum PillMetrics {
   static let minTextHeight: CGFloat = 24
   /// pill 입력 폰트
   static let font = NSFont.systemFont(ofSize: 15.5)
+  /// 입력창 최대 줄 수 — ChatInputField 와 같아야 한다(넘치는 값이 와도 pill 은 여기서 자르지 않는다)
+  static let maxLines = 4
 
   static func listHeight(rows: Int) -> CGFloat {
     CGFloat(min(max(rows, 1), maxRows)) * rowHeight + 1 + footerHeight
   }
 
   /// pill 본체 높이 — 입력창이 여러 줄로 자라면 **위로** 커진다.
+  /// 측정값이 어긋나(빈 입력인데 예전 높이가 남는 등) 상자가 끝없이 커지지 않도록 최대 줄 수로 자른다.
   static func capsuleHeight(inputHeight: CGFloat) -> CGFloat {
-    let text = max(minTextHeight, inputHeight)
+    let maxInput = ChatInputField.lineHeight(for: font) * CGFloat(maxLines)
+      + ChatInputField.verticalPadding * 2
+    let text = min(max(minTextHeight, inputHeight), maxInput)
     return max(height, text + textPad * 2)
+  }
+
+  /// 글자·측정값 기준 본체 높이 — **빈 입력은 언제나 1줄**이다.
+  /// (입력창 측정은 한 프레임 늦게 오므로, 지운 직후에도 예전 여러 줄 높이가 남지 않게 여기서 막는다)
+  static func capsuleHeight(text: String, inputHeight: CGFloat) -> CGFloat {
+    text.isEmpty ? height : capsuleHeight(inputHeight: inputHeight)
   }
 }
 
@@ -145,7 +156,9 @@ final class PointerPillController {
     }
     model.recent = recentConversations()
     model.showList = false
-    model.inputHeight = 0
+    // 초안이 남아 있으면( Esc 로만 닫은 경우) 높이도 그대로 둔다 —
+    // 0으로 지우면 입력창이 같은 높이를 다시 보고하지 않아 글이 잘린 채로 열린다.
+    if model.text.isEmpty { model.inputHeight = 0 }
     model.focusToken = UUID()
 
     // 기준선: 1줄 pill 의 아래쪽(포인터 중심 배치에서 파생)
@@ -275,7 +288,7 @@ final class PointerPillController {
   /// 현재 크기 — 입력창이 자라면 **위로**, 목록이 열리면 **아래로** 커진다.
   /// 기준선은 pill 본체(capsule)의 아래쪽 — 입력창이 위로 자라도 이 선은 움직이지 않는다.
   private func currentFrame() -> NSRect {
-    let capsuleH = PillMetrics.capsuleHeight(inputHeight: model.inputHeight)
+    let capsuleH = PillMetrics.capsuleHeight(text: model.text, inputHeight: model.inputHeight)
     let extra = capsuleH - PillMetrics.height
     let listPart = model.showList
       ? PillMetrics.gap + PillMetrics.listHeight(rows: model.recent.count)
@@ -296,6 +309,10 @@ final class PointerPillController {
   private func resize() {
     guard let panel, isVisible else { return }
     let f = currentFrame()
+    // 이미 같은 자리·크기면 애니메이션하지 않는다(입력할 때마다 흔들리지 않게)
+    guard abs(f.height - panel.frame.height) > 0.5
+      || abs(f.origin.y - panel.frame.origin.y) > 0.5
+      || abs(f.origin.x - panel.frame.origin.x) > 0.5 else { return }
     NSAnimationContext.runAnimationGroup { ctx in
       ctx.duration = 0.14
       ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -343,6 +360,13 @@ final class PointerPillController {
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in self?.resize() }
       .store(in: &bag)
+    // 빈 입력 ↔ 입력 — 본체 높이 규칙이 달라지므로(빈 입력은 1줄) 창도 다시 맞춘다.
+    model.$text
+      .map(\.isEmpty)
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in self?.resize() }
+      .store(in: &bag)
 
     // 바깥을 클릭해 key를 잃으면 닫는다(Spotlight처럼). 여는 도중의 일시적 resign은 무시한다.
     NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
@@ -372,14 +396,19 @@ struct PillRootView: View {
   let onOpenArchive: () -> Void
 
   var body: some View {
-    VStack(spacing: PillMetrics.gap) {
+    // 창 높이는 컨트롤러가 `capsuleHeight` 로 계산한다 — 여기서 **간격을 더하지 않는다**.
+    // (VStack spacing 을 두면 내용이 창보다 커져 아래가 잘리고, 남는 높이는 위쪽 여백으로 보인다)
+    VStack(spacing: 0) {
       // 입력창이 자란 만큼 위를 비운다 → pill 이 위로 자란다(기준선은 그대로).
       Color.clear.frame(height: inputExtra)
       capsule
-      if model.showList { list }
+      if model.showList {
+        list.padding(.top, PillMetrics.gap)
+      }
     }
-    .frame(width: PillMetrics.width, alignment: .top)
-    .frame(maxHeight: .infinity, alignment: .top)
+    .frame(width: PillMetrics.width, alignment: .bottom)
+    // 어떤 이유로 창이 내용보다 커도 pill 은 **아래 기준선**에 붙인다(위가 비어 보이지 않게).
+    .frame(maxHeight: .infinity, alignment: .bottom)
   }
 
   /// pill 본체가 1줄보다 커진 만큼 — 위쪽 여백으로 쓴다
@@ -388,7 +417,7 @@ struct PillRootView: View {
   }
 
   private var capsuleHeight: CGFloat {
-    PillMetrics.capsuleHeight(inputHeight: model.inputHeight)
+    PillMetrics.capsuleHeight(text: model.text, inputHeight: model.inputHeight)
   }
 
   // MARK: pill
@@ -411,7 +440,7 @@ struct PillRootView: View {
         ChatInputField(text: $model.text,
                        height: $model.inputHeight,
                        isBusy: false,
-                       maxLines: 4,
+                       maxLines: PillMetrics.maxLines,
                        focusToken: model.focusToken,
                        font: PillMetrics.font,
                        onCommandReturn: onCommandReturn,

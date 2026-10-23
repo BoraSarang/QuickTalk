@@ -184,8 +184,19 @@ struct ChatInputField: NSViewRepresentable {
       guard let tv = textView else { return }
       let w = width > 4 ? width : tv.bounds.width
       guard w > 4 else { return }
-      let info = measure(tv)
-      guard let info else { return }   // 글자가 없으면 측정할 것이 없다(빈 입력창)
+      let lineHeight = parent.oneLineHeight
+      guard let info = measure(tv) else {
+        // 빈 입력창 — 글리프가 없으면 잴 것이 없지만, **이전에 여러 줄이었다면 1줄로 되돌려야** 한다.
+        // (이 분기가 없으면 지운 뒤에도 입력창·pill 이 커진 채로 남아 내용이 위로 몰려 보인다)
+        firstLine = 0
+        if abs(tv.textContainerInset.height - ChatInputField.verticalPadding) > 0.01 {
+          tv.textContainerInset = NSSize(width: ChatInputField.horizontalPadding,
+                                         height: ChatInputField.verticalPadding)
+          tv.needsDisplay = true
+        }
+        report(lineHeight + ChatInputField.verticalPadding * 2)
+        return
+      }
       let total = max(1, info.tops.count)
       let visible = min(total, parent.maxLines)
 
@@ -204,7 +215,6 @@ struct ChatInputField: NSViewRepresentable {
       // 높이는 **화면에 보이는 줄 경계까지**로 딱 맞춘다(T-27).
       // 전체 높이(usedRect)를 쓰면 줄 경계와 어긋나 맨 위 줄이 반쯤 잘려 보인다.
       let lastVisible = min(first + visible - 1, max(0, total - 1))
-      let lineHeight = parent.oneLineHeight
       let bottomY = lastVisible < bots.count
         ? bots[lastVisible]
         : topY + lineHeight * CGFloat(visible)
@@ -214,13 +224,17 @@ struct ChatInputField: NSViewRepresentable {
         tv.textContainerInset = NSSize(width: ChatInputField.horizontalPadding, height: inset)
         tv.needsDisplay = true
       }
-      let newHeight = area + ChatInputField.verticalPadding * 2
-      guard abs(newHeight - reported) > 0.5 else { return }
+      report(area + ChatInputField.verticalPadding * 2)
+    }
+
+    /// 측정한 높이를 부모에 알린다(같은 값이면 알리지 않는다 — 레이아웃 루프 방지)
+    private func report(_ newHeight: CGFloat) {
+      // 내부 기록과 같아도 **부모 값이 외부에서 0/다른 값으로 바뀌었으면** 다시 알린다.
+      guard abs(newHeight - reported) > 0.5 || abs(parent.height - newHeight) > 0.5 else { return }
       reported = newHeight
-      let value = newHeight
       DispatchQueue.main.async { [weak self] in
-        guard let self, abs(self.parent.height - value) > 0.5 else { return }
-        self.parent.height = value
+        guard let self, abs(self.parent.height - newHeight) > 0.5 else { return }
+        self.parent.height = newHeight
       }
     }
 
