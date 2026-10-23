@@ -361,11 +361,16 @@ final class PointerPillController {
       .sink { [weak self] _ in self?.resize() }
       .store(in: &bag)
     // 빈 입력 ↔ 입력 — 본체 높이 규칙이 달라지므로(빈 입력은 1줄) 창도 다시 맞춘다.
+    // 빈 입력이 되면 **측정값도 1줄로 되돌린다**(입력창 알림이 늦게 와도 위로 몰리지 않게).
     model.$text
       .map(\.isEmpty)
       .removeDuplicates()
       .receive(on: RunLoop.main)
-      .sink { [weak self] _ in self?.resize() }
+      .sink { [weak self] isEmpty in
+        guard let self else { return }
+        if isEmpty, self.model.inputHeight != 0 { self.model.inputHeight = 0 }
+        self.resize()
+      }
       .store(in: &bag)
 
     // 바깥을 클릭해 key를 잃으면 닫는다(Spotlight처럼). 여는 도중의 일시적 resign은 무시한다.
@@ -416,6 +421,13 @@ struct PillRootView: View {
     max(0, capsuleHeight - PillMetrics.height)
   }
 
+  /// 입력창 프레임 높이 — **빈 입력은 언제나 1줄**이다.
+  /// 측정값(`inputHeight`)이 늦게 갱신돼도 예전 여러 줄 높이가 남으면, 한 줄 글자가 그 프레임
+  /// 맨 위에 그려지고 아래가 비어 보인다(사용자 보고 "위로 쏠려 있음"). 그래서 여기서 막는다.
+  private var textHeight: CGFloat {
+    model.text.isEmpty ? PillMetrics.minTextHeight : max(PillMetrics.minTextHeight, model.inputHeight)
+  }
+
   private var capsuleHeight: CGFloat {
     PillMetrics.capsuleHeight(text: model.text, inputHeight: model.inputHeight)
   }
@@ -446,7 +458,7 @@ struct PillRootView: View {
                        onCommandReturn: onCommandReturn,
                        onCancel: onCancel,
                        onSubmit: onSubmit)
-          .frame(height: max(PillMetrics.minTextHeight, model.inputHeight))
+          .frame(height: textHeight)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -460,7 +472,9 @@ struct PillRootView: View {
     }
     .padding(.leading, 13)
     .padding(.trailing, 12)
-    .frame(width: PillMetrics.width, height: capsuleHeight)
+    // **아래 기준선 정렬** — `.frame(height:)` 만 주면 내용이 세로 중앙에 놓여,
+    // 아래쪽 `textPad` 만큼 내용이 위로 밀려 보인다(사용자 보고 "위로 쏠림").
+    .frame(width: PillMetrics.width, height: capsuleHeight, alignment: .bottom)
     .background {
       // Capsule 대신 같은 반지름의 RoundedRectangle — Capsule의 strokeBorder는 좌우 끝에
       // 1pt 세로 이음새를 남긴다(macOS 26, 오프스크린 렌더에서 확인).
