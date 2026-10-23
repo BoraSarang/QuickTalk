@@ -231,6 +231,13 @@ extension AppDelegate {
                        size: NSSize(width: PillMetrics.width, height: PillMetrics.height),
                        to: "\(dir)/pill-height-cleared.png")
         NSLog("[PILL-HEIGHT] 지운 뒤(낡은 측정값 49 유지) → capsule=%.1f (기대 56)", cleared)
+        // 실제로 새로 열 때의 상태(inputHeight 0)도 같은 모양이어야 한다
+        m.inputHeight = 0
+        self.renderPNG(AnyView(Self.pillPanelStage(m)),
+                       size: NSSize(width: PillMetrics.width, height: PillMetrics.height),
+                       to: "\(dir)/pill-height-fresh.png")
+        NSLog("[PILL-HEIGHT] 새로 열기(inputHeight 0) → capsule=%.1f",
+              PillMetrics.capsuleHeight(text: m.text, inputHeight: m.inputHeight))
       }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)

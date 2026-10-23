@@ -14,7 +14,7 @@
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
 | 현재 빌드 | **2026-10-23 10:15** — `~/Applications/QuickTalk.app` 교체 완료(백업 `.QuickTalk.old`), Apple Development 서명, `codesign --verify --strict` OK, SHA-256 `291d1aa1622e6959…` |
 | 테스트 | **434/434**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 · 병합 커밋 `54a82cd` 기준은 **403/403**(v0.19 WIP 제외) |
-| 마지막 완료 | **pill 높이 회귀 + 로그인 시 자동 시작**(2026-10-23 10:10) — ① 입력을 지우면 예전 여러 줄 높이가 남아 pill 내용이 위로 몰리던 문제(빈 입력은 1줄 복귀·본체 56pt) ② 설정 › 일반 › 동작에 `SMAppService` 기반 "로그인 시 자동 시작". **재실행 필요** |
+| 마지막 완료 | **pill 높이 회귀 2차 수정**(2026-10-23 17:45) — ① 본체 56pt(1차) ② **입력창 프레임도 빈 입력은 1줄**(`textHeight`) → 내용이 위로 몰리던 실제 원인. **재실행 필요** |
 | 다음 작업 | **N29·N30 실측** → v0.19(쓰기·되돌리기) 설계·구현 → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 · (함께) N22·N24~N28 재확인 |
 | 실측 대기 | **N22·N24~N30 8건** + **T-21 31건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1). **T-18 P1~P19 는 2026-10-22 사용자 확인 완료** |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
@@ -54,6 +54,15 @@
 - 렌더 `docs/qa/t21-pill-debug/pill-height-2line.png`(2줄 75pt) · `pill-height-cleared.png`(낡은 측정값 49가 남아도 **56pt**) · `settings-general-ko`(새 토글).
 - **배포**: 2026-10-23 10:15 · `~/Applications/QuickTalk.app` 교체(백업 `~/Applications/.QuickTalk.old`) · `codesign --verify --strict` OK · SHA-256 `291d1aa1622e6959…` · **앱 재실행 필요**.
 - **실측 대기** — **N29**(여러 줄 → 지우기 → pill 1줄 복귀, 내용이 위로 몰리지 않음) · **N30**(로그인 항목 등록/해제 · 시스템 설정과 동기).
+
+### 세션 진행 (2026-10-23 17:45) — pill 2차 수정: **입력창 프레임 높이**
+
+- **사용자 재보고**: *"위로 쏠려 있잖아.. 하나도 고쳐 지지 않았는데?"* (재실행 후에도 그대로)
+- **원인**: 1차 수정이 **본체 높이**(`capsuleHeight`)만 잡았다. 그 안의 `ChatInputField` 는
+  `.frame(height: max(minTextHeight, model.inputHeight))` 로 **낡은 측정값**을 그대로 썼고,
+  NSTextView 는 프레임 **맨 위**에 글자를 그린다 → 한 줄 글자가 위에 붙고 아래가 비었다.
+- **수정**: `PillRootView.textHeight` — 빈 입력은 언제나 1줄(24pt). `model.$text` 가 비면 `inputHeight` 도 0으로 리셋.
+- **검증**: 오프스크린 렌더 `pill-height-cleared.png`(낡은 49 유지)에서 내용이 세로 중앙으로 복귀 · `pill-height-fresh.png` 동일 · `pill-height-2line.png` 75pt 유지.
 
 ### 세션 진행 (2026-10-22 22:42) — T-18 도우미 도구 실측 **완료** (사용자 확인)
 
