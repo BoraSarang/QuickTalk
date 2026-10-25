@@ -43,6 +43,92 @@ extension UIStore {
     NSLog("[QuickTalk] 도구 허용 규칙 추가 (명령은 로그에 남기지 않는다)")
   }
 
+  /// "이 폴더 허용" — 이번 대화에서 그 폴더의 쓰기는 다시 묻지 않는다(v0.19).
+  @MainActor
+  func approveWriteScopes(_ scopes: [String]) {
+    guard !scopes.isEmpty else { return }
+    var current = writeScopesByConversation[conversation.id] ?? []
+    for scope in scopes where !current.contains(scope) {
+      current.append(scope)
+    }
+    writeScopesByConversation[conversation.id] = current
+    NSLog("[QuickTalk] 쓰기 폴더 승인 — %d개 범위", current.count)
+  }
+
+  /// 진행 중인 셸 실행 중지(v0.20) — 카드 [중단] 버튼·응답 중지가 함께 쓴다.
+  @MainActor
+  func cancelAgentRun() {
+    guard let handle = agentRunHandle else { return }
+    NSLog("[QuickTalk] 도구 실행 중지 요청")
+    handle.cancel()
+  }
+
+  /// 시스템 영역 쓰기·상승 권한 명령을 터미널로 넘긴다(v0.20) — 앱은 실행하지 않는다.
+  @MainActor
+  func handoffToTerminal(_ command: String) {
+    agentHandoffNotice = TerminalHandoffService.open(command: command)
+  }
+
+  /// Shortcuts/AppIntent가 채운 질문을 입력창에 넣는다 — **자동 전송하지 않는다**.
+  @MainActor
+  func fillDraft(_ text: String) {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    draft = trimmed
+    composerFocusToken = UUID()
+  }
+
+  /// 쓰기 실행이 끝나면 되돌리기 스냅샷을 카드와 연결한다.
+  @MainActor
+  func registerAgentUndo(_ entry: UndoEntry, eventID: String) {
+    agentUndoEntries[eventID] = entry
+    agentUndoMessages[eventID] = nil
+  }
+
+  /// 카드에 보여 줄 되돌리기 항목 — 이번 세션에서 만든 것만(앱을 다시 켜면 사라진다).
+  func agentUndoEntry(for events: [AgentEvent]) -> UndoEntry? {
+    for event in events.reversed() {
+      // 스냅샷은 **이벤트 ID** 로 붙는다(undoID 는 스냅샷 쪽 식별자)
+      if event.undoID != nil, let entry = agentUndoEntries[event.id] { return entry }
+    }
+    return nil
+  }
+
+  /// 되돌리기 대상 이벤트 ID — 카드의 [되돌리기] 가 어느 스냅샷을 쓸지 찾는다.
+  func agentUndoEventID(for events: [AgentEvent]) -> String? {
+    for event in events.reversed() {
+      if event.undoID != nil, agentUndoEntries[event.id] != nil { return event.id }
+    }
+    return nil
+  }
+
+  func agentUndoMessage(for events: [AgentEvent]) -> String? {
+    guard let id = agentUndoEventID(for: events) else { return nil }
+    return agentUndoMessages[id]
+  }
+
+  /// [되돌리기] — 스냅샷 시점으로 파일을 되돌린다.
+  @MainActor
+  func undoAgentWrite(eventID: String) async {
+    guard let entry = agentUndoEntries[eventID] else { return }
+    let result = await UndoStack.shared.undo(id: entry.id)
+    if let updated = await UndoStack.shared.entry(id: entry.id) {
+      agentUndoEntries[eventID] = updated
+    }
+    if result.succeeded {
+      agentUndoMessages[eventID] = Lf("되돌렸습니다 — %d개 복원 · %d개 삭제",
+                                      result.restored, result.removed)
+    } else if result.alreadyUndone {
+      agentUndoMessages[eventID] = L("이미 되돌렸습니다.")
+    } else if result.notFound {
+      agentUndoMessages[eventID] = L("되돌리기 기록을 찾지 못했습니다.")
+    } else {
+      agentUndoMessages[eventID] = Lf("일부만 되돌렸습니다(%d개 실패).", result.failed.count)
+    }
+    NSLog("[QuickTalk] 되돌리기 — 복원 %d · 삭제 %d · 실패 %d",
+          result.restored, result.removed, result.failed.count)
+  }
+
   /// 사용자가 카드의 버튼을 눌렀다.
   @MainActor
   func resolveAgentApproval(_ choice: AgentApprovalChoice) {
@@ -100,7 +186,11 @@ extension UIStore {
     agentExecutor = executor
     agentEvents = []
     agentTurnID = turnID
-    defer { agentApproval = nil }
+    agentHandoffNotice = nil
+    defer {
+      agentApproval = nil
+      agentRunHandle = nil
+    }
 
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 12)
     let result = try await runner.run(prompt: prompt, history: history,

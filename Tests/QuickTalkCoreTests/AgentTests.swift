@@ -69,6 +69,53 @@ final class AgentTests: XCTestCase {
     XCTAssertEqual(request.writablePaths, ["/tmp/a.txt"])
   }
 
+  func testApprovedFolderSkipsAskForWritesInsideIt() {
+    let policy = AgentPolicy()            // 쓰기 = 매번 확인
+    let scope = NSHomeDirectory() + "/Documents"
+    // 승인된 폴더 안 — 다시 묻지 않는다
+    XCTAssertEqual(PolicyEngine.decide(command: "echo x > ~/Documents/a.txt",
+                                       capability: .write(path: scope + "/a.txt"),
+                                       risk: .normal, policy: policy,
+                                       approvedScopes: [scope]), .allow)
+    // 옆 폴더는 여전히 확인
+    guard case .ask = PolicyEngine.decide(command: "echo x > ~/Desktop/a.txt",
+                                          capability: .write(path: NSHomeDirectory() + "/Desktop/a.txt"),
+                                          risk: .normal, policy: policy,
+                                          approvedScopes: [scope]) else {
+      return XCTFail("승인 범위 밖(옆 폴더)은 다시 확인해야 한다")
+    }
+    // 상위 폴더도 확인
+    guard case .ask = PolicyEngine.decide(command: "echo x > ~/a.txt",
+                                          capability: .write(path: NSHomeDirectory() + "/a.txt"),
+                                          risk: .normal, policy: policy,
+                                          approvedScopes: [scope]) else {
+      return XCTFail("상위 폴더는 승인 범위가 아니다")
+    }
+  }
+
+  func testApprovedFolderDoesNotBypassImportantOrCritical() {
+    let policy = AgentPolicy()
+    let scope = NSHomeDirectory() + "/Documents"
+    guard case .ask = PolicyEngine.decide(command: "x", capability: .write(path: scope + "/a"),
+                                          risk: .important, policy: policy,
+                                          approvedScopes: [scope]) else {
+      return XCTFail("중요 위험은 범위 승인으로 건너뛰지 않는다")
+    }
+    guard case .deny = PolicyEngine.decide(command: "x", capability: .write(path: scope + "/a"),
+                                           risk: .critical, policy: policy,
+                                           approvedScopes: [scope]) else {
+      return XCTFail("치명적은 범위 승인으로 열리지 않는다")
+    }
+  }
+
+  func testApprovalRequestCarriesFolderScope() {
+    let path = NSHomeDirectory() + "/Documents/a.txt"
+    let request = AgentApprovalRequest(command: "echo x > \(path)", level: .write,
+                                       risk: .normal, capability: .write(path: path),
+                                       writablePaths: [path], reason: "쓰기")
+    XCTAssertEqual(request.writeScopes, [NSHomeDirectory() + "/Documents"])
+  }
+
   func testUserRuleAllowsMatchingCommand() {
     var policy = AgentPolicy()
     policy.rules = ["brew install *"]

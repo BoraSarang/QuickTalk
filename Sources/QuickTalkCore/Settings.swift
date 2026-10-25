@@ -93,6 +93,10 @@ public struct QuickTalkSettings: Codable, Equatable {
   /// 캡처 직후 클립보드에도 복사(다른 앱에서 바로 붙여넣기)
   public var shelfCopyCaptureToClipboard: Bool = true
 
+  // 창 연결 (P0-1) — 창 하나의 텍스트·스크린샷을 질문 컨텍스트로 붙인다(읽기 전용).
+  /// 입력독의 🪟 버튼을 보일지. 끄면 진입점이 사라진다(권한을 건드리지 않는다).
+  public var windowAttachmentEnabled: Bool = true
+
   // 웹 검색 (PLAN_v0.14) — 답변을 만들기 전에 검색 결과를 프롬프트에 주입한다.
   /// 검색 공급자 — `none`이면 외부 요청을 전혀 보내지 않는다.
   public var webSearchProvider: WebSearchProvider = .none
@@ -139,6 +143,10 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var agentPolicy: AgentPolicy = AgentPolicy()
   /// 도구 실행 카드에서 **실제 명령·출력**을 보여줄지(기본 켜짐). 끄면 한 줄 요약만 남는다.
   public var agentShowExecution: Bool = true
+  /// 실행 중 출력을 **실시간**으로 카드에 흘릴지(v0.20). 끄면 끝난 뒤 한 번에 보여 준다.
+  public var agentStreamOutput: Bool = true
+  /// 셸 실행 제한 시간(초, v0.20) — 10~600 범위로 자른다.
+  public var agentTimeoutSeconds: Int = 60
 
   /// 검색이 켜져 있는가(공급자 선택 기준)
   public var webSearchEnabled: Bool { webSearchProvider != .none }
@@ -213,12 +221,14 @@ public struct QuickTalkSettings: Codable, Equatable {
     case ttsEngine, edgeVoice, edgeBinaryPath
     case piperModelPath, piperBinaryPath
     case shelfCopyCaptureToClipboard
+    case windowAttachmentEnabled
     case webSearchProvider, webSearchResultCount
     case webSearchFreshness, webSearchMaxCharacters, exaSecretID
     case webSearchDailyLimit, webSearchUsageDay, webSearchUsageCount, webSearchMode
     case autoCompact, compactKeepTurns
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
     case agentToolsEnabled, agentPolicy, agentShowExecution
+    case agentStreamOutput, agentTimeoutSeconds
     // 구버전 전용 (디코딩 승계용 — 인코딩에는 기록하지 않는다)
     case llmProvider, openAIBaseURL, openAIModel, ollamaHost, ollamaModel, apiKeyAccount
   }
@@ -268,6 +278,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     piperModelPath = try c.decodeIfPresent(String.self, forKey: .piperModelPath) ?? ""
     piperBinaryPath = try c.decodeIfPresent(String.self, forKey: .piperBinaryPath) ?? ""
     shelfCopyCaptureToClipboard = try c.decodeIfPresent(Bool.self, forKey: .shelfCopyCaptureToClipboard) ?? true
+    windowAttachmentEnabled = try c.decodeIfPresent(Bool.self, forKey: .windowAttachmentEnabled) ?? true
     webSearchProvider = Self.decodeEnum(WebSearchProvider.self, c, .webSearchProvider, default: .none)
     webSearchResultCount = try c.decodeIfPresent(Int.self, forKey: .webSearchResultCount) ?? 5
     webSearchFreshness = Self.decodeEnum(WebSearchFreshness.self, c, .webSearchFreshness, default: .week)
@@ -285,6 +296,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     // 구버전 설정에는 도구 관련 값이 없다 → 기본값(읽기 자동 허용)으로 둔다.
     agentToolsEnabled = try c.decodeIfPresent(Bool.self, forKey: .agentToolsEnabled) ?? true
     agentShowExecution = try c.decodeIfPresent(Bool.self, forKey: .agentShowExecution) ?? true
+    agentStreamOutput = try c.decodeIfPresent(Bool.self, forKey: .agentStreamOutput) ?? true
+    agentTimeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .agentTimeoutSeconds) ?? 60
     if let stored = try? c.decodeIfPresent(AgentPolicy.self, forKey: .agentPolicy) {
       agentPolicy = stored
     } else {
@@ -340,6 +353,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(piperModelPath, forKey: .piperModelPath)
     try c.encode(piperBinaryPath, forKey: .piperBinaryPath)
     try c.encode(shelfCopyCaptureToClipboard, forKey: .shelfCopyCaptureToClipboard)
+    try c.encode(windowAttachmentEnabled, forKey: .windowAttachmentEnabled)
     try c.encode(webSearchProvider, forKey: .webSearchProvider)
     try c.encode(webSearchResultCount, forKey: .webSearchResultCount)
     try c.encode(webSearchFreshness, forKey: .webSearchFreshness)
@@ -356,6 +370,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(globalMemoryBudgetTokens, forKey: .globalMemoryBudgetTokens)
     try c.encode(agentToolsEnabled, forKey: .agentToolsEnabled)
     try c.encode(agentShowExecution, forKey: .agentShowExecution)
+    try c.encode(agentStreamOutput, forKey: .agentStreamOutput)
+    try c.encode(agentTimeoutSeconds, forKey: .agentTimeoutSeconds)
     try c.encode(agentPolicy, forKey: .agentPolicy)
   }
 

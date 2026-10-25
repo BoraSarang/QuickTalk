@@ -12,9 +12,25 @@ struct AgentCard: View {
   let approval: AgentApprovalRequest?
   /// 설정 › 도구 › 실행 과정 표시
   var showExecution: Bool = true
-  let onAllowOnce: () -> Void
-  let onAlwaysAllow: () -> Void
-  let onDeny: () -> Void
+  /// 이 카드에서 되돌릴 수 있는 쓰기(v0.19) — 없으면 nil
+  var undoEntry: UndoEntry? = nil
+  /// 되돌리기 결과 안내
+  var undoMessage: String? = nil
+  var onAllowOnce: () -> Void = {}
+  /// "이 폴더 허용" — 쓰기 범위를 이번 대화 동안 승인한다
+  var onAllowScope: () -> Void = {}
+  var onAlwaysAllow: () -> Void = {}
+  var onDeny: () -> Void = {}
+  var onUndo: (() -> Void)? = nil
+  /// 진행 중인 실행을 멈춘다(v0.20)
+  var onCancel: () -> Void = {}
+  /// 터미널로 넘긴 결과 안내
+  var handoffNotice: String? = nil
+  /// 앱이 실행하지 않은 명령을 터미널로 연다(v0.20)
+  var onTerminalHandoff: (String) -> Void = { _ in }
+
+  /// 중요·치명적 명령의 **2차 확인** — 한 번 더 눌러야 실행된다.
+  @State private var armed = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -24,6 +40,26 @@ struct AgentCard: View {
             eventView(event)
           }
         }
+      }
+      // 실행 중인 명령이 있으면 **카드에서 바로** 멈출 수 있게 한다(v0.20).
+      if events.contains(where: { $0.state == .running }) {
+        HStack {
+          Spacer()
+          Button(L("중단")) { onCancel() }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.red)
+            .help(L("실행 중인 명령을 멈춥니다"))
+        }
+      }
+      if let handoffNotice {
+        Text(handoffNotice)
+          .font(.system(size: 10))
+          .foregroundColor(.orange)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      if let undoEntry {
+        undoRow(undoEntry)
       }
       if let approval {
         approvalBlock(approval)
@@ -65,6 +101,21 @@ struct AgentCard: View {
           .lineLimit(1)
           .truncationMode(.middle)
           .padding(.leading, 16)
+      }
+      // 앱이 실행하지 않은 명령 — **터미널로 직접** 열 수 있게 한다(v0.20).
+      if let command = event.terminalCommand, !command.isEmpty {
+        HStack(spacing: 5) {
+          Image(systemName: "terminal")
+            .font(.system(size: 10))
+            .foregroundColor(.secondary)
+          Button(L("터미널에서 열기")) { onTerminalHandoff(command) }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(Color.accentColor)
+            .help(L("이 명령을 실행 가능한 파일로 만들어 터미널에서 엽니다 — 앱이 대신 실행하지는 않습니다"))
+          Spacer(minLength: 4)
+        }
+        .padding(.leading, 16)
       }
     }
   }
@@ -148,7 +199,33 @@ struct AgentCard: View {
         .font(.caption)
         .foregroundColor(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      approvalButtons
+      // 위험도 강조 + 2차 확인(v0.20) — 중요·치명적은 한 번 더 확인한다.
+      if request.risk != .normal {
+        HStack(alignment: .top, spacing: 5) {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 10))
+            .foregroundColor(request.risk == .critical ? .red : .orange)
+          Text(request.risk == .critical
+               ? L("치명적: 복구할 수 없는 변경일 수 있습니다. 정말 실행하려면 [한 번 허용]을 한 번 더 누르세요.")
+               : L("중요: 시스템에 영향을 줄 수 있습니다. 정말 실행하려면 [한 번 허용]을 한 번 더 누르세요."))
+            .font(.system(size: 10))
+            .foregroundColor(request.risk == .critical ? .red : .orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill((request.risk == .critical ? Color.red : Color.orange).opacity(0.10)))
+      }
+      // 어떤 폴더를 열게 되는지 — 승인 범위를 숨기지 않는다
+      if let scope = request.writeScopes.first {
+        Text(Lf("열어 줄 폴더: %@", shortPath(scope)))
+          .font(.system(size: 10, design: .monospaced))
+          .foregroundColor(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+      approvalButtons(request)
     }
     .padding(8)
     .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -172,7 +249,7 @@ struct AgentCard: View {
     }
   }
 
-  private var approvalButtons: some View {
+  private func approvalButtons(_ request: AgentApprovalRequest) -> some View {
     HStack(spacing: 6) {
       Spacer()
       Button(L("거부")) { onDeny() }
@@ -180,18 +257,95 @@ struct AgentCard: View {
         .buttonStyle(.plain)
         .font(.system(size: 12))
         .foregroundColor(.secondary)
+      if let scope = request.writeScopes.first {
+        // 이 폴더를 이번 대화 동안 허용 — 같은 폴더의 다음 쓰기는 다시 묻지 않는다(v0.19)
+        Button(L("이 폴더 허용")) { onAllowScope() }
+          .buttonStyle(.plain)
+          .font(.system(size: 12))
+          .foregroundColor(Color.accentColor)
+          .help(Lf("이번 대화 동안 %@ 폴더의 쓰기를 다시 묻지 않습니다", shortPath(scope)))
+      }
       Button(L("항상 허용")) { onAlwaysAllow() }
         .buttonStyle(.plain)
         .font(.system(size: 12))
         .foregroundColor(Color.accentColor)
-      Button(L("한 번 허용")) { onAllowOnce() }
+        .help(L("이 명령을 허용 규칙으로 저장합니다"))
+      Button(armed && request.risk != .normal ? L("정말 실행") : L("한 번 허용")) {
+        // 중요·치명적은 **2차 확인** — 첫 클릭은 무장만, 두 번째 클릭에서 실행한다(v0.20).
+        if request.risk != .normal && !armed {
+          armed = true
+        } else {
+          armed = false
+          onAllowOnce()
+        }
+      }
         .buttonStyle(.plain)
         .font(.system(size: 12, weight: .semibold))
         .foregroundColor(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.orange))
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill(armed && request.risk != .normal
+                ? (request.risk == .critical ? Color.red : Color.orange)
+                : Color.orange))
+        .help(request.risk != .normal
+              ? L("중요·치명적 명령입니다 — 한 번 더 눌러야 실행됩니다")
+              : L("이번에만 허용합니다"))
     }
+    .onChange(of: request) { armed = false }
+  }
+
+  // MARK: - 되돌리기 (v0.19)
+
+  /// 쓰기 실행 아래 붙는 [되돌리기] 줄 — "이 쓰기는 되돌릴 수 있습니다".
+  private func undoRow(_ entry: UndoEntry) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 6) {
+        Image(systemName: entry.isUndone ? "arrow.uturn.backward.circle" : "clock.arrow.circlepath")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundColor(entry.isUndone ? .secondary : .blue)
+          .frame(width: 12)
+        Text(entry.isUndone ? L("되돌렸습니다") : L("이 쓰기는 되돌릴 수 있습니다"))
+          .font(.system(size: 10.5))
+          .foregroundColor(.secondary)
+        if !entry.isUndone, let scope = entry.scope.isEmpty ? nil : entry.scope {
+          Text(shortPath(scope))
+            .font(.system(size: 9.5, design: .monospaced))
+            .foregroundColor(.secondary.opacity(0.8))
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+        Spacer(minLength: 4)
+        if !entry.isUndone, onUndo != nil {
+          Button(L("되돌리기")) { onUndo?() }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(Color.accentColor)
+            .help(L("이 쓰기 직전 상태로 파일을 되돌립니다"))
+        }
+      }
+      if let undoMessage {
+        Text(undoMessage)
+          .font(.system(size: 10))
+          .foregroundColor(.secondary)
+          .padding(.leading, 18)
+      } else if let note = entry.note, !entry.isUndone {
+        Text(note)
+          .font(.system(size: 10))
+          .foregroundColor(.secondary)
+          .padding(.leading, 18)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(.leading, 2)
+  }
+
+  /// `~/Documents` 처럼 홈을 줄여 보여 준다(좁은 카드에서 경로가 길다).
+  private func shortPath(_ path: String) -> String {
+    let home = NSHomeDirectory()
+    if path == home { return "~" }
+    if path.hasPrefix(home + "/") { return "~" + path.dropFirst(home.count) }
+    return path
   }
 
   // MARK: - 상태 표시

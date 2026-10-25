@@ -1,7 +1,30 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-23 18:05 KST
+> 마지막 갱신: 2026-10-25 05:30 KST
+
+## 지금 (2026-10-25 05:30) — v0.20–v0.22 구현 · 실측 대기
+
+- **무엇**: ① **v0.20 실행 고도화** — 전역 자동 수락(중요·치명적·상승 권한 뒤에 적용) · 실시간 출력 · [중단] · 실행 제한 시간 · 시스템 경로/상승 권한 **터미널 인계**(`.command`) · 중요/치명적 2차 확인. ② **v0.21** — `screenshot` 도구(창/화면 → 다음 스텝 이미지) · 슬래시 팔레트(클릭 채움, Enter 처리 무변경) · Shortcuts/AppIntents(초안만, 자동 전송 없음) · 규칙 테스터(실행 없이 판정만). ③ **v0.22** — 대화별 권한 오버라이드(치명적/상승권 제한은 전역 유지) · 승인된 폴더 목록/해제 · `SystemKnowledge` 실제 설정값 주입.
+- **한 것(파일)**: 신규 Core 4(`AgentOverride`·`SystemKnowledge`·`TerminalHandoff`·`SlashCommand`) · 신규 App 2(`TerminalHandoffService`·`QuickTalkIntents`) · 테스트 4 · `project.pbxproj` 등록 · 번역 키 추가.
+- **검증**: `swift test` **499/499**(6 skip, 신규 32) · `xcodebuild` **BUILD SUCCEEDED**(경고 1 — 사용자 v0.19 WIP 의 불필요한 `await`).
+- **미검증(사용자 맥 사용 중)**: 앱 실행·권한 승인·실제 캡처·터미널 열기·Shortcuts 실행을 하지 않았다 → **`docs/qa/v0.20-22/CHECKLIST.md` 25항목** 사용자 실측 필요.
+- **git**: **커밋·배포 안 함** — 사용자 v0.19 WIP(수정 12 + 신규 6) 보존. PR 은 hunk 단위.
+- **다음**: 사용자 실측 → 실패 항목 수정 → v0.19 WIP 와 함께 PR → T-21·QA 배치 3·4 · N22·N24~N28·N30.
+
+## 지금 (2026-10-25 04:40) — 창 연결(P0-1) 구현 · 실측 대기
+
+- **무엇**: Meta AI for macOS 분석의 P0-1 — 창 하나의 **텍스트(접근성) + 스크린샷**을 이번 질문의 참고 자료로 붙인다. **읽기 전용**(조작 없음), **단일 스냅샷**, 서버 업로드 없음.
+- **한 것**:
+  ① Core `WindowContext.swift` — 창 필터(시스템 UI·작은 창 제외), 텍스트 정리·줄 경계 20k자 트렁케이션, 첨부 본문 규칙, 파일 이름.
+  ② `WindowAttachmentService.swift` — `SCShareableContent` 열거(z-order) · AX 읽기(백그라운드, 1.5s 타임아웃, 노드 4,000/깊이 40) · 선택 텍스트 · 캡처(최대 2048px, 단색 1회 재시도) · `~/Library/Application Support/QuickTalk/window/`(7일 정리).
+  ③ `WindowPickerSheet.swift` — 권한 카드(화면 기록 필수·손쉬운 사용 선택), 창 목록(아이콘·검색), "QuickTalk가 읽을 내용" 미리보기, 취소/연결.
+  ④ 입력독 🪟 버튼(🌐 왼쪽) + 시트 · 설정 `windowAttachmentEnabled`(기본 ON) + 일반 › 창 연결(권한 상태·딥링크).
+  ⑤ 첨부는 **기존 파이프라인**(텍스트 파일 + PNG) → 프로바이더 3종 모두 동작, `UIStore.send()` 무변경. 번역 55키.
+- **검증**: `swift test` **467/467**(6 skip, 신규 33 — `WindowContextTests`) · `xcodebuild` BUILD SUCCEEDED(경고 0) · SF Symbol 실측.
+- **미검증(사용자 맥 사용 중)**: 앱 실행·창 조회·실제 캡처·오프스크린 렌더를 하지 않았다 → **권한 승인/거부, 빈 텍스트 창, 창 닫힘, 다중 모니터 배율, 영어 UI** 는 사용자 실측 필요. `--window-attach-test` 하네스 없음.
+- **git**: **커밋·배포 안 함** — 사용자 v0.19 WIP(수정 12 + 신규 6) 보존. PR 은 hunk 단위로 이번 변경만.
+- **다음**: 사용자 실측(권한·창 연결) → 피드백 반영 → v0.19 이어서.
 
 ## 지금 (2026-10-23 10:10) — pill 높이 회귀 수정 + 로그인 시 자동 시작
 

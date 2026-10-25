@@ -64,6 +64,23 @@ final class UIStore: ObservableObject {
   @Published var agentApproval: AgentApprovalRequest?
   /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
   @Published var agentTurnID: UUID?
+  /// 승인된 쓰기 폴더 — **대화별**로만 유효하다("이 폴더 허용", v0.19).
+  @Published var writeScopesByConversation: [UUID: [String]] = [:]
+  /// 이번 대화에서 이미 승인한 쓰기 폴더
+  var approvedWriteScopes: [String] { writeScopesByConversation[conversation.id] ?? [] }
+  /// 실제 적용 정책 — 전역 설정 위에 **이 대화의 오버라이드**를 얹는다(v0.22).
+  /// 치명적 차단·상승 권한 제한은 전역 값 그대로다.
+  var effectiveAgentPolicy: AgentPolicy {
+    (conversation.agentOverride ?? AgentOverride()).merged(into: settings.agentPolicy)
+  }
+  /// 실행 카드(eventID)별 되돌리기 스냅샷 — 이번 실행에서 만든 것만 카드에 보인다
+  @Published var agentUndoEntries: [String: UndoEntry] = [:]
+  /// 되돌리기 결과 안내(카드 아래 한 줄)
+  @Published var agentUndoMessages: [String: String] = [:]
+  /// 진행 중인 셸 실행의 중지 손잡이(v0.20) — 카드 [중단] 버튼이 쓴다.
+  var agentRunHandle: SandboxCancellation?
+  /// 터미널 인계 결과 안내(실패 사유 등) — 카드 아래 한 줄.
+  @Published var agentHandoffNotice: String?
   /// 실행 기록을 턴에 저장한다 — 대화 기록(history.json)에 함께 남아 다음에 다시 보인다.
   func appendAgentEventToTurn(_ event: AgentEvent, turnID: UUID) {
     core.appendAgentEvent(event, to: turnID)
@@ -941,6 +958,22 @@ final class UIStore: ObservableObject {
     }
   }
 
+  /// 대화별 권한 오버라이드 변경(v0.22) — 코어에 반영하고 즉시 저장한다.
+  func setAgentOverride(_ update: (inout AgentOverride) -> Void) {
+    var override = conversation.agentOverride ?? AgentOverride()
+    update(&override)
+    core.setAgentOverride(override)
+    conversation = core.conversation
+    syncArchive()
+  }
+
+  /// 이번 대화에서 승인한 쓰기 폴더를 해제한다.
+  func removeWriteScope(_ scope: String) {
+    guard var current = writeScopesByConversation[conversation.id] else { return }
+    current.removeAll { $0 == scope }
+    writeScopesByConversation[conversation.id] = current
+  }
+
   /// 대화방 제목 변경 — 대화 헤더·보관함 공용.
   /// 현재 대화면 코어에 반영하고, 보관함 목록·파일에도 즉시 저장한다. 빈 제목은 무시.
   func renameConversation(id: UUID, to newTitle: String) {
@@ -1473,6 +1506,9 @@ final class UIStore: ObservableObject {
   func cancelReply() {
     guard isReplying else { return }
     NSLog("[QuickTalk] 사용자 중지 요청 — 진행 중인 응답 취소")
+    // 승인 대기 중이면 거부로 깨우고, 셸이 돌고 있으면 프로세스를 멈춘다(v0.20).
+    let executor = agentExecutor
+    Task { @MainActor in executor?.cancelPending() }
     replyTask?.cancel()
     replyTask = nil
     isReplying = false

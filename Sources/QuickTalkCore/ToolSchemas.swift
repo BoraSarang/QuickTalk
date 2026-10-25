@@ -78,7 +78,28 @@ public enum AgentToolCatalog {
       "required": []
     ])
 
-  public static let all: [AgentTool] = [shell, readFile, listDir, processes]
+  /// 스크린샷 — 창/화면을 찍어 다음 판단에 이미지로 붙인다(v0.21).
+  public static let screenshot = AgentTool(
+    name: "screenshot",
+    description: """
+      Capture the screen or the frontmost window as an image and look at it in the next step. \
+      Use it when the answer depends on what is **visually** on screen (a chart, an error dialog, \
+      a layout, a game, a video frame). Text-heavy windows are better read with shell/read_file. \
+      Requires Screen Recording permission; if it is missing the tool explains how to allow it. \
+      Read-only: it never clicks, types or controls any window.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "target": ["type": "string", "enum": ["window", "screen"],
+                   "description": "What to capture: the frontmost window (default) or the whole main screen."],
+        "note": ["type": "string",
+                 "description": "Optional short reason shown in the execution card."]
+      ],
+      "required": []
+    ])
+
+  public static let all: [AgentTool] = [shell, readFile, listDir, processes, screenshot]
 
   /// 이름으로 도구를 찾는다.
   public static func tool(named name: String) -> AgentTool? {
@@ -102,6 +123,8 @@ public enum AgentInstructions {
     - 프로세스별 CPU·메모리는 `processes` 도구로 확인한다.
       `ps`·`top` 은 setuid 프로그램이라 샌드박스가 실행을 거부한다("Operation not permitted").
       권한을 열어도 해결되지 않으니 **다시 시도하지 말고** `processes` 를 쓴다.
+    - **화면에 보이는 것**이 답에 필요하면(차트·오류 대화상자·레이아웃·영상 화면) `screenshot` 도구로
+      창 또는 화면을 찍어 다음 스텝에서 본다. 글자가 많은 창은 `shell`/`read_file` 이 더 정확하다.
     - "메모리"가 나오면 보통은 **이 컴퓨터의 RAM 사용량**을 뜻한다.
       앱의 대화 기억(저장된 기록)을 물어본다고 **명확히** 말한 경우에만 그쪽을 본다.
     - 사용자가 직접 명령을 주고 싶어 하면(예: "이 명령 실행해줘") 그대로 실행한다.
@@ -135,20 +158,8 @@ public enum AgentInstructions {
     """
 
   /// 앱 자신에 대한 지식 — 모델이 자기 앱과 겹치는 일을 하지 않도록 주입한다.
+  /// v0.22부터는 **실제 설정값**을 넣는다(`SystemKnowledge`).
   public static func selfKnowledge(settings: QuickTalkSettings) -> String {
-    let home = NSHomeDirectory()
-    var lines: [String] = []
-    lines.append("이것은 QuickTalk 이라는 macOS 메뉴바 앱이다. 사용자가 지금 이 앱으로 묻고 있다.")
-    lines.append("- 저장 위치: ~/Library/Application Support/QuickTalk (기록 history.json · 공통 메모리 memory.json)")
-    lines.append("- 앱 지원 폴더: \(home)/Library/Application Support/QuickTalk")
-    lines.append("- 설정: \(home)/Library/Application Support/QuickTalk/settings.json (UserDefaults 아님)")
-    lines.append("- 음성 입력 백엔드: whisper.cpp(whisper-cli + ggml-*.bin) · mlx-whisper(MLX) · Apple 받아쓰기")
-    lines.append("- 음성 출력: Apple TTS · Edge TTS · Piper")
-    if let p = settings.activeProvider {
-      lines.append("- 지금 쓰는 AI: \(p.displayName) (모델 \(p.model))")
-    }
-    lines.append("- 앱 안에서 이미 하는 일: 웹 검색(Exa) · 공통 메모리 · 대화 요약 자동 정리 · QuickShelf(클립보드/파일/캡처)")
-    lines.append("- 앱에 이미 있는 기능은 다시 설치하거나 만들지 말고, 설정 경로만 안내한다.")
-    return lines.joined(separator: "\n")
+    SystemKnowledge.text(settings: settings)
   }
 }

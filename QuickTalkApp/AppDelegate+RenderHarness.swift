@@ -104,6 +104,7 @@ extension AppDelegate {
         $0 == "--demo-chat" || $0.hasPrefix("--demo-chat=") || $0.hasPrefix("--demo-search")
           || $0.hasPrefix("--demo-fallback")
           || $0.hasPrefix("--demo-draft-lines=")
+          || $0 == "--demo-agent-write"
           || $0 == "--demo-agent"
       }) {
         self.seedDemoConversation()
@@ -120,6 +121,47 @@ extension AppDelegate {
                  agentEvents: Self.agentDemoEvents())
           ]
           self.store.conversation = agentDemo
+        }
+        if CommandLine.arguments.contains("--demo-agent-write") {
+          // v0.19 — 쓰기·되돌리기 카드: [되돌리기] 줄 + [이 폴더 허용] 승인 블록
+          let scope = NSHomeDirectory() + "/Documents"
+          let entry = UndoEntry(
+            id: "undo-demo",
+            command: "rm ~/Documents/quicktalk-test.txt",
+            scope: scope,
+            createdAt: Date().addingTimeInterval(-40),
+            items: [UndoItem(path: scope + "/quicktalk-test.txt", existed: true,
+                             isDirectory: false, backup: "/tmp/backup")],
+            note: L("파일을 QuickTalk 휴지통으로 옮겼습니다. [되돌리기] 로 되살릴 수 있습니다."))
+          self.store.agentUndoEntries["e-write"] = entry
+          let writeEvent = AgentEvent(
+            id: "e-write", toolName: "shell", title: L("테스트 파일 삭제"),
+            command: "rm ~/Documents/quicktalk-test.txt",
+            level: .write, risk: .normal, state: .done,
+            output: "mkdir -p … && mv -f -- …\n"
+              + L("파일을 QuickTalk 휴지통으로 옮겼습니다. [되돌리기] 로 되살릴 수 있습니다."),
+            elapsedMs: 130, undoID: "undo-demo")
+          let turnID = UUID()
+          var demo = Conversation(title: L("~/Documents 의 테스트 파일 지워줘"))
+          demo.turns = [
+            Turn(role: .user, text: L("~/Documents 의 테스트 파일 지워줘"),
+                 createdAt: Date().addingTimeInterval(-60)),
+            Turn(id: turnID, role: .assistant,
+                 text: L("`quicktalk-test.txt` 를 **휴지통으로 옮겼습니다.** 되돌리려면 카드의 [되돌리기] 를 누르세요."),
+                 elapsedMs: 1200, createdAt: Date().addingTimeInterval(-50),
+                 agentEvents: Self.agentDemoEvents() + [writeEvent])
+          ]
+          self.store.conversation = demo
+          self.store.agentTurnID = turnID
+          self.store.agentApproval = AgentApprovalRequest(
+            command: "echo \"hello\" > ~/Documents/quicktalk-test.txt",
+            level: .write, risk: .normal,
+            capability: .write(path: scope + "/quicktalk-test.txt"),
+            writablePaths: [scope + "/quicktalk-test.txt"],
+            reason: L("파일을 만들려면 쓰기 권한이 필요합니다."))
+          self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                         size: NSSize(width: 460, height: 820),
+                         to: "\(dir)/chat-agent-write-\(suffix).png")
         }
         let draftLines = CommandLine.arguments
           .first { $0.hasPrefix("--demo-draft-lines=") }

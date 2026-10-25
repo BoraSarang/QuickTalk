@@ -66,6 +66,28 @@ public struct SandboxProbe: Equatable {
   public let result: SandboxResult
 }
 
+/// 진행 중인 실행을 **밖에서** 멈추는 손잡이(v0.20).
+///
+/// `Task.cancel()` 은 `Task.detached` 안에서 도는 `Process` 까지 전달되지 않는다.
+/// 그래서 실행 쪽과 취소 쪽이 함께 보는 작은 상자를 둔다(스레드 안전).
+public final class SandboxCancellation: @unchecked Sendable {
+  private let lock = NSLock()
+  private var cancelled = false
+  public init() {}
+
+  public func cancel() {
+    lock.lock()
+    cancelled = true
+    lock.unlock()
+  }
+
+  public var isCancelled: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return cancelled
+  }
+}
+
 public enum SandboxRunner {
   /// 샌드박스 실행 경로 — 시스템 도구(sandbox-exec)가 없으면 없다.
   public static var sandboxExecPath: String { "/usr/bin/sandbox-exec" }
@@ -133,6 +155,20 @@ public enum SandboxRunner {
                          profile: String,
                          timeout: TimeInterval = 30,
                          outputLimit: Int = 64_000) -> SandboxResult {
+    runStreaming(command, profile: profile, timeout: timeout, outputLimit: outputLimit,
+                 cancellation: nil, onOutput: nil)
+  }
+
+  /// 스트리밍 실행(v0.20) — 출력이 오는 대로 `onOutput` 으로 흘려보내고, `cancellation` 으로 중지한다.
+  ///
+  /// `onOutput` 은 **IO 스레드**에서 호출된다. UI 갱신은 호출부가 메인으로 넘겨야 한다.
+  /// 조각이 UTF-8 문자 중간에서 잘릴 수 있으므로 표시용으로만 쓴다(최종 문자열은 Data 로 다시 만든다).
+  public static func runStreaming(_ command: String,
+                                  profile: String,
+                                  timeout: TimeInterval = 30,
+                                  outputLimit: Int = 64_000,
+                                  cancellation: SandboxCancellation? = nil,
+                                  onOutput: (@Sendable (String) -> Void)? = nil) -> SandboxResult {
     guard isAvailable else {
       return SandboxResult(exitCode: -1, stdout: "",
                            stderr: "샌드박스를 사용할 수 없습니다(sandbox-exec 없음).")
@@ -149,16 +185,25 @@ public enum SandboxRunner {
       return SandboxResult(exitCode: -1, stdout: "", stderr: "실행 실패: \(error.localizedDescription)")
     }
     // stdout·stderr 를 **동시에** 비동기로 읽는다(한쪽을 끝까지 읽으면 다른 쪽이 막힘).
-    let collector = OutputCollector()
+    let collector = StreamCollector(onOutput: onOutput)
     collector.drain(out.fileHandleForReading, stream: .stdout)
     collector.drain(err.fileHandleForReading, stream: .stderr)
 
     let deadline = Date().addingTimeInterval(timeout)
+    var cancelled = false
     while p.isRunning && Date() < deadline {
+      if cancellation?.isCancelled == true {
+        cancelled = true
+        break
+      }
       usleep(20_000)
     }
     var timedOut = false
-    if p.isRunning {
+    if cancelled {
+      p.terminate()
+      usleep(200_000)
+      if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+    } else if p.isRunning {
       timedOut = true
       p.terminate()
       usleep(200_000)
@@ -169,31 +214,52 @@ public enum SandboxRunner {
     collector.wait(timeout: 2)
     let stdout = clip(collector.stdout, limit: outputLimit)
     let stderr = clip(collector.stderr, limit: outputLimit)
+    if cancelled {
+      return SandboxResult(exitCode: -1, stdout: stdout,
+                           stderr: L("사용자가 실행을 중지했습니다."))
+    }
     if timedOut {
       return SandboxResult(exitCode: -1, stdout: stdout,
-                           stderr: "시간 초과(\(Int(timeout))초)")
+                           stderr: Lf("시간 초과(%d초)", Int(timeout)))
     }
     return SandboxResult(exitCode: p.terminationStatus,
                          stdout: stdout,
                          stderr: stderr)
   }
 
-  /// 파이프 출력을 모아두는 도우미 — 교착 없이 읽기 위해 스레드를 쓴다.
-  private final class OutputCollector: @unchecked Sendable {
+  /// 파이프 출력을 **조각 단위로** 모으는 도우미 — 교착 없이 읽기 위해 스레드를 쓴다.
+  private final class StreamCollector: @unchecked Sendable {
     enum Stream { case stdout, stderr }
     private let lock = NSLock()
     private var buffers: [Stream: Data] = [.stdout: Data(), .stderr: Data()]
     private let group = DispatchGroup()
     private let queue = DispatchQueue(label: "quicktalk.sandbox.io", attributes: .concurrent)
+    private let onOutput: (@Sendable (String) -> Void)?
+
+    init(onOutput: (@Sendable (String) -> Void)?) {
+      self.onOutput = onOutput
+    }
 
     func drain(_ handle: FileHandle, stream: Stream) {
       group.enter()
       queue.async { [self] in
-        let data = handle.readDataToEndOfFile()
-        self.lock.lock()
-        self.buffers[stream, default: Data()].append(data)
-        self.lock.unlock()
-        self.group.leave()
+        defer { group.leave() }
+        while true {
+          let data: Data?
+          do {
+            data = try handle.read(upToCount: 8_192)
+          } catch {
+            break
+          }
+          guard let data, !data.isEmpty else { break }
+          lock.lock()
+          buffers[stream, default: Data()].append(data)
+          lock.unlock()
+          if let onOutput {
+            // 조각이 문자 중간에서 잘려도 표시가 깨지지 않게 손실 허용 디코딩을 쓴다.
+            onOutput(String(decoding: data, as: UTF8.self))
+          }
+        }
       }
     }
 
