@@ -200,14 +200,10 @@ public enum SandboxRunner {
     }
     var timedOut = false
     if cancelled {
-      p.terminate()
-      usleep(200_000)
-      if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+      terminateProcessTree(p.processIdentifier)
     } else if p.isRunning {
       timedOut = true
-      p.terminate()
-      usleep(200_000)
-      if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+      terminateProcessTree(p.processIdentifier)
     }
     p.waitUntilExit()
     // 파이프를 붙든 자식이 남아 있을 수 있어 잠깐만 기다린다(늦어도 2초).
@@ -280,6 +276,58 @@ public enum SandboxRunner {
 
   private static func clip(_ text: String, limit: Int) -> String {
     text.count <= limit ? text : String(text.prefix(limit)) + "\n… (출력 잘림)"
+  }
+
+  // MARK: - 프로세스 트리 종료 (2026-10-25 [중단] 회귀)
+
+  /// `sandbox-exec` 아래의 **모든 자식**을 종료한다.
+  ///
+  /// `Process.terminate()` 는 우리가 띄운 `sandbox-exec` 한 개만 죽인다 — 그 아래 `/bin/sh` 와
+  /// 손자 프로세스(`sleep`·`find`·`rm` …)는 계속 살아남는다(2026-10-25 실측: 부모 종료 후에도
+  /// 자식 `sleep 30` 생존). [중단]·시간 초과가 실제로 멈추도록 트리를 모아 함께 종료한다.
+  public static func terminateProcessTree(_ root: pid_t) {
+    let tree = descendantPIDs(of: root) + [root]
+    // 깊은 자식부터 정상 종료를 시도하고, 남아 있으면 강제 종료한다.
+    for pid in tree.reversed() { kill(pid, SIGTERM) }
+    usleep(200_000)
+    for pid in tree where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+  }
+
+  /// 자손 PID — 전체 PID 목록과 부모 PID 로 트리를 만든다(개수 상한 512).
+  public static func descendantPIDs(of root: pid_t) -> [pid_t] {
+    guard root > 1 else { return [] }
+    let all = allPIDs()
+    var parents: [pid_t: pid_t] = [:]
+    parents.reserveCapacity(all.count)
+    for pid in all {
+      if let ppid = parentPID(of: pid) { parents[pid] = ppid }
+    }
+    var out: [pid_t] = []
+    var frontier: [pid_t] = [root]
+    while let parent = frontier.popLast(), out.count < 512 {
+      for (pid, ppid) in parents where ppid == parent && !out.contains(pid) {
+        out.append(pid)
+        frontier.append(pid)
+      }
+    }
+    return out
+  }
+
+  private static func allPIDs() -> [pid_t] {
+    let maxCount = 8_192
+    var pids = [pid_t](repeating: 0, count: maxCount)
+    let bytes = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids,
+                              Int32(maxCount * MemoryLayout<pid_t>.size))
+    guard bytes > 0 else { return [] }
+    let count = min(Int(bytes) / MemoryLayout<pid_t>.size, maxCount)
+    return Array(pids[0..<count]).filter { $0 > 0 }
+  }
+
+  private static func parentPID(of pid: pid_t) -> pid_t? {
+    var info = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+    return pid_t(info.pbi_ppid)
   }
 
   // MARK: - 요구 권한 실측
