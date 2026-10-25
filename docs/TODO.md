@@ -1,9 +1,20 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-25 21:00 KST
+> 마지막 갱신: 2026-10-26 01:00 KST
 
-## 지금 (2026-10-25 20:55) — 코드 점검 · P1 3건 수정 · 배포/실측 대기
+## 지금 (2026-10-26 01:00) — 권한 카드 2건 수정(오탐 · 스크롤)
+
+- **증상**: `defaults read com.apple.*` 같은 **읽기** 명령이 "중요"로 판정돼 매번 확인 카드가 떴고, [항상 허용]을 눌러도 다시 물었다. 카드가 뜰 때 대화가 맨 아래로 따라가지 않아 [한 번 허용] 버튼이 화면 밖에 잘렸다.
+- **원인 ①(오탐)**: `RiskClassifier` 의 `defaults` 규칙이 `write` 여부를 보지 않아 읽기까지 important 였다(설계 문서 `PLAN_v0.18` §4.3 은 `defaults write -g` 만 중요). → `read`·`read-type`·`domains`·`find`·`export` 는 normal, `write`·`delete`·`rename` 만 important.
+- **원인 ②(무효 버튼)**: `PolicyEngine.decide` ③(중요=무조건 확인)이 ⑥(사용자 허용 규칙)보다 먼저라 important 명령은 [항상 허용]이 **구조적으로 무효**였다. 안전장치(중요·치명적 무조건 확인)는 그대로 두고, 카드에서 중요·치명적일 때 [항상 허용]을 **숨기고** 안내 한 줄을 붙였다.
+- **원인 ③(스크롤)**: `ContentView` 는 턴 수·스트리밍·응답 대기 변화에만 스크롤했다 — `agentApproval` 등장 시 스크롤 없음. → 승인 카드 등장 시 `scrollToBottom`(+0.18s 재시도, 긴 명령 줄바꿈 대응).
+- **부수 수정**: `plutil … | python3 -c "…"` 처럼 코드를 **인자로** 받는 인터프리터는 파이프→인터프리터 important 에서 제외(`curl … | sh` 는 그대로 중요).
+- **검증**: `swift test` **505/505**(6 skip, 신규 3) · `xcodebuild` BUILD SUCCEEDED.
+- **로그 근거**: `~/Library/Application Support/QuickTalk/agent-audit.log` — 2026-10-25 15:24~15:35 `defaults read com.apple.*` 가 `risk:1`(중요). 같은 시각 사용자 설정 `agentPolicy.rules` 에 같은 계열 명령 5건 저장됨(= 눌러도 다시 물었다는 증거).
+- **배포**: 안 함 — 실행 중 앱은 이전 빌드라 **재실행/교체 후** 확인 필요.
+
+## 이전 (2026-10-25 20:55) — 코드 점검 · P1 3건 수정 · 배포/실측 대기
 
 - **무엇**: 배포 없이 v0.19~v0.22 코드 점검 + 오프스크린 렌더 → **P1 3건만** 수정(사용자 선택).
 - **P1 ①** 되돌리기 기록 미등록 — `AgentExecutor` 가 `snapshot()` 만 부르고 `commit()` 을 안 불러 **[되돌리기]가 항상 notFound**, 백업 폴더 무한 누적 → `UndoStack.snapshot()` 이 **스스로 등록** + `commit()` 멱등 + 실패·중단은 `discard` + `undoneAt` 은 전부 성공 시만.

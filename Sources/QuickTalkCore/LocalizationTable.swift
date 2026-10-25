@@ -868,6 +868,7 @@ extension L10n {
     "한 번 허용": "Allow once",
     "항상 허용": "Always allow",
     "항상 허용 규칙": "Always allow rules",
+    "중요·치명적 명령은 항상 허용할 수 없습니다 — 실행할 때마다 확인합니다.": "Important or critical commands can't be allowed permanently — you'll be asked every time.",
     "확인이 필요한 명령은 대화 카드에 나타나고, [한 번 허용] [항상 허용] [거부] 중 고를 수 있습니다.": "Commands that need a decision show up as a card in the chat — choose Allow once, Always allow or Deny.",
 
     // 창 연결 (P0-1) — 창 하나의 텍스트·스크린샷을 참고 자료로 붙인다(읽기 전용)

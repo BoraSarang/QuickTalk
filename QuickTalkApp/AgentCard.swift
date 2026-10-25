@@ -216,6 +216,10 @@ struct AgentCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
           .fill((request.risk == .critical ? Color.red : Color.orange).opacity(0.10)))
+        Text(L("중요·치명적 명령은 항상 허용할 수 없습니다 — 실행할 때마다 확인합니다."))
+          .font(.system(size: 10))
+          .foregroundColor(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
       // 어떤 폴더를 열게 되는지 — 승인 범위를 숨기지 않는다
       if let scope = request.writeScopes.first {
@@ -265,11 +269,15 @@ struct AgentCard: View {
           .foregroundColor(Color.accentColor)
           .help(Lf("이번 대화 동안 %@ 폴더의 쓰기를 다시 묻지 않습니다", shortPath(scope)))
       }
-      Button(L("항상 허용")) { onAlwaysAllow() }
-        .buttonStyle(.plain)
-        .font(.system(size: 12))
-        .foregroundColor(Color.accentColor)
-        .help(L("이 명령을 허용 규칙으로 저장합니다"))
+      // 중요·치명적 명령은 **항상 허용할 수 없다** — 규칙을 저장해도 확인을 건너뛰지 않으므로
+      // 버튼을 숨긴다(눌러도 매번 다시 묻던 원인).
+      if request.risk == .normal {
+        Button(L("항상 허용")) { onAlwaysAllow() }
+          .buttonStyle(.plain)
+          .font(.system(size: 12))
+          .foregroundColor(Color.accentColor)
+          .help(L("이 명령을 허용 규칙으로 저장합니다"))
+      }
       Button(armed && request.risk != .normal ? L("정말 실행") : L("한 번 허용")) {
         // 중요·치명적은 **2차 확인** — 첫 클릭은 무장만, 두 번째 클릭에서 실행한다(v0.20).
         if request.risk != .normal && !armed {
