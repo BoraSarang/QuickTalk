@@ -11,8 +11,10 @@
 - **P1 ③** [중단]·시간 초과가 `sandbox-exec` 만 죽이고 자식(`sleep 30`)을 남김(실측) → `SandboxRunner.terminateProcessTree`(libproc 부모 트리 + SIGTERM→200ms→SIGKILL, 상한 512).
 - **검증**: `swift test` **502/502**(6 skip, 신규 3 — `UndoStackTests` 2 · `ProcessTreeTests` 1) · BUILD SUCCEEDED(경고 2 = 기존) · 렌더 `docs/qa/v0.20-22-review/`(점검 6장 + `after-fix/` 5장) · `docs/qa/v0.20-22-review/README.md`(P1·P2 10건·확인 필요·미실측).
 - **미실측(사용자 맥 사용 중)**: 앱 실행·권한 승인·실제 캡처·터미널 열기 금지 → [중단]·되돌리기 실사용 왕복은 단위/프로세스 테스트로 대체. **`docs/qa/v0.20-22/CHECKLIST.md` 29항목** 그대로 남음.
-- **git**: 브랜치 `fix/macos-p1-review`(로컬 커밋 4개, **push 안 함**) · `main` = `f753dbb` · **배포 안 함**(`~/Applications/QuickTalk.app` = 2026-10-23 17:50 빌드).
-- **다음**: 배포 여부 결정 → 실측 29항목 → 실패 항목 수정 → 창 연결·T-21·QA 배치 3·4.
+- **배포**: **2026-10-25 20:51** `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict` OK · SHA-256 `537e570d19c25be0…` · 직전 빌드는 `.QuickTalk.old` — **앱 재실행 필요**(실행 중 앱은 10-23 빌드).
+- **설정 정리**: 설정 › 도구 허용 규칙 1건(내부 주소 `curl`) 사용자 요청으로 삭제(`rules` 1→0, 53키 보존, 원본 plist 백업 `.agent/backup/`).
+- **git**: 브랜치 `fix/macos-p1-review`(로컬 커밋 5개, **push 안 함**) · `main` = `f753dbb`.
+- **다음**: **재실행 후** 실측 29항목 → 실패 항목 수정 → 창 연결·T-21·QA 배치 3·4.
 
 ## 이전 (2026-10-25 12:10) — v0.20–v0.22 구현 · PR #33 병합
 

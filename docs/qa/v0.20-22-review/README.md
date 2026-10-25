@@ -2,7 +2,8 @@
 
 > 대상: `f753dbb`(main) + 브랜치 `fix/macos-p1-review`
 > 목적: **배포 없이** 코드 점검 + 오프스크린 렌더로 화면 회귀 확인 → 찾은 결함 중 **P1 3건만** 수정.
-> 사용자 맥 사용 중이라 **앱 실행·창 조회·스크린샷·터미널 열기·배포는 하지 않았다.**
+> 사용자 맥 사용 중이라 **앱 실행·창 조회·스크린샷·터미널 열기는 하지 않았다.** 점검·렌더는 배포 없이 했고,
+> P1 3건 수정 후 **사용자 요청으로 2026-10-25 20:51 배포**(`~/Applications/QuickTalk.app`, SHA-256 `537e570d…`).
 > 사용자 실측 항목은 `docs/qa/v0.20-22/CHECKLIST.md`(29항목)에 그대로 남아 있다.
 
 ---
@@ -61,7 +62,7 @@
 | `xcodebuild` | **BUILD SUCCEEDED** |
 | 경고 | 2건 그대로 — `AgentExecutor.swift:217`(불필요 `await`, 이번에 `trashRoot` 1건 제거) · `UIStore.swift:940`(P2 백로그) |
 | 오프스크린 렌더 | `after-fix/` 5장 — 대화(긴/짧은 제목)·설정 일반·QuickShelf·마크다운 |
-| 배포 | **안 함** — `~/Applications/QuickTalk.app` 은 2026-10-23 17:50 빌드(v0.19 WIP·v0.20~22 미포함) |
+| 배포 | **2026-10-25 20:51** — `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict` OK · SHA-256 `537e570d19c25be0…` · **앱 재실행 필요**(실행 중 앱은 10-23 빌드) |
 
 ---
 
@@ -106,10 +107,10 @@ build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk \
 
 ## 5. 확인 필요 (사용자 결정)
 
-- 설정 › 도구의 **허용 규칙**에 아래 항목이 저장되어 있다:
-  `curl -s -m 5 -o /dev/null -w … http://127.0.0.1:8791/v1/models`
-  — 이번 세션에서 **삭제하지 않았다**(사용자 데이터). 내부 주소라 그대로 두어도 위험은 낮지만, 남길지 지울지는 사용자가 정한다.
-- 실행 중 앱은 2026-10-23 빌드다. **이번 수정은 배포 전이므로 실사용 화면에는 아직 반영되지 않았다.**
+- 설정 › 도구의 **허용 규칙** 1건(내부 주소 `curl -s … http://192.168.86.30:8791/v1/models` + `http://127.0.0.1:8791/v1/models`)
+  — 사용자 요청으로 **삭제 완료**(`rules` 1→0, 나머지 53키 보존). 원본 plist 백업: `.agent/backup/com.borasarang.QuickTalk-2026-10-25.plist`.
+  되살릴 필요가 있으면 그 백업에서 `QuickTalk.settings` 데이터를 복원하면 된다.
+- 실행 중 앱은 아직 10-23 빌드다 — **앱을 종료·재실행해야** 이번 수정이 실사용 화면에 반영된다.
 
 ---
 
