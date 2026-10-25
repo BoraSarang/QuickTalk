@@ -12,7 +12,7 @@
 - **부수 수정**: `plutil … | python3 -c "…"` 처럼 코드를 **인자로** 받는 인터프리터는 파이프→인터프리터 important 에서 제외(`curl … | sh` 는 그대로 중요).
 - **검증**: `swift test` **505/505**(6 skip, 신규 3) · `xcodebuild` BUILD SUCCEEDED.
 - **로그 근거**: `~/Library/Application Support/QuickTalk/agent-audit.log` — 2026-10-25 15:24~15:35 `defaults read com.apple.*` 가 `risk:1`(중요). 같은 시각 사용자 설정 `agentPolicy.rules` 에 같은 계열 명령 5건 저장됨(= 눌러도 다시 물었다는 증거).
-- **배포**: 안 함 — 실행 중 앱은 이전 빌드라 **재실행/교체 후** 확인 필요.
+- **배포**: **2026-10-26 01:00 완료** — `~/Applications/QuickTalk.app` 교체 후 재실행(사용자 요청) · `codesign --verify --strict` OK · SHA-256 `db6caf77…`. 재실행 후 ① 같은 `defaults read` 질문이 **카드 없이** 실행되는지 ② 중요 명령 카드에 [항상 허용]이 **없는지** ③ 카드가 뜰 때 **버튼까지** 보이는지 사용자 확인 필요.
 
 ## 이전 (2026-10-25 20:55) — 코드 점검 · P1 3건 수정 · 배포/실측 대기
 
