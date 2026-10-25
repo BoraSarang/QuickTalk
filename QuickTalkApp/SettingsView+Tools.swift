@@ -17,6 +17,84 @@ extension SettingsView {
                 description: L("대화에 실제 실행한 명령과 그 출력을 보여줍니다. 끄면 도구 이름·결과 한 줄만 남습니다."))
     }
 
+    groupBox(L("실행 방식")) {
+      toggleRow(L("전역 자동 수락"), isOn: $store.settings.agentPolicy.autoAcceptAll,
+                description: L("일반 명령은 확인 없이 실행합니다. 중요·치명적 위험과 상승 권한(sudo)은 그대로 확인·차단합니다."))
+      toggleRow(L("실행 중 출력 표시"), isOn: $store.settings.agentStreamOutput,
+                description: L("명령이 출력하는 내용을 실행되는 동안 카드에 보여 줍니다."))
+      pickerRow(L("실행 제한 시간"), selection: $store.settings.agentTimeoutSeconds,
+                options: [(30, Lf("%d초", 30)), (60, Lf("%d초", 60)),
+                          (120, Lf("%d초", 120)), (300, Lf("%d초", 300))])
+      caption(L("제한 시간을 넘기면 앱이 프로세스를 멈춥니다. 실행 중에는 카드의 [중단]으로 직접 멈출 수 있습니다."))
+    }
+
+    groupBox(L("이 대화의 권한")) {
+      caption(L("전역 설정 위에 이 대화만 덮어씁니다. 치명적 차단·상승 권한 제한은 전역 설정을 그대로 따릅니다."))
+      overridePolicyRow(L("읽기"), keyPath: \.readPolicy)
+      overridePolicyRow(L("쓰기"), keyPath: \.writePolicy)
+      overridePolicyRow(L("실행"), keyPath: \.executePolicy)
+      if let summary = store.conversation.agentOverride?.summary {
+        caption(Lf("이 대화에 적용 중: %@", summary))
+      }
+      if let override = store.conversation.agentOverride, !override.isEmpty {
+        Button(L("설정 따름으로 되돌리기")) {
+          store.setAgentOverride { $0 = AgentOverride() }
+        }
+      }
+    }
+
+    groupBox(L("승인된 폴더")) {
+      if store.approvedWriteScopes.isEmpty {
+        caption(L("이 대화에서 승인한 폴더가 없습니다. 승인 카드의 [이 폴더 허용]으로 추가됩니다."))
+      } else {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(store.approvedWriteScopes, id: \.self) { scope in
+            HStack(spacing: 6) {
+              Image(systemName: "folder.badge.checkmark")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+              Text(scope)
+                .font(.system(size: 11, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+              Spacer()
+              Button(L("해제")) { store.removeWriteScope(scope) }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+            }
+          }
+        }
+      }
+      caption(L("이 폴더 안의 쓰기는 이번 대화에서 다시 묻지 않습니다. 앱을 다시 켜면 초기화됩니다."))
+    }
+
+    groupBox(L("규칙 테스터")) {
+      TextField(L("명령을 넣어 판정을 미리 확인 (예: rm -rf ~/Documents/tmp)"),
+                text: $agentRuleProbe)
+        .textFieldStyle(.roundedBorder)
+        .font(.system(size: 11, design: .monospaced))
+      if let result = agentRuleProbeResult {
+        VStack(alignment: .leading, spacing: 3) {
+          HStack(spacing: 6) {
+            badgeText(result.risk.displayName, color: riskColor(result.risk))
+            badgeText(result.verdict.label, color: result.verdict.color)
+            if result.matchedRule { badgeText(L("규칙 일치"), color: .green) }
+            Spacer(minLength: 0)
+          }
+          Text(result.verdict.detail)
+            .font(.system(size: 10.5))
+            .foregroundColor(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill(Color.primary.opacity(0.04)))
+      }
+      caption(L("여기서는 **위험도·허용 규칙·단계 정책**만 미리 봅니다. 샌드박스 실측(실제 실행)은 하지 않습니다 — 실측은 명령을 승인한 뒤에만 합니다."))
+    }
+
     groupBox(L("권한")) {
       pickerRow(L("읽기"), selection: $store.settings.agentPolicy.readPolicy,
                 options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
@@ -30,7 +108,17 @@ extension SettingsView {
                 options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
       caption(AgentPermissionLevel.execute.explanation)
 
-      caption(L("확인이 필요한 명령은 대화 카드에 나타나고, [한 번 허용] [항상 허용] [거부] 중 고를 수 있습니다."))
+      caption(L("확인이 필요한 명령은 대화 카드에 나타나고, [한 번 허용] [이 폴더 허용] [항상 허용] [거부] 중 고를 수 있습니다. [이 폴더 허용] 은 이번 대화에서 그 폴더의 쓰기를 다시 묻지 않습니다."))
+    }
+
+    groupBox(L("되돌리기 · 휴지통")) {
+      Button(L("휴지통 열기")) {
+        let url = UndoStack.shared.trashRoot
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(url)
+      }
+      caption(L("쓰기 전에 되돌릴 지점을 만들어 둡니다. 단순한 rm 은 파일을 지우지 않고 QuickTalk 휴지통으로 옮깁니다 — 실행 카드의 [되돌리기] 로 되살릴 수 있습니다."))
+      caption(L("백업은 최근 30건까지 보관합니다. 되돌리기 버튼은 앱을 다시 켜기 전까지 카드에 남습니다."))
     }
 
     groupBox(L("제한")) {
@@ -207,5 +295,134 @@ private struct AgentAuditRow: View {
     .padding(.vertical, 5)
     .contentShape(Rectangle())
     .help(entry.raw)
+  }
+}
+
+// MARK: - 대화별 권한 · 규칙 테스터 (v0.22)
+
+extension SettingsView {
+  /// 대화별 오버라이드 한 줄 — **설정 따름 / 항상 허용 / 매번 확인** 3분할.
+  /// (네이티브 Picker 대신 직접 그린다 — design_profile = custom)
+  @ViewBuilder
+  func overridePolicyRow(_ label: String,
+                         keyPath: WritableKeyPath<AgentOverride, AgentAutoApprove?>) -> some View {
+    let current = store.conversation.agentOverride?[keyPath: keyPath]
+    HStack(spacing: 8) {
+      Text(label).font(.body)
+      Spacer(minLength: 12)
+      HStack(spacing: 0) {
+        overrideSegment(L("설정 따름"), selected: current == nil) {
+          store.setAgentOverride { $0[keyPath: keyPath] = nil }
+        }
+        overrideSegment(L("항상 허용"), selected: current == .alwaysAllow) {
+          store.setAgentOverride { $0[keyPath: keyPath] = .alwaysAllow }
+        }
+        overrideSegment(L("매번 확인"), selected: current == .alwaysAsk) {
+          store.setAgentOverride { $0[keyPath: keyPath] = .alwaysAsk }
+        }
+      }
+      .padding(2)
+      .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+        .fill(Color.primary.opacity(0.06)))
+    }
+    .padding(.vertical, 2)
+  }
+
+  private func overrideSegment(_ title: String, selected: Bool,
+                               action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Text(title)
+        .font(.system(size: 11, weight: selected ? .semibold : .regular))
+        .foregroundColor(selected ? .primary : .secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+          .fill(selected ? Color(nsColor: .controlBackgroundColor) : Color.clear))
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .help(L("이 대화에만 적용됩니다"))
+  }
+
+  /// 규칙 테스터 결과 — **실행하지 않고** 위험도·규칙·단계 정책만 계산한다.
+  struct AgentRuleProbe {
+    let risk: AgentRiskLevel
+    let verdict: AgentRuleVerdict
+    let matchedRule: Bool
+  }
+
+  enum AgentRuleVerdict {
+    case allow
+    case ask(String)
+    case deny(String)
+
+    var label: String {
+      switch self {
+      case .allow: return L("실행")
+      case .ask: return L("확인 필요")
+      case .deny: return L("차단")
+      }
+    }
+
+    var color: Color {
+      switch self {
+      case .allow: return .green
+      case .ask: return .orange
+      case .deny: return .red
+      }
+    }
+
+    var detail: String {
+      switch self {
+      case .allow:
+        return L("지금 설정이면 확인 없이 실행됩니다(샌드박스 실측은 실행 직전에 합니다).")
+      case .ask(let reason):
+        return reason
+      case .deny(let reason):
+        return reason
+      }
+    }
+  }
+
+  var agentRuleProbeResult: AgentRuleProbe? {
+    let command = agentRuleProbe.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !command.isEmpty else { return nil }
+    let risk = RiskClassifier.classify(command)
+    let policy = store.effectiveAgentPolicy
+    let matched = PolicyEngine.matchesRule(command: command, rules: policy.rules)
+    // ★ 실측(샌드박스 실행)은 하지 않는다 — 상승 권한이 필요하면 그 단계,
+    //   아니면 보수적으로 "실행" 단계로 가정해 판정한다.
+    let capability: AgentCapability = RiskClassifier.requiresElevation(command)
+      ? .elevated : .unprobed
+    let decision = PolicyEngine.decide(command: command, capability: capability,
+                                       risk: risk, policy: policy,
+                                       approvedScopes: store.approvedWriteScopes)
+    let verdict: AgentRuleVerdict
+    switch decision {
+    case .allow:
+      verdict = .allow
+    case .ask(let request):
+      verdict = .ask(request.reason)
+    case .deny(let reason):
+      verdict = .deny(reason)
+    }
+    return AgentRuleProbe(risk: risk, verdict: verdict, matchedRule: matched)
+  }
+
+  func riskColor(_ risk: AgentRiskLevel) -> Color {
+    switch risk {
+    case .normal: return .secondary
+    case .important: return .orange
+    case .critical: return .red
+    }
+  }
+
+  func badgeText(_ text: String, color: Color) -> some View {
+    Text(text)
+      .font(.system(size: 9.5, weight: .semibold))
+      .foregroundColor(color)
+      .padding(.horizontal, 5)
+      .padding(.vertical, 1.5)
+      .background(Capsule().fill(color.opacity(0.12)))
   }
 }

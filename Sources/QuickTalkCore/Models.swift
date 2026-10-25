@@ -132,20 +132,26 @@ public struct Conversation: Codable, Equatable {
   public var compactPaused: Bool?
   /// 이 대화에서만 공통 메모리 주입을 끈다(구버전 nil = false).
   public var commonMemoryDisabled: Bool?
+  /// 이 대화에서만 권한 정책을 덮어쓴다(v0.22). nil = 설정 따름.
+  /// 치명적 차단·상승 권한 제한은 전역 설정이 그대로 적용된다.
+  public var agentOverride: AgentOverride?
   public init(id: UUID = UUID(), title: String = Conversation.defaultTitle, titleEdited: Bool = false,
               turns: [Turn] = [], pinned: Bool = false, updatedAt: Date = Date(),
               summary: String? = nil, summaryThroughTurnID: UUID? = nil,
-              compactPaused: Bool? = nil, commonMemoryDisabled: Bool? = nil) {
+              compactPaused: Bool? = nil, commonMemoryDisabled: Bool? = nil,
+              agentOverride: AgentOverride? = nil) {
     self.id = id; self.title = title; self.titleEdited = titleEdited
     self.turns = turns; self.pinned = pinned; self.updatedAt = updatedAt
     self.summary = summary; self.summaryThroughTurnID = summaryThroughTurnID
     self.compactPaused = compactPaused
     self.commonMemoryDisabled = commonMemoryDisabled
+    self.agentOverride = agentOverride
   }
 
   private enum CodingKeys: String, CodingKey {
     case id, title, titleEdited, turns, pinned, updatedAt
     case summary, summaryThroughTurnID, compactPaused, commonMemoryDisabled
+    case agentOverride
   }
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -159,6 +165,7 @@ public struct Conversation: Codable, Equatable {
     summaryThroughTurnID = try c.decodeIfPresent(UUID.self, forKey: .summaryThroughTurnID)
     compactPaused = try c.decodeIfPresent(Bool.self, forKey: .compactPaused)
     commonMemoryDisabled = try c.decodeIfPresent(Bool.self, forKey: .commonMemoryDisabled)
+    agentOverride = try c.decodeIfPresent(AgentOverride.self, forKey: .agentOverride)
   }
 
   /// 실제로 쓸 수 있는 요약 — 경계 턴이 사라졌으면(기록 편집 등) nil로 본다.

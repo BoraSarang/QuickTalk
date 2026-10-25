@@ -81,6 +81,8 @@ struct ContentView: View {
   @State private var deleteTarget: DeleteTarget?
   /// 요약 보기 시트
   @State private var showMemory = false
+  /// 창 연결 시트 (P0-1) — 창 하나의 텍스트·스크린샷을 참고 자료로
+  @State private var showWindowPicker = false
   /// 헤더 제목에 마우스를 올리면 밑줄(편집 가능 표시)
   @State private var titleHover = false
   /// 상대 시간("5분 전")을 1분마다 다시 계산하기 위한 현재 시각 — 창을 오래 열어 두어도 표기가 낡지 않는다.
@@ -201,6 +203,9 @@ struct ContentView: View {
                     store.clearConversationMemory()
                     showMemory = false
                   })
+    }
+    .sheet(isPresented: $showWindowPicker) {
+      WindowPickerSheet(store: store)
     }
     .onAppear { tab = initialTab }
     // 상대 시간("5분 전")은 시간이 흐르면 낡는다 — 1분마다 다시 계산해 표기를 최신으로 유지한다.
@@ -410,9 +415,20 @@ struct ContentView: View {
                     AgentCard(events: events,
                               approval: t.id == store.agentTurnID ? store.agentApproval : nil,
                               showExecution: store.settings.agentShowExecution,
+                              undoEntry: store.agentUndoEntry(for: events),
+                              undoMessage: store.agentUndoMessage(for: events),
                               onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
+                              onAllowScope: { store.resolveAgentApproval(.allowScope) },
                               onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
-                              onDeny: { store.resolveAgentApproval(.deny) })
+                              onDeny: { store.resolveAgentApproval(.deny) },
+                              onUndo: {
+                                if let id = store.agentUndoEventID(for: events) {
+                                  Task { await store.undoAgentWrite(eventID: id) }
+                                }
+                              },
+                              onCancel: { store.cancelAgentRun() },
+                              handoffNotice: t.id == store.agentTurnID ? store.agentHandoffNotice : nil,
+                              onTerminalHandoff: { store.handoffToTerminal($0) })
                       .padding(.bottom, 2)
                   }
                   if !t.text.isEmpty {
@@ -596,6 +612,7 @@ struct ContentView: View {
       memoryRow
       attachmentRow
       attachNoticeRow
+      slashPalette
       dockRow
     }
   }
@@ -1063,11 +1080,61 @@ struct ContentView: View {
     }
   }
 
+  /// 슬래시 팔레트(v0.21) — `/`로 시작하면 명령을 보여 주고 **클릭**으로 고른다.
+  /// Enter 처리(전송)는 바꾸지 않는다 — 한글 IME 안전을 위해 클릭 선택만 추가한다.
+  @ViewBuilder private var slashPalette: some View {
+    let matches = SlashCommands.matches(store.draft)
+    if !matches.isEmpty {
+      VStack(alignment: .leading, spacing: 0) {
+        ForEach(matches) { command in
+          Button {
+            store.draft = command.template
+            store.composerFocusToken = UUID()
+          } label: {
+            HStack(spacing: 7) {
+              Image(systemName: command.systemImage)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .frame(width: 16)
+              Text(command.token)
+                .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+              Text(command.summary)
+                .font(.system(size: 10.5))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+              Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .help(command.template)
+        }
+      }
+      .padding(.vertical, 3)
+      .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(Color(nsColor: .controlBackgroundColor)))
+      .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .stroke(Color.primary.opacity(0.12), lineWidth: 1))
+      .padding(.horizontal, 12)
+      .padding(.bottom, 4)
+    }
+  }
+
   /// 입력독 — Siri 입력창처럼 **한 상자 안**에 ＋(왼쪽 아래) · 입력 · 🎤/↑(오른쪽 아래)
   /// 입력은 1~5줄까지 늘어나고 그 이상은 상자 안에서 스크롤된다. Enter = 전송 / Shift+Enter = 줄바꿈.
   private var canSend: Bool {
     (!store.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !store.attached.isEmpty)
       && !store.isReplying
+  }
+
+  /// 입력 영역 오른쪽 여백 — 아래 버튼(창 연결·🌐·🎤·↑)이 글자를 가리지 않게, 켜진 버튼만큼 비운다.
+  private var composerTrailingPadding: CGFloat {
+    var p: CGFloat = 84
+    if store.settings.windowAttachmentEnabled { p += 32 }
+    if store.settings.webSearchEnabled { p += 32 }
+    return p
   }
 
   private var dockRow: some View {
@@ -1091,11 +1158,26 @@ struct ContentView: View {
         }
       }
       .padding(.leading, 14)
-      .padding(.trailing, store.settings.webSearchEnabled ? 112 : 84)     // 오른쪽 아래 🌐·🎤·↑ 자리
+      .padding(.trailing, composerTrailingPadding)     // 오른쪽 아래 창 연결·🌐·🎤·↑ 자리
       .padding(.vertical, 8)
 
       HStack(spacing: 6) {
         Spacer()
+
+        // 🪟 창 연결 — 이 창의 텍스트·스크린샷을 이번 질문의 참고 자료로 붙인다(읽기 전용).
+        if store.settings.windowAttachmentEnabled {
+          Button { showWindowPicker = true } label: {
+            Image(systemName: "macwindow.on.rectangle")
+              .font(.system(size: 12, weight: .medium))
+              .frame(width: 26, height: 26)
+              .foregroundColor(.primary)
+              .background(Circle().fill(Color.primary.opacity(0.08)))
+              .contentShape(Circle())
+          }
+          .buttonStyle(.plain)
+          .disabled(store.isReplying)
+          .help(L("창 연결 — 이 창의 글자와 스크린샷을 참고 자료로 (읽기 전용)"))
+        }
 
         // 🌐 — 이번 질문만 웹 검색(자동 모드에서도 강제). 검색이 꺼져 있으면 숨긴다.
         if store.settings.webSearchEnabled {

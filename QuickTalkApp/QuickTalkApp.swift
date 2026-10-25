@@ -114,6 +114,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(forName: .quickTalkShowChat, object: nil, queue: .main) { [weak self] _ in
       self?.showChatFromShelf()
     }
+    // Shortcuts/AppIntent — 질문을 **입력창에 채우기만** 한다(v0.21). 자동 전송 없음.
+    QuickTalkIntentRouter.shared.install { [weak self] text in
+      guard let self else { return }
+      self.store.fillDraft(text)
+      self.showChatFromShelf()
+    }
     // QA 편의: `--open-settings` 로 실행하면 설정 창을 바로 연다 (메뉴바 클릭 없이 확인용)
     runQARenderIfRequested()
     // QA: `--search-test=<질문>` — 저장된 Exa 키로 실제 검색 1회(결과 건수·지연만 로그)

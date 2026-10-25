@@ -21,13 +21,17 @@ public struct AgentPolicy: Codable, Equatable {
   public var allowElevated: Bool = false
   /// 치명적 명령 허용 — 기본 꺼짐.
   public var allowCritical: Bool = false
+  /// 전역 자동 수락(v0.20) — 일반 명령은 확인 없이 실행한다.
+  /// **중요·치명적 위험과 상승 권한은 그대로 확인/차단**한다(안전장치는 자동 수락으로 꺼지지 않는다).
+  public var autoAcceptAll: Bool = false
   /// 사용자가 직접 쓴 허용 규칙(`brew install *` 같은 패턴). 앱 기본값 없음.
   public var rules: [String] = []
 
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
-    case readPolicy, writePolicy, executePolicy, allowElevated, allowCritical, rules
+    case readPolicy, writePolicy, executePolicy, allowElevated, allowCritical
+    case autoAcceptAll, rules
   }
 
   public init(from decoder: Decoder) throws {
@@ -42,6 +46,7 @@ public struct AgentPolicy: Codable, Equatable {
     executePolicy = enumValue(AgentAutoApprove.self, .executePolicy, .alwaysAsk)
     allowElevated = try c.decodeIfPresent(Bool.self, forKey: .allowElevated) ?? false
     allowCritical = try c.decodeIfPresent(Bool.self, forKey: .allowCritical) ?? false
+    autoAcceptAll = try c.decodeIfPresent(Bool.self, forKey: .autoAcceptAll) ?? false
     rules = try c.decodeIfPresent([String].self, forKey: .rules) ?? []
   }
 
@@ -71,6 +76,17 @@ public struct AgentApprovalRequest: Equatable {
     self.command = command; self.level = level; self.risk = risk
     self.capability = capability; self.writablePaths = writablePaths; self.reason = reason
   }
+
+  /// 승인하면 열어 줄 **폴더 범위** — "이 폴더 허용" 버튼이 쓴다.
+  /// 파일 하나를 승인해도 그 상위 폴더가 범위가 된다(파일을 새로 만들어야 할 수 있다).
+  public var writeScopes: [String] {
+    var out: [String] = []
+    for path in writablePaths {
+      let scope = WriteScope.scope(for: path)
+      if !scope.isEmpty && !out.contains(scope) { out.append(scope) }
+    }
+    return out
+  }
 }
 
 /// 결정 결과.
@@ -95,10 +111,14 @@ public enum AgentPlan: Equatable {
 
 public enum PolicyEngine {
   /// ★ 결정 — 단계(사용자 설정) × 위험도(시스템 판정).
+  ///
+  /// `approvedScopes` 는 이번 대화에서 이미 승인한 **폴더 범위**다(v0.19).
+  /// 범위 안의 쓰기는 다시 묻지 않는다 — 승인은 폴더 밖으로 새지 않는다.
   public static func decide(command: String,
                             capability: AgentCapability,
                             risk: AgentRiskLevel,
-                            policy: AgentPolicy) -> AgentDecision {
+                            policy: AgentPolicy,
+                            approvedScopes: [String] = []) -> AgentDecision {
     // ① 치명적 — 기본 차단(해제는 설정에서)
     if risk == .critical && !policy.allowCritical {
       return .deny(L("치명적인 명령이라 실행하지 않았습니다. 설정 › 도구에서 허용할 수 있습니다."))
@@ -112,11 +132,19 @@ public enum PolicyEngine {
       return .ask(request(command: command, capability: capability, risk: risk,
                           reason: L("시스템에 영향을 줄 수 있어 확인합니다.")))
     }
-    // ④ 사용자가 직접 쓴 허용 규칙
+    // ④ 전역 자동 수락 — 일반 명령은 확인 없이 실행한다(v0.20).
+    //    위 ①~③(치명적 차단·상승 권한 차단·중요 확인)은 **건너뛰지 않는다**.
+    if policy.autoAcceptAll { return .allow }
+    // ⑤ 이미 승인한 폴더 범위 안의 쓰기 — 다시 묻지 않는다
+    if case .write(let path) = capability,
+       WriteScope.isApproved(path, scopes: approvedScopes) {
+      return .allow
+    }
+    // ⑥ 사용자가 직접 쓴 허용 규칙
     if matchesRule(command: command, rules: policy.rules) {
       return .allow
     }
-    // ⑤ 단계별 정책
+    // ⑦ 단계별 정책
     let level = capability.level
     switch policy.autoApprove(for: level) {
     case .alwaysAllow: return .allow
@@ -132,7 +160,8 @@ public enum PolicyEngine {
   /// **정책 판단 전에 실제로 실행**됐다(읽기 전용 샌드박스라 지워지진 않았지만 명령이 끝나지
   /// 않아 앱이 멈췄다). 이제는 위험·중요 명령은 실행 없이 확인/차단만 하고,
   /// 일반 명령만 실측(=실행)한다.
-  public static func plan(command: String, policy: AgentPolicy) -> AgentPlan {
+  public static func plan(command: String, policy: AgentPolicy,
+                          approvedScopes: [String] = []) -> AgentPlan {
     let risk = RiskClassifier.classify(command)
     if risk == .critical && !policy.allowCritical {
       return .deny(L("치명적인 명령이라 실행하지 않았습니다. 설정 › 도구에서 허용할 수 있습니다."))
@@ -140,11 +169,13 @@ public enum PolicyEngine {
     if risk != .normal {
       // 중요한 명령은 **실측(=실행)하지 않는다** — 승인을 먼저 받고 나서 실측한다.
       let capability: AgentCapability = RiskClassifier.requiresElevation(command) ? .elevated : .unprobed
-      return asPlan(decide(command: command, capability: capability, risk: risk, policy: policy),
+      return asPlan(decide(command: command, capability: capability, risk: risk,
+                           policy: policy, approvedScopes: approvedScopes),
                     capability)
     }
     let capability = SandboxRunner.probe(command).capability
-    return asPlan(decide(command: command, capability: capability, risk: risk, policy: policy),
+    return asPlan(decide(command: command, capability: capability, risk: risk,
+                         policy: policy, approvedScopes: approvedScopes),
                   capability)
   }
 

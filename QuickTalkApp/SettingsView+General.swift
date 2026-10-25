@@ -23,6 +23,18 @@ extension SettingsView {
                 description: L("끄면 메뉴바 아이콘이 자동으로 켜집니다. 개발 중 확인용으로만 켜세요."))
       caption(store.visibilityHint)
     }
+    groupBox(L("창 연결")) {
+      toggleRow(L("입력독에 창 연결 버튼 표시"), isOn: $store.settings.windowAttachmentEnabled,
+                description: L("창 하나의 글자와 스크린샷을 이번 질문의 참고 자료로 붙입니다. 읽기만 하며 창을 조작하지 않습니다."))
+      valueRow(L("화면 기록"), CaptureService.hasPermission() ? L("허용됨") : L("허용되지 않음"))
+      valueRow(L("손쉬운 사용"), WindowAttachmentService.hasAccessibilityPermission ? L("허용됨") : L("허용되지 않음"))
+      HStack(spacing: 8) {
+        Button(L("시스템 설정 열기")) { CaptureService.openScreenRecordingSettings() }
+        Button(L("손쉬운 사용 설정 열기")) { WindowAttachmentService.openAccessibilitySettings() }
+        Spacer()
+      }
+      caption(L("화면 기록은 창 목록·스크린샷에, 손쉬운 사용은 글자를 읽는 데 씁니다. 손쉬운 사용이 없으면 스크린샷만 붙습니다. 허용 후에는 앱을 다시 실행해야 반영됩니다."))
+    }
     groupBox(L("동작")) {
       toggleRow(L("로그인 시 자동 시작"), isOn: launchAtLoginBinding,
                 description: L("Mac 에 로그인하면 QuickTalk 가 메뉴바에서 자동으로 시작됩니다. 시스템 설정 › 일반 › 로그인 항목과 같은 값을 씁니다."))

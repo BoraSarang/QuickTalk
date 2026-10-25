@@ -33,13 +33,19 @@ public struct AgentEvent: Codable, Equatable, Identifiable {
   public var state: State
   public var output: String
   public var elapsedMs: Int
+  /// 이 실행으로 되돌릴 수 있는 스냅샷 — [되돌리기] 카드가 쓴다(구버전 기록에는 없다)
+  public var undoID: String?
+  /// 앱이 실행하지 않고 **터미널로 넘길** 명령(v0.20) — 카드에 [터미널에서 열기]가 뜬다.
+  public var terminalCommand: String?
 
   public init(id: String, toolName: String, title: String, command: String,
               level: AgentPermissionLevel, risk: AgentRiskLevel,
-              state: State = .pending, output: String = "", elapsedMs: Int = 0) {
+              state: State = .pending, output: String = "", elapsedMs: Int = 0,
+              undoID: String? = nil, terminalCommand: String? = nil) {
     self.id = id; self.toolName = toolName; self.title = title; self.command = command
     self.level = level; self.risk = risk; self.state = state
-    self.output = output; self.elapsedMs = elapsedMs
+    self.output = output; self.elapsedMs = elapsedMs; self.undoID = undoID
+    self.terminalCommand = terminalCommand
   }
 }
 
@@ -51,10 +57,16 @@ public struct AgentToolOutcome {
   public let denied: Bool
   public let level: AgentPermissionLevel
   public let risk: AgentRiskLevel
+  /// 스크린샷 도구가 만든 이미지(v0.21) — 다음 스텝에 첨부로 붙는다.
+  public let imageURL: URL?
+  /// 앱이 실행하지 않고 터미널로 넘길 명령(v0.20)
+  public let terminalCommand: String?
 
   public init(output: String, denied: Bool = false,
-              level: AgentPermissionLevel = .read, risk: AgentRiskLevel = .normal) {
+              level: AgentPermissionLevel = .read, risk: AgentRiskLevel = .normal,
+              imageURL: URL? = nil, terminalCommand: String? = nil) {
     self.output = output; self.denied = denied; self.level = level; self.risk = risk
+    self.imageURL = imageURL; self.terminalCommand = terminalCommand
   }
 }
 
@@ -101,13 +113,18 @@ public struct AgentRunner {
     var hadDenial = false
     var steps = 0
     var collected: [String] = []
+    /// 스크린샷 도구가 만든 이미지 — 다음 스텝의 **사용자 메시지**에 붙인다(v0.21).
+    /// (클라이언트는 마지막 메시지가 user 일 때만 첨부를 싣는다 — tool 메시지 뒤에는 안 붙는다)
+    var images: [OutgoingAttachment] = []
     /// 실행한 명령의 반복 횟수 — 같은 명령 무한 반복 방지
     var signatures: [String: Int] = [:]
 
     while steps < maxSteps {
       steps += 1
+      try Task.checkCancellation()
       let step = try await client.nextStep(messages: messages, tools: tools,
-                                           attachments: attachments, onDelta: onDelta)
+                                           attachments: images.isEmpty ? attachments : images,
+                                           onDelta: onDelta)
       switch step {
       case .finalAnswer(let text, _):
         return AgentRunResult(answer: text, events: events, steps: steps, hadDenial: hadDenial)
@@ -120,7 +137,9 @@ public struct AgentRunner {
         // thinking 모드 모델은 사고 내용(reasoning_content)도 되돌려야 한다 — 빠지면 400.
         messages.append(AgentMessage(role: .assistant, content: "", toolCalls: calls,
                                       reasoningContent: reasoning))
+        var addedImage = false
         for call in calls {
+          try Task.checkCancellation()
           // 같은 명령을 몇 번이나 반복하면(특히 작은 온디바이스 모델) 무한 반복이 된다.
           // 2번 반복된 명령은 다시 실행하지 않고, 모델에게 다른 방법을 쓰라고 알린다.
           let signature = "\(call.name)|\(call.stringArgument("command") ?? call.stringArgument("path") ?? "")"
@@ -137,15 +156,26 @@ public struct AgentRunner {
           }
           let outcome = await executor.execute(call, tools: tools)
           if outcome.denied { hadDenial = true }
+          // 스크린샷은 다음 스텝에 첨부로 — 최대 3장(토큰·전송량 상한).
+          if let url = outcome.imageURL, images.count < 3 {
+            let loaded = AttachmentLoader.load(name: url.lastPathComponent, kind: .image, url: url)
+            if loaded.hasImage { images.append(loaded); addedImage = true }
+          }
           let summary = Self.summarize(outcome.output)
           events.append(AgentEvent(id: call.id, toolName: call.name,
                                    title: Self.title(for: call, tools: tools),
                                    command: call.stringArgument("command") ?? call.stringArgument("path") ?? "",
                                    level: outcome.level, risk: outcome.risk,
                                    state: outcome.denied ? .denied : .done,
-                                   output: summary, elapsedMs: 0))
+                                   output: summary, elapsedMs: 0,
+                                   terminalCommand: outcome.terminalCommand))
           collected.append("\(call.name): \(summary)")
           messages.append(AgentMessage(role: .tool, content: outcome.output, toolCallID: call.id))
+        }
+        // tool 메시지 뒤에 **사용자 메시지**를 하나 둬야 다음 요청에 이미지가 실린다.
+        if addedImage {
+          messages.append(AgentMessage(role: .user,
+                                       content: L("(방금 찍은 스크린샷을 첨부했습니다. 다음 판단에 참고하세요.)")))
         }
       }
     }
@@ -170,6 +200,9 @@ public struct AgentRunner {
     case "processes":
       let sort = (call.stringArgument("sort") ?? "cpu") == "memory" ? L("메모리") : L("CPU")
       return Lf("프로세스 사용량 — %@ 순위", sort)
+    case "screenshot":
+      let target = (call.stringArgument("target") ?? "window") == "screen" ? L("화면") : L("창")
+      return Lf("스크린샷 — %@", target)
     default:
       return tools.first { $0.name == call.name }?.name ?? call.name
     }

@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-23 18:05 KST
+> **새 세션은 이 문서부터 읽한다.** 마지막 갱신: 2026-10-25 05:30 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다.**
@@ -13,13 +13,33 @@
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
 | 현재 빌드 | **2026-10-23 17:50** — `~/Applications/QuickTalk.app` 교체 완료(백업 `.QuickTalk.old` = 10:15 빌드), `codesign --verify --strict` OK, SHA-256 `e50b902063c4025d…` |
-| 테스트 | **434/434**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 · 병합 커밋 `54a82cd` 기준은 **403/403**(v0.19 WIP 제외) |
-| 마지막 완료 | **pill 높이 회귀 2차 수정**(2026-10-23 17:45) — ① 본체 56pt(1차) ② **입력창 프레임도 빈 입력은 1줄**(`textHeight`) → 내용이 위로 몰리던 실제 원인. **재실행 필요** |
-| 다음 작업 | **v0.19(쓰기·되돌리기) 이어서** (작업 트리에 WIP 있음 — 아래 "다음 세션 시작점") → v0.20(실행 고도화) → T-21 실측 → QA 배치 3·4 · (함께) N22·N24~N28·N30 재확인 |
+| 테스트 | **499/499**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (작업 트리 기준 — v0.19 WIP + 창 연결 33 + v0.20~22 32 포함). 병합 커밋 `54a82cd` 기준은 **403/403** |
+| 마지막 완료 | **v0.20–v0.22** (2026-10-25 05:30) — 실행 고도화(자동 수락·스트리밍·중단·제한 시간·터미널 인계) · 스크린샷 도구·슬래시 팔레트·Shortcuts·규칙 테스터 · 대화별 권한·승인 폴더·앱 지식 실제값. **빌드·테스트만 했고 배포·실측은 안 함**. (직전: 창 연결 P0-1) |
+| 다음 작업 | **v0.20–v0.22 실측**(아래 "다음 세션 시작점" 체크리스트 25항목) → 창 연결 실측 → v0.19 WIP 마무리 → PR(hunk 단위) → T-21 실측 → QA 배치 3·4 · N22·N24~N28·N30 |
 | 실측 대기 | **N22·N24~N28·N30 7건**(N29 는 2026-10-23 사용자 확인 ✅) + **T-21 30건** + **QA 미체크 52건**(배치3 21 · 배치4 27 · 외부 2 · L9 1 · I8 1). **T-18 P1~P19 는 2026-10-22 사용자 확인 완료** |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
 | 실행 중 앱 | **최신 빌드 확인됨** — 17:50 빌드(`e50b9020…`) 재실행 후 사용자 실측 **N29 OK**(2026-10-23 18:00) |
 | git | `main` = **`5d6ff83`** · PR #27 → `54a82cd` · PR #29 → `f0e90bb` · 문서 PR #30 → `438d51f` · **N29 확인·세션 정리 PR #31 → `5d6ff83`**(squash merge) |
+
+### 다음 세션 시작점 (2026-10-25 05:30 마감) — **v0.20–v0.22 구현 완료 · 실측 대기**
+
+- **무엇**: v0.18 에이전트 런타임 위에 실행 고도화(0.20) → 스크린샷·슬래시·Shortcuts(0.21) → 대화별 권한(0.22).
+  상세 설계·실측 체크리스트: **`docs/plans/PLAN_v0.20-0.22_execution_macos.md`**.
+- **검증**: `swift test` **499/499**(6 skip, 신규 32) · `xcodebuild` **BUILD SUCCEEDED**(경고 1 — 사용자 v0.19 WIP `AgentExecutor.swift:217` 의 불필요한 `await`, 이번 변경과 무관).
+- **신규 파일 6개(미커밋)**: `Sources/QuickTalkCore/{AgentOverride,SystemKnowledge,TerminalHandoff,SlashCommand}.swift`,
+  `QuickTalkApp/{TerminalHandoffService,QuickTalkIntents}.swift` + 테스트 4개(`AgentOverrideTests`·`SlashCommandTests`·`SystemKnowledgeTests`·`StreamingExecutionTests`).
+- **실측 대기(사용자)** — `docs/qa/v0.20-22/CHECKLIST.md`:
+  - **v0.20**: 자동 수락(일반 통과·중요 2차 확인·치명적/상승권 차단) · 실시간 출력 · [중단] · 승인 대기 중 중단 · 제한 시간 · 시스템 경로/상승 권한 [터미널에서 열기] · `brew install` 이 터미널로 밀리지 않는지.
+  - **v0.21**: `screenshot` 도구가 다음 스텝에서 실제로 보이는지 · 권한 없을 때 안내 · Apple FM 에서 도구 제외 · 슬래시 팔레트 클릭 채움 · 한글 Enter 회귀 없음 · Shortcuts 초안 채움(앱 미실행 대기열) · 규칙 테스터가 실행하지 않는지.
+  - **v0.22**: 대화별 3분할 반영·대화 전환 시 초기화 · 대화 오버라이드로 치명적/상승권 못 끄는지 · 승인 폴더 목록/해제 · 앱 지식이 실제 설정값과 일치(키 노출 없음).
+- **주의**: 사용자 맥 사용 중 — 앱 실행·권한 승인·실제 캡처·터미널 열기 금지(이번 세션도 하지 않음). **배포·커밋 안 함**.
+- **알려진 한계**: 창 제어(computer use) 미구현 · Shortcuts 자동 전송 없음 · 슬래시 키보드 탐색 없음(Enter 처리 보존) · 승인 폴더는 세션 한정 · 규칙 테스터는 실측 안 함.
+
+### 다음 세션 시작점 (2026-10-25 04:40 마감)
+
+- **창 연결(P0-1) 구현 완료 · 실측 대기**: `docs/analysis/META-AI-APP-2026-10-25.md` §7. 새 파일 4개(`Sources/QuickTalkCore/WindowContext.swift`, `QuickTalkApp/WindowAttachmentService.swift`, `QuickTalkApp/WindowPickerSheet.swift`, `Tests/QuickTalkCoreTests/WindowContextTests.swift`)와 수정 5개(`ContentView`·`Settings`·`SettingsView+General`·`LocalizationTable`·`project.pbxproj`)가 **미커밋**이다.
+- **실측 항목**: ① 화면 기록만 허용 → 스크린샷만 첨부 ② 손쉬운 사용 추가 → 글자+스크린샷 ③ 둘 다 거부 → 시트에 권한 카드, 목록 없음 ④ 빈 텍스트 창(예: 이미지 뷰어) → "텍스트 없음" 안내 ⑤ 창을 닫고 연결 → 오류 안내 ⑥ 영어 UI 문구 ⑦ 첨부 후 전송 → 모델이 창 내용을 인용하는지.
+- **주의**: 사용자 맥 사용 중에는 앱 실행·창 조회·실제 캡처 금지(이번 세션도 하지 않음). 배포도 하지 않았다.
 
 ### 다음 세션 시작점 (2026-10-23 18:05 마감)
 

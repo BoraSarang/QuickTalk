@@ -168,6 +168,13 @@ public final class ConversationStore {
     conversation.updatedAt = Date()
   }
 
+  /// 이 대화에서만 권한 정책을 덮어쓴다(v0.22) — nil/빈 값이면 "설정 따름"으로 되돌린다.
+  public func setAgentOverride(_ override: AgentOverride?) {
+    let value = (override?.isEmpty ?? true) ? nil : override
+    conversation.agentOverride = value
+    conversation.updatedAt = Date()
+  }
+
   /// 자동 정리 다시 켜기.
   public func resumeAutoCompact() {
     conversation.compactPaused = nil
