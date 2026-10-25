@@ -1,7 +1,7 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-25 05:30 KST
+> 마지막 갱신: 2026-10-25 12:05 KST
 
 ## 지금 (2026-10-25 05:30) — v0.20–v0.22 구현 · 실측 대기
 
@@ -9,8 +9,8 @@
 - **한 것(파일)**: 신규 Core 4(`AgentOverride`·`SystemKnowledge`·`TerminalHandoff`·`SlashCommand`) · 신규 App 2(`TerminalHandoffService`·`QuickTalkIntents`) · 테스트 4 · `project.pbxproj` 등록 · 번역 키 추가.
 - **검증**: `swift test` **499/499**(6 skip, 신규 32) · `xcodebuild` **BUILD SUCCEEDED**(경고 1 — 사용자 v0.19 WIP 의 불필요한 `await`).
 - **미검증(사용자 맥 사용 중)**: 앱 실행·권한 승인·실제 캡처·터미널 열기·Shortcuts 실행을 하지 않았다 → **`docs/qa/v0.20-22/CHECKLIST.md` 25항목** 사용자 실측 필요.
-- **git**: **커밋·배포 안 함** — 사용자 v0.19 WIP(수정 12 + 신규 6) 보존. PR 은 hunk 단위.
-- **다음**: 사용자 실측 → 실패 항목 수정 → v0.19 WIP 와 함께 PR → T-21·QA 배치 3·4 · N22·N24~N28·N30.
+- **git**: **PR #33 → squash merge `f46ace8`**(2026-10-25 12:00) — 사용자 v0.19 WIP(수정 12 + 신규 6)·창 연결 4파일과 함께 단일 PR(빌드 의존으로 분리 불가). **배포 안 함**.
+- **다음**: 사용자 실측 → 실패 항목 수정 → T-21·QA 배치 3·4 · N22·N24~N28·N30.
 
 ## 지금 (2026-10-25 04:40) — 창 연결(P0-1) 구현 · 실측 대기
 
