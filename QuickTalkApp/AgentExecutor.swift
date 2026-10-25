@@ -203,6 +203,12 @@ final class AgentExecutor: AgentToolExecutor {
     }.value
     store.agentRunHandle = nil
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    // ★ 되돌리기 기록 — 성공한 쓰기만 남기고, 실패·중단이면 백업을 버린다(v0.19).
+    //   (2026-10-25 발견: commit 을 부르지 않아 [되돌리기]가 항상 "기록을 찾지 못했습니다"였다)
+    if let undo {
+      if result.succeeded { await UndoStack.shared.commit(undo) }
+      else { await UndoStack.shared.discard(id: undo.id) }
+    }
     return await finishShell(call, command: command, risk: risk, level: capability.level,
                              result: result, elapsedMs: elapsed,
                              execCommand: runCommand == command ? nil : runCommand,
@@ -214,7 +220,7 @@ final class AgentExecutor: AgentToolExecutor {
   /// 백업은 **승인된 폴더 안의 경로만** 대상으로 한다(그 밖은 쓸 수 없다).
   private func prepareWrite(command: String, scope: String) async
   -> (command: String, undo: UndoEntry?, extraWritePaths: [String]) {
-    let trashRoot = await UndoStack.shared.trashRoot.path
+    let trashRoot = UndoStack.shared.trashRoot.path
     let trash = TrashRewrite.plan(command, trashRoot: trashRoot)
     var extra: [String] = []
     let paths: [String]

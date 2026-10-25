@@ -1,9 +1,22 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-25 12:05 KST
+> 마지막 갱신: 2026-10-25 20:55 KST
 
-## 지금 (2026-10-25 05:30) — v0.20–v0.22 구현 · 실측 대기
+## 지금 (2026-10-25 20:55) — 코드 점검 · P1 3건 수정 · 배포/실측 대기
+
+- **무엇**: 배포 없이 v0.19~v0.22 코드 점검 + 오프스크린 렌더 → **P1 3건만** 수정(사용자 선택).
+- **P1 ①** 되돌리기 기록 미등록 — `AgentExecutor` 가 `snapshot()` 만 부르고 `commit()` 을 안 불러 **[되돌리기]가 항상 notFound**, 백업 폴더 무한 누적 → `UndoStack.snapshot()` 이 **스스로 등록** + `commit()` 멱등 + 실패·중단은 `discard` + `undoneAt` 은 전부 성공 시만.
+- **P1 ②** 긴 제목 + 기본 폭(460pt)에서 헤더 `⌘Space` 가 **6줄(약 170pt)** 로 붕괴 → `ViewThatFits(in: .horizontal)` 로 **한 줄일 때만 라벨 표시**.
+- **P1 ③** [중단]·시간 초과가 `sandbox-exec` 만 죽이고 자식(`sleep 30`)을 남김(실측) → `SandboxRunner.terminateProcessTree`(libproc 부모 트리 + SIGTERM→200ms→SIGKILL, 상한 512).
+- **검증**: `swift test` **502/502**(6 skip, 신규 3 — `UndoStackTests` 2 · `ProcessTreeTests` 1) · BUILD SUCCEEDED(경고 2 = 기존) · 렌더 `docs/qa/v0.20-22-review/`(점검 6장 + `after-fix/` 5장) · `docs/qa/v0.20-22-review/README.md`(P1·P2 10건·확인 필요·미실측).
+- **미실측(사용자 맥 사용 중)**: 앱 실행·권한 승인·실제 캡처·터미널 열기 금지 → [중단]·되돌리기 실사용 왕복은 단위/프로세스 테스트로 대체. **`docs/qa/v0.20-22/CHECKLIST.md` 29항목** 그대로 남음.
+- **배포**: **2026-10-25 20:51** `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict` OK · SHA-256 `537e570d19c25be0…` · 직전 빌드는 `.QuickTalk.old` — **앱 재실행 필요**(실행 중 앱은 10-23 빌드).
+- **설정 정리**: 설정 › 도구 허용 규칙 1건(내부 주소 `curl`) 사용자 요청으로 삭제(`rules` 1→0, 53키 보존, 원본 plist 백업 `.agent/backup/`).
+- **git**: 브랜치 `fix/macos-p1-review`(로컬 커밋 5개, **push 안 함**) · `main` = `f753dbb`.
+- **다음**: **재실행 후** 실측 29항목 → 실패 항목 수정 → 창 연결·T-21·QA 배치 3·4.
+
+## 이전 (2026-10-25 12:10) — v0.20–v0.22 구현 · PR #33 병합
 
 - **무엇**: ① **v0.20 실행 고도화** — 전역 자동 수락(중요·치명적·상승 권한 뒤에 적용) · 실시간 출력 · [중단] · 실행 제한 시간 · 시스템 경로/상승 권한 **터미널 인계**(`.command`) · 중요/치명적 2차 확인. ② **v0.21** — `screenshot` 도구(창/화면 → 다음 스텝 이미지) · 슬래시 팔레트(클릭 채움, Enter 처리 무변경) · Shortcuts/AppIntents(초안만, 자동 전송 없음) · 규칙 테스터(실행 없이 판정만). ③ **v0.22** — 대화별 권한 오버라이드(치명적/상승권 제한은 전역 유지) · 승인된 폴더 목록/해제 · `SystemKnowledge` 실제 설정값 주입.
 - **한 것(파일)**: 신규 Core 4(`AgentOverride`·`SystemKnowledge`·`TerminalHandoff`·`SlashCommand`) · 신규 App 2(`TerminalHandoffService`·`QuickTalkIntents`) · 테스트 4 · `project.pbxproj` 등록 · 번역 키 추가.

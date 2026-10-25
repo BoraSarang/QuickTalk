@@ -316,7 +316,17 @@ struct ContentView: View {
       if store.isSpeaking {
         headerIcon("stop.fill", tint: .red, help: L("읽어주기 중지")) { store.stopSpeaking() }
       }
-      Text(shortcutLabel).font(.caption).foregroundColor(.gray)
+      // ★ 폭이 모자라면 **숨긴다** — Text 는 압축되면 한 글자씩 세로로 쌓여
+      //   헤더가 6줄로 커진다(2026-10-25 실측: 기본 460pt + 긴 제목에서 ⌘Space 세로 붕괴).
+      //   넓은 창이나 짧은 제목에서는 지금처럼 한 줄로 보인다.
+      ViewThatFits(in: .horizontal) {
+        Text(shortcutLabel)
+          .font(.caption)
+          .foregroundColor(.gray)
+          .lineLimit(1)
+          .fixedSize()
+        EmptyView()
+      }
       // 📌 = 창을 항상 위에(모든 탭 공통 — 탭이 아니라 창 속성이다).
       // 기본은 꺼짐: 설정 창·시스템 권한 안내가 대화 창 뒤로 숨지 않게 한다.
       headerIcon(store.settings.alwaysOnTop ? "pin.fill" : "pin",
