@@ -149,4 +149,36 @@ final class UndoStackTests: XCTestCase {
     let result = await stack.undo(id: "nope")
     XCTAssertTrue(result.notFound)
   }
+
+  // MARK: - 회귀 (2026-10-25)
+
+  /// 호출부가 `commit` 을 잊어도 스냅샷만으로 되돌릴 수 있어야 한다
+  /// (AgentExecutor 가 commit 을 부르지 않아 [되돌리기]가 항상 notFound 였다).
+  func testSnapshotAloneIsUndoable() async throws {
+    let file = root.appendingPathComponent("work/d.txt")
+    try write("snapshot-only", to: file)
+    let stack = makeStack()
+    let entry = await stack.snapshot(command: "rm d.txt",
+                                     scope: root.appendingPathComponent("work").path,
+                                     paths: [file.path])
+    try FileManager.default.removeItem(at: file)
+
+    let result = await stack.undo(id: entry.id)
+    XCTAssertTrue(result.succeeded, "\(result)")
+    XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "snapshot-only")
+  }
+
+  /// 같은 항목을 두 번 commit 해도 목록에 중복되지 않는다(스냅샷 등록 + commit).
+  func testCommitIsIdempotent() async throws {
+    let file = root.appendingPathComponent("work/e.txt")
+    try write("x", to: file)
+    let stack = makeStack()
+    let entry = await stack.snapshot(command: "rm e.txt",
+                                     scope: root.appendingPathComponent("work").path,
+                                     paths: [file.path])
+    await stack.commit(entry)
+    await stack.commit(entry)
+    let count = await stack.entries.count
+    XCTAssertEqual(count, 1)
+  }
 }

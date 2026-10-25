@@ -155,12 +155,25 @@ public actor UndoStack {
     let entry = UndoEntry(id: id, command: command, scope: scope, createdAt: Date(),
                           items: items, note: note)
     if items.isEmpty { try? fm.removeItem(at: dir) }
+    // ★ 스냅샷 시점에 바로 등록한다 — 호출부가 commit 을 잊어도 [되돌리기]가 찾을 수 있게.
+    //   (2026-10-25 발견: AgentExecutor 가 commit 을 부르지 않아 undo(id:) 가 항상 notFound 였고,
+    //    trim·save 도 실행되지 않아 백업 폴더가 무한정 쌓였다)
+    register(entry)
     return entry
   }
 
-  /// 실행이 끝난 뒤 기록에 남긴다.
+  /// 실행이 끝난 뒤 기록에 남긴다(이미 등록된 항목은 갱신 — 같은 id 를 두 번 넣지 않는다).
   public func commit(_ entry: UndoEntry) {
-    entries.insert(entry, at: 0)
+    register(entry)
+  }
+
+  /// 목록 반영 — 같은 id 가 있으면 교체, 없으면 맨 앞에 넣고 상한·저장을 맞춘다.
+  private func register(_ entry: UndoEntry) {
+    if let idx = entries.firstIndex(where: { $0.id == entry.id }) {
+      entries[idx] = entry
+    } else {
+      entries.insert(entry, at: 0)
+    }
     trim()
     save()
   }
@@ -220,8 +233,10 @@ public actor UndoStack {
       }
     }
 
-    entries[idx].undoneAt = Date()
+    // 완전히 성공했을 때만 "되돌림"으로 표시한다 — 일부 실패면 다시 시도할 수 있어야 한다.
     if failed.isEmpty {
+      entries[idx].undoneAt = Date()
+      // 백업 폴더도 성공했을 때만 지운다.
       try? fm.removeItem(at: root.appendingPathComponent(id, isDirectory: true))
     }
     save()
