@@ -104,6 +104,8 @@ build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk \
 | 8 | 스크린샷 후 **원 첨부 대체** | `AgentRunner` | ✅ **완료** — `attachments + images`(예전엔 스크린샷이 있으면 `images` 만 전송). 되돌리면 실패하는 회귀 테스트 · PR #45 `8039493` |
 | 9 | `SlashCommands.all` static 고정 | `SlashCommand.swift` | ✅ **완료** — 계산 프로퍼티 + `available(agentToolsEnabled:)` + `requiresTools`(설정·도움말만 도구 없이) · PR #45 `8039493` |
 | 10 | `UIStore.swift:940` 경고 | `UIStore` | ⬜ 남음 — 컴파일 경고 1건 |
+| 11 | **슬래시 팔레트가 설정 언어와 반대로 표시** (2026-10-28 사용자 보고) | `ContentView.slashPalette`·`SlashCommand` | 🔴 **미수정 · 다음 세션 1순위** — 한글이면 영문, 영문이면 한글. 저장값 `language=korean` · `L10n` 매핑 정상 · `testCatalogFollowsCurrentLanguage` 통과 → **화면 재구성 경로** 의심 |
+| 12 | 도구 끄는 토글 발견성 | `SettingsView+Tools.swift` | ⬜ 제안 — 그룹 "도우미 도구" 안의 토글이 "도구 사용" 이라 이름이 달라 못 찾음(사용자 보고). 라벨 통일 검토 |
 | — | (덤) 승인 카드가 "실행 중"으로 굳음 | `AgentExecutor` | ✅ **완료** — 승인 대기 카드 뒤에 실행 카드를 또 추가해 `updateAgentEvent`(첫 장만 수정)가 첫 카드를 못 넘겼다 → `upsertAgentEvent`(호출당 카드 1장) · PR #46 `28054bd` |
 | — | (덤) "맨 아래로" 버튼이 스크롤 중 안 뜸 | `ContentView` | ✅ **완료** — `GeometryReader` 추정 → `ScrollMetrics` + `ScrollOffsetObserver`(`NSScrollView` 직접 관찰) · PR #43 `ce7532a` |
 
