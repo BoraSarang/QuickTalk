@@ -606,7 +606,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if let w = settingsWindow { trackAuxWindow(w) }
   }
 
-  /// QA용: `--settings-tab=<general|shortcut|ai|voice|archive|about>`
+  /// QA용: `--settings-tab=<general|conversation|shortcut|ai|search|tools|voice|shelf|about>`
   private static func qaInitialTab() -> QuickTalkSettingsTab {
     guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--settings-tab=") }) else { return .general }
     return QuickTalkSettingsTab(rawValue: String(arg.dropFirst("--settings-tab=".count))) ?? .general

@@ -54,8 +54,10 @@ public enum RiskClassifier {
 
     // ── 중요: 되돌리기 어렵거나 시스템 전역 ──
     if lower.contains(where: { privilegeMarkers.contains($0) }) { return .important }
-    if lower.contains("defaults") && (lower.contains("-g")
-                                      || lower.contains(where: { $0.hasPrefix("com.apple.") })) {
+    // `defaults`는 **쓰기일 때만** 위험하다 — `defaults read com.apple.dock` 은 읽기다.
+    // (2026-10-26: 읽기까지 중요로 잡혀 "항상 허용"을 눌러도 매번 다시 묻던 원인)
+    if lower.contains("defaults"), isDefaultsMutation(lower),
+       lower.contains("-g") || lower.contains(where: { $0.hasPrefix("com.apple.") }) {
       return .important
     }
     if lower.contains(where: { systemConfigTools.contains($0) }) { return .important }
@@ -125,7 +127,24 @@ public enum RiskClassifier {
 
   private static func isPipeToInterpreter(_ tokens: [String]) -> Bool {
     guard let pipeIdx = tokens.firstIndex(of: "|"), pipeIdx + 1 < tokens.count else { return false }
-    let last = tokens[(pipeIdx + 1)...].first?.lowercased() ?? ""
-    return interpreters.contains { last == $0 || last.hasPrefix($0 + " ") }
+    let rest = tokens[(pipeIdx + 1)...].map { $0.lowercased() }
+    let first = rest.first ?? ""
+    guard interpreters.contains(where: { first == $0 || first.hasPrefix($0 + " ") }) else {
+      return false
+    }
+    // `python3 -c "…"` 처럼 코드를 **인자로** 받는 경우는 파이프 내용을 실행하지 않는다.
+    // (`curl … | sh` 는 그대로 중요 — 인터프리터가 표준입력을 코드로 읽는다)
+    let inlineCodeFlags: Set<String> = ["-c", "-e", "--eval", "-E"]
+    return !rest.contains(where: { inlineCodeFlags.contains($0) })
+  }
+
+  /// `defaults` 가 값을 바꾸는 호출인가 — `read`/`read-type`/`domains`/`find`/`export` 는 읽기다.
+  private static func isDefaultsMutation(_ lower: [String]) -> Bool {
+    guard let idx = lower.firstIndex(of: "defaults") else { return false }
+    // `defaults -currentHost write …` 처럼 플래그가 먼저 올 수 있다.
+    for token in lower[(idx + 1)...] where !token.hasPrefix("-") {
+      return token == "write" || token == "delete" || token == "rename"
+    }
+    return false
   }
 }

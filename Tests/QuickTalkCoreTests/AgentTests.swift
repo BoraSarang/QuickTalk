@@ -277,6 +277,54 @@ final class AgentTests: XCTestCase {
     XCTAssertNil(AgentToolCatalog.tool(named: "unknown"))
   }
 
+  /// `shell` 은 `purpose`(왜 이 명령인가)를 받는다 — 실행 카드 제목이 이 값을 쓴다.
+  func testShellSchemaAcceptsPurpose() {
+    let fn = AgentToolCatalog.shell.openAISchema["function"] as? [String: Any]
+    let params = fn?["parameters"] as? [String: Any]
+    let props = params?["properties"] as? [String: Any]
+    XCTAssertNotNil(props?["purpose"], "실행 카드에 이유를 보여주려면 스키마에 purpose 가 있어야 한다")
+    XCTAssertEqual(params?["required"] as? [String], ["command"])
+  }
+
+  /// `web_search` 는 **검색이 준비된 턴에만** 도구 목록에 붙는다(기본 5개는 그대로).
+  func testWebSearchToolIsOptional() {
+    XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 5)
+    let withSearch = AgentToolCatalog.available(includingWebSearch: true)
+    XCTAssertEqual(withSearch.count, 6)
+    XCTAssertTrue(withSearch.contains { $0.name == "web_search" })
+    XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "web_search" },
+                   "기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 간다")
+  }
+
+  func testWebSearchToolRequiresQuery() {
+    let fn = AgentToolCatalog.webSearch.openAISchema["function"] as? [String: Any]
+    XCTAssertEqual(fn?["name"] as? String, "web_search")
+    let params = fn?["parameters"] as? [String: Any]
+    XCTAssertEqual(params?["required"] as? [String], ["query"])
+
+    // 실행 카드 제목은 검색어를 보여 준다(명령 필드가 없는 도구).
+    let call = AgentToolCall(id: "c1", name: "web_search",
+                             arguments: "{\"query\":\"Qoder vs Cursor\"}")
+    let title = AgentRunner.title(for: call, tools: [AgentToolCatalog.webSearch])
+    XCTAssertTrue(title.contains("Qoder vs Cursor"), title)
+  }
+
+  /// 로컬 조사 범위 — "설치된 앱/도구"는 **이 컴퓨터의 상태**를 묻는 질문에만 쓴다.
+  /// (2026-10-26 사용자 보고: 제품 비교 질문에 `/Applications`·`mdfind`·`brew info` 를 실행했다)
+  func testInstructionsScopeLocalProbing() {
+    let text = AgentInstructions.text
+    XCTAssertTrue(text.contains("이 컴퓨터의 상태"), "조사 대상은 컴퓨터 상태로 한정한다")
+    XCTAssertTrue(text.contains("세상에 대한 질문은 로컬 조사 대상이 아니다"))
+    XCTAssertTrue(text.contains("설치 여부를 확인해 답을 바꾸지 말고"))
+    XCTAssertTrue(text.contains("web_search"), "모르는 세상 사실은 검색 도구로 확인한다")
+    XCTAssertTrue(text.contains("설정 › 웹 검색"), "검색이 없으면 설정 경로를 안내한다")
+    XCTAssertTrue(text.contains("넓게 훑지 않는다"), "불확실할 때의 탐색 범위를 제한한다")
+
+    let compact = AgentInstructions.compactText
+    XCTAssertTrue(compact.contains("이 컴퓨터의 상태"))
+    XCTAssertTrue(compact.contains("제품 비교"))
+  }
+
   // MARK: - 설정 저장
 
   func testAgentPolicyRoundTrip() throws {

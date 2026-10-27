@@ -606,6 +606,16 @@ struct ContentView: View {
           if let req { focusTurn(req, proxy: proxy) }
         }
         .onChange(of: store.isReplying) { _, _ in scrollToBottom(proxy) }
+        // 승인 카드가 뜨면 카드 **끝(버튼)** 까지 보이게 맨 아래로 따라간다.
+        // (2026-10-26: 카드가 화면 밖에 걸려 [한 번 허용]이 잘려 보이던 문제)
+        .onChange(of: store.agentApproval) { _, request in
+          guard request != nil else { return }
+          scrollToBottom(proxy, animated: false)
+          // 긴 명령이 여러 줄로 감기면 카드 높이가 한 프레임 늦게 확정된다 — 한 번 더 맞춘다.
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            scrollToBottom(proxy, animated: false)
+          }
+        }
         // 창을 열 때(숨겼다 다시 열 때 포함) — SwiftUI onAppear는 다시 오지 않는다
         .onReceive(NotificationCenter.default.publisher(for: .quickTalkScrollToBottom)) { _ in
           scrollToBottom(proxy, animated: false)

@@ -26,6 +26,8 @@ enum AgentApprovalChoice {
 final class AgentExecutor: AgentToolExecutor {
   private unowned let store: UIStore
   private var continuation: CheckedContinuation<AgentApprovalChoice, Never>?
+  /// 이번 턴에 `web_search` 로 모은 출처 — 답변 아래 출처 카드에 쓴다.
+  private(set) var turnSources: [TurnSource] = []
 
   init(store: UIStore) {
     self.store = store
@@ -40,6 +42,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "list_dir": return await listDir(call)
     case "processes": return await runProcesses(call)
     case "screenshot": return await captureScreenshot(call)
+    case "web_search": return await runWebSearch(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
@@ -415,6 +418,68 @@ final class AgentExecutor: AgentToolExecutor {
       AgentAudit.record(command: "screenshot \(target)", level: level, risk: risk,
                         decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: message, denied: true, level: level, risk: risk)
+    }
+  }
+
+  // MARK: - 웹 검색 (v0.23)
+
+  /// `web_search` — 모델이 "내 지식 밖"이라고 판단할 때 **직접** 호출한다.
+  /// 앱이 Exa를 대신 호출하고 제목·URL·날짜·발췌만 돌려준다(읽기 전용, 승인·샌드박스 불필요).
+  /// 검색어는 감사 로그에 남기지 않는다(기존 웹 검색 정책과 동일).
+  private func runWebSearch(_ call: AgentToolCall) async -> AgentToolOutcome {
+    let query = (call.stringArgument("query") ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let level = AgentPermissionLevel.read
+    let risk = AgentRiskLevel.normal
+    guard !query.isEmpty else {
+      let text = L("검색어가 비어 있습니다.")
+      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+                                        title: text, command: "",
+                                        level: level, risk: risk,
+                                        state: .failed, output: text))
+      return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+    }
+    store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+                                      title: Lf("웹 검색 — %@", query), command: "",
+                                      level: level, risk: risk, state: .running))
+    let started = Date()
+    let outcome = await store.searchWeb(query: query)
+    let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    switch outcome {
+    case .success(let results) where !results.isEmpty:
+      let limit = max(1, store.settings.webSearchResultCount)
+      let context = WebSearchContext.build(results: results,
+                                           maxCharacters: store.settings.webSearchMaxCharacters,
+                                           limit: limit)
+      for source in WebSearchContext.sources(from: results, limit: limit)
+      where !turnSources.contains(where: { $0.url == source.url }) {
+        turnSources.append(source)
+      }
+      let added = turnSources.count
+      store.updateAgentEvent(id: call.id) {
+        $0.state = .done
+        $0.output = Lf("검색 결과 %d건 · 출처 %d개", results.count, added)
+        $0.elapsedMs = elapsed
+      }
+      return AgentToolOutcome(output: context, level: level, risk: risk)
+
+    case .success:
+      let text = L("검색 결과가 없습니다. 다른 검색어로 시도하거나 아는 범위에서 답하세요.")
+      store.updateAgentEvent(id: call.id) {
+        $0.state = .failed
+        $0.output = text
+        $0.elapsedMs = elapsed
+      }
+      return AgentToolOutcome(output: text, level: level, risk: risk)
+
+    case .failure(let error):
+      let text = error.userText
+      store.updateAgentEvent(id: call.id) {
+        $0.state = .failed
+        $0.output = text
+        $0.elapsedMs = elapsed
+      }
+      return AgentToolOutcome(output: text, level: level, risk: risk)
     }
   }
 

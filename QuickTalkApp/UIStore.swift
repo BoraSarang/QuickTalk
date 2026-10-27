@@ -60,6 +60,8 @@ final class UIStore: ObservableObject {
   // MARK: - 도우미 도구 (PLAN_v0.18)
   /// 실행 카드 — 지금 답변에 붙는 도구 실행 기록
   @Published var agentEvents: [AgentEvent] = []
+  /// 에이전트가 `web_search` 로 확인한 출처 — 답변 아래 출처 카드에 쓴다(v0.23).
+  var agentSearchSources: [TurnSource] = []
   /// 승인을 기다리는 요청 — 카드에 [허용] 버튼이 뜬다
   @Published var agentApproval: AgentApprovalRequest?
   /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
@@ -1232,13 +1234,21 @@ final class UIStore: ObservableObject {
         var precomputedAnswer: String?
         let forced = self.forceWebSearch
         self.forceWebSearch = false
+        // 도구가 켜져 있으면 **웹 검색도 같은 루프**에서 모델이 직접 고른다(v0.23).
+        // 사전 검색·Y/N 판정을 따로 돌리면 호출이 두 번 되고, 모델이 검색 없이 답하면
+        // 그 답이 확정되어 셸·프로세스 도구를 쓸 기회가 사라진다.
+        let usesAgentTools = self.canUseAgentTools(provider)
+        let searchToolReady = self.webSearchToolAvailable
+        // 사전 검색을 건너뛰어도 되는 경우 = **루프 안에서 검색할 수 있을 때**만.
+        // Apple FM 은 web_search 를 등록하지 않으므로 사전 검색을 남긴다(안 그러면 검색을 잃는다).
+        let skipPreSearch = usesAgentTools && searchToolReady && provider.type != .appleFM
 
         // P3-a) 툴 콜링 — 모델이 `web_search`를 직접 호출한다. OpenAI 호환에서만 시도하고,
         // 프록시가 tools를 모르면(400) 아래 기존 주입 경로로 조용히 폴백한다.
         var handledByTool = false
         var toolFellBack = false
         if ws.webSearchEnabled, ws.webSearchMode == .toolCalling,
-           provider.type == .openAICompatible, !forced {
+           provider.type == .openAICompatible, !forced, !skipPreSearch {
           self.isSearching = true
           let plan = await self.planWebToolCall(provider: provider,
                                                 prompt: memoryPrefix + prompt,
@@ -1279,7 +1289,8 @@ final class UIStore: ObservableObject {
         // P3-b) `/answer` 또는 기존 주입 — "필요할 때만"은 모델 Y/N 판정으로 정한다.
         // 🌐를 켠 질문은 판정을 건너뛰고 반드시 검색한다.
         var needsSearch = false
-        if !handledByTool {
+        // 🌐(이번 질문만)은 도구가 켜져 있어도 사용자의 명시적 의도라 그대로 존중한다.
+        if !handledByTool, !skipPreSearch || forced {
           needsSearch = WebSearchQuery.shouldSearch(provider: ws.webSearchProvider, forced: forced)
           // 툴 콜링은 OpenAI 호환에서만 시도한다 — 다른 프로바이더에서는 주입 판정으로 폴백.
           let toolModeUnavailable = ws.webSearchMode == .toolCalling
@@ -1401,21 +1412,40 @@ final class UIStore: ObservableObject {
             self.conversation = self.core.conversation
           } else if let agentClient = self.makeAgentClientIfEnabled(provider: p) {
             // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
-            // (별도 판정 호출이 "메모리" 질문을 오해해 도구를 안 쓰는 문제를 만들었었다)
+            // 웹 검색도 **같은 루프**에 넣는다(v0.23) — 모델이 답을 모르면 `web_search` 를 고른다.
+            // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
+            let agentTools = AgentToolCatalog.available(
+              includingWebSearch: searchToolReady && p.type != .appleFM)
             do {
               reply = try await self.runAgentTurn(client: agentClient, prompt: modelPrompt,
                                                   history: finalHistory, turnID: aid,
+                                                  tools: agentTools,
                                                   attachments: outgoing,
                                                   onDelta: { delta in
                                                     buffer += delta
                                                     flush(false)
                                                   })
+              // 모델이 검색으로 확인한 출처가 있으면 답변에 남긴다.
+              if !self.agentSearchSources.isEmpty { sources = self.agentSearchSources }
             } catch {
               // 도구를 모르는 서버(400 등)면 도구 없는 일반 경로로 되돌린다.
               if buffer.isEmpty, WebToolError.isToolUnsupported(error) {
                 NSLog("[QuickTalk] E-MAC-TOOL-0001 도구 미지원 → 일반 경로로 폴백")
+                // 이 턴은 사전 검색을 건너뛰었으므로, 폴백에서 **검색을 잃지 않도록** 한 번 주입한다.
+                var fallbackPrompt = modelPrompt
+                if searchToolReady,
+                   await self.decidesToSearch(prompt, history: finalHistory),
+                   case .success(let results) = await self.searchWeb(query: prompt),
+                   !results.isEmpty {
+                  let context = cappedSearchContext(WebSearchContext.build(
+                    results: results,
+                    maxCharacters: searchLimits.maxCharacters,
+                    limit: searchLimits.resultCount))
+                  fallbackPrompt = memoryPrefix + context + "\n\n질문: " + prompt
+                  sources = WebSearchContext.sources(from: results, limit: searchLimits.resultCount)
+                }
                 reply = try await Self.streamReplyWithFallback(
-                  settings: self.settings, provider: p, prompt: modelPrompt,
+                  settings: self.settings, provider: p, prompt: fallbackPrompt,
                   history: finalHistory, attachments: outgoing,
                   onDelta: { delta in buffer += delta; flush(false) })
               } else {

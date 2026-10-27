@@ -1,6 +1,6 @@
 import SwiftUI
 
-// [FEATURE] 웹 검색 설정 (PLAN_v0.14) — 설정 › AI의 "웹 검색" 카드.
+// [FEATURE] 웹 검색 설정 (PLAN_v0.14) — 설정 › 검색 탭 (2026-10-27 AI 탭에서 분리).
 // 키는 `SecretStore`(600)에만 저장하고 설정 JSON·로그에는 남기지 않는다.
 extension SettingsView {
   @ViewBuilder
@@ -15,6 +15,9 @@ extension SettingsView {
         pickerRow(L("답변 방식"), selection: $store.settings.webSearchMode,
                   options: WebSearchMode.allCases.map { ($0, $0.displayName) })
         caption(store.settings.webSearchMode.explanation)
+        if store.settings.agentToolsEnabled {
+          caption(L("도우미 도구가 켜져 있으면 위 방식과 무관하게 모델이 web_search 도구로 직접 검색합니다. 이때는 검색 여부를 미리 판정하지 않습니다."))
+        }
 
         valueRow(L("검색 시점"), L("필요할 때만"))
         caption(L("질문에 최신 정보가 필요할 때만 자동으로 검색합니다. 입력독의 🌐를 켜면 그 질문은 반드시 검색합니다. 툴 콜링은 모델이 스스로 판단합니다."))
