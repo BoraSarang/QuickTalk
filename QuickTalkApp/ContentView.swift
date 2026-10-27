@@ -88,11 +88,8 @@ struct ContentView: View {
   /// 상대 시간("5분 전")을 1분마다 다시 계산하기 위한 현재 시각 — 창을 오래 열어 두어도 표기가 낡지 않는다.
   @State private var nowTick = Date()
   /// 대화창이 맨 아래에 있는가 — 아니면 우하단에 "맨 아래로" 버튼을 띄운다.
+  /// (NSScrollView 값을 직접 읽는다 — SwiftUI 선호도는 스크롤 중에 갱신되지 않는다)
   @State private var atBottom = true
-  /// 스크롤 뷰포트 높이 — 내용 끝 위치와 비교해 "맨 아래"를 판정한다.
-  @State private var viewportHeight: CGFloat = 0
-  /// 내용 끝(마커)의 y — 뷰포트 좌표계
-  @State private var contentBottom: CGFloat = 0
   var initialTab: Int = 0
   var suppressArchiveLoad = false
 
@@ -540,30 +537,15 @@ struct ContentView: View {
           // 토큰 칩이 위에 떠 있어도 첫 메시지를 가리지 않게 그만큼 비워 둔다(헤더 높이는 그대로).
           .padding(.top, showsMemoryChip ? 14 : 0)
           .frame(maxWidth: .infinity, alignment: .leading)
-          // 내용 **끝(마커)** 의 위치를 스크롤 좌표계에서 잰다 — 뷰포트 높이와 비교해 맨 아래 여부를 안다.
-          // (macOS 14라 `onScrollGeometryChange`(15+)를 못 쓰므로 GeometryReader+PreferenceKey를 쓴다)
-          .background(GeometryReader { g in
-            Color.clear.preference(key: ChatBottomKey.self,
-                                   value: g.frame(in: .named(Self.chatSpace)).maxY)
-          })
+          // 내용 끝(마커)의 위치를 스크롤 좌표계에서 잰다 — 뷰포트 높이와 비교해 맨 아래 여부를 안다.
+          // ★ GeometryReader+PreferenceKey 는 macOS 에서 스크롤 중 갱신되지 않아 버튼이 뜨지 않았다.
+          //   NSScrollView 를 직접 관찰한다(2026-10-27).
+          .background(ScrollOffsetObserver(onChange: handleScrollDistance))
         }
         .coordinateSpace(name: Self.chatSpace)
         // 처음 그릴 때·높이가 바뀔 때 **바닥을 기준**으로 잡는다(맨 아래 턴이 잘려 보이지 않게)
         .defaultScrollAnchor(.bottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(GeometryReader { g in
-          Color.clear.preference(key: ChatViewportKey.self, value: g.size.height)
-        })
-        // 두 값(내용 끝·뷰포트 높이)이 **서로 다른 시점에** 도착한다. 한쪽만 갱신하면
-        // 판정이 낡으므로(처음엔 뷰포트=0) 어느 쪽이 와도 함께 다시 계산한다.
-        .onPreferenceChange(ChatViewportKey.self) { h in
-          if abs(viewportHeight - h) > 0.5 { viewportHeight = h }
-          refreshAtBottom()
-        }
-        .onPreferenceChange(ChatBottomKey.self) { bottom in
-          if abs(contentBottom - bottom) > 0.5 { contentBottom = bottom }
-          refreshAtBottom()
-        }
         // 기억 사용량 — 헤더가 아니라 대화 영역 위에 띄운다(탭 전환 시 헤더 높이 고정).
         .overlay(alignment: .topTrailing) { memoryChip }
         .overlay(alignment: .bottomTrailing) { hoverPreviewCard }
@@ -917,13 +899,11 @@ struct ContentView: View {
     proxy.scrollTo(Self.bottomID, anchor: .bottom)
   }
 
-  /// 맨 아래 판정 — 24pt 여유(스크롤 관성·여백 오차 흡수)
-  private func refreshAtBottom() {
-    guard viewportHeight > 0 else { return }
-    let atEnd = contentBottom <= viewportHeight + 24
-    if atBottom != atEnd {
-      withAnimation(.easeInOut(duration: 0.12)) { atBottom = atEnd }
-    }
+  /// 스크롤 위치가 바뀔 때 — 맨 아래 판정(24pt 여유). NSScrollView 관찰자가 부른다.
+  private func handleScrollDistance(_ distance: CGFloat) {
+    let atEnd = ScrollMetrics.isAtBottom(distance: distance)
+    guard atBottom != atEnd else { return }
+    withAnimation(.easeInOut(duration: 0.12)) { atBottom = atEnd }
   }
 
   private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
@@ -1410,18 +1390,66 @@ struct MemorySheet: View {
 
 
 
-/// 대화 스크롤 — 내용 끝의 y(뷰포트 좌표계)
-private struct ChatBottomKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = max(value, nextValue())
-  }
-}
+/// 대화 스크롤 — 실제 `NSScrollView` 값을 관찰해 "맨 아래까지 남은 거리"를 알린다.
+///
+/// `GeometryReader`+`PreferenceKey` 는 macOS 에서 **레이아웃 때만** 값이 갱신됐다.
+/// 스크롤은 `NSScrollView` 의 transform 이라 선호도가 다시 오지 않았고,
+/// 그래서 "맨 아래로" 버튼이 스크롤 중에 뜨지 않았다(2026-10-27 사용자 보고).
+/// 문서 크기 변화(스트리밍·첨부)도 함께 본다.
+private struct ScrollOffsetObserver: NSViewRepresentable {
+  let onChange: (CGFloat) -> Void
 
-/// 대화 스크롤 — 뷰포트 높이
-private struct ChatViewportKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = nextValue()
+  func makeNSView(context: Context) -> ObserverView { ObserverView(onChange: onChange) }
+  func updateNSView(_ nsView: ObserverView, context: Context) { nsView.onChange = onChange }
+
+  final class ObserverView: NSView {
+    var onChange: (CGFloat) -> Void
+    private var tokens: [NSObjectProtocol] = []
+
+    init(onChange: @escaping (CGFloat) -> Void) {
+      self.onChange = onChange
+      super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit { tokens.forEach(NotificationCenter.default.removeObserver) }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      attach()
+    }
+
+    /// 배경 뷰가 클릭·스크롤을 가로채지 않게
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    private func attach() {
+      tokens.forEach(NotificationCenter.default.removeObserver)
+      tokens.removeAll()
+      guard let scroll = enclosingScrollView else { return }
+      scroll.contentView.postsBoundsChangedNotifications = true
+      scroll.documentView?.postsFrameChangedNotifications = true
+      let center = NotificationCenter.default
+      tokens.append(center.addObserver(forName: NSView.boundsDidChangeNotification,
+                                       object: scroll.contentView, queue: .main) { [weak self] _ in
+        self?.report()
+      })
+      tokens.append(center.addObserver(forName: NSView.frameDidChangeNotification,
+                                       object: scroll.documentView, queue: .main) { [weak self] _ in
+        self?.report()
+      })
+      // 레이아웃이 확정된 뒤 첫 값 — 창을 열 때 버튼이 잠깐 잘못 뜨는 것을 막는다.
+      DispatchQueue.main.async { [weak self] in self?.report() }
+    }
+
+    private func report() {
+      guard let scroll = enclosingScrollView, let document = scroll.documentView else { return }
+      let distance = ScrollMetrics.distanceFromBottom(
+        documentHeight: document.frame.height,
+        offsetY: scroll.contentView.bounds.origin.y,
+        viewportHeight: scroll.contentView.bounds.height)
+      onChange(distance)
+    }
   }
 }
