@@ -49,6 +49,20 @@ final class LocalizationCoverageTests: XCTestCase {
     XCTAssertTrue(offenders.isEmpty, "영어 번역에 한글이 남아 있습니다: \(offenders)")
   }
 
+  /// `caption(...)` 은 **평문**이다 — 마크다운 `**강조**` 를 넣으면 별표가 화면에 그대로 보인다(2026-10-27).
+  func testPlainCaptionsHaveNoMarkdownEmphasis() throws {
+    let files = try SourceScanner.files()
+    var bad: [String] = []
+    for file in files {
+      for (index, line) in file.text.components(separatedBy: .newlines).enumerated() {
+        guard line.contains("caption(L(\"") , line.contains("**") else { continue }
+        bad.append("\(file.path):\(index + 1)")
+      }
+    }
+    XCTAssertTrue(bad.isEmpty,
+                  "caption 은 평문입니다 — `**` 대신 강조를 빼거나 다른 뷰를 쓰세요:\n" + bad.joined(separator: "\n"))
+  }
+
   /// 검사 대상이 실제로 잡히는지 — 스캐너가 조용히 0건을 훑고 통과하는 것을 막는다.
   func testScannerFindsLocalizedLiterals() throws {
     let files = try SourceScanner.files()
@@ -70,6 +84,7 @@ private struct SourceScanner {
 
   struct File {
     let path: String
+    let text: String
     let literals: [Hit]
   }
 
@@ -91,7 +106,7 @@ private struct SourceScanner {
       for case let url as URL in walker where url.pathExtension == "swift" {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
         let relative = url.path.replacingOccurrences(of: root.path + "/", with: "")
-        result.append(File(path: relative, literals: scan(text)))
+        result.append(File(path: relative, text: text, literals: scan(text)))
       }
     }
     guard !result.isEmpty else {

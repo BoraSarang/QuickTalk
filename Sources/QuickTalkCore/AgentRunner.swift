@@ -122,8 +122,10 @@ public struct AgentRunner {
     while steps < maxSteps {
       steps += 1
       try Task.checkCancellation()
+      // ★ 사용자 첨부와 스크린샷을 **함께** 싣는다. 예전에는 스크린샷이 한 장이라도
+      //   생기면 `images` 만 보내 **사용자가 붙인 첨부가 사라졌다**(2026-10-27).
       let step = try await client.nextStep(messages: messages, tools: tools,
-                                           attachments: images.isEmpty ? attachments : images,
+                                           attachments: attachments + images,
                                            onDelta: onDelta)
       switch step {
       case .finalAnswer(let text, _):

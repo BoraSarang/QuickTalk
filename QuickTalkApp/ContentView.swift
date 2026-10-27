@@ -1083,7 +1083,8 @@ struct ContentView: View {
   /// 슬래시 팔레트(v0.21) — `/`로 시작하면 명령을 보여 주고 **클릭**으로 고른다.
   /// Enter 처리(전송)는 바꾸지 않는다 — 한글 IME 안전을 위해 클릭 선택만 추가한다.
   @ViewBuilder private var slashPalette: some View {
-    let matches = SlashCommands.matches(store.draft)
+    let matches = SlashCommands.matches(store.draft,
+                                       toolsEnabled: store.settings.agentToolsEnabled)
     if !matches.isEmpty {
       VStack(alignment: .leading, spacing: 0) {
         ForEach(matches) { command in

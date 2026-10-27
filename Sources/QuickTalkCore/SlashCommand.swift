@@ -24,17 +24,20 @@ public struct SlashCommand: Identifiable, Equatable {
   public let template: String
   /// SF Symbol
   public let systemImage: String
+  /// 도우미 도구가 켜져 있어야 쓸 수 있는 명령인가 — 도구가 꺼져 있으면 팔레트에서 숨긴다.
+  public let requiresTools: Bool
 
   public var id: String { name }
   public var token: String { "/" + name }
 
   public init(name: String, aliases: [String] = [], summary: String,
-              template: String, systemImage: String) {
+              template: String, systemImage: String, requiresTools: Bool = true) {
     self.name = name
     self.aliases = aliases
     self.summary = summary
     self.template = template
     self.systemImage = systemImage
+    self.requiresTools = requiresTools
   }
 
   /// 검색어가 이 명령과 맞는가 — 이름·별칭·설명의 부분 일치.
@@ -48,7 +51,19 @@ public struct SlashCommand: Identifiable, Equatable {
 }
 
 public enum SlashCommands {
-  public static let all: [SlashCommand] = [
+  /// 전체 명령 — **계산 프로퍼티**다.
+  ///
+  /// 예전에는 `static let` 이라 처음 읽는 순간의 언어로 문구가 고정됐고(설정에서 영어로 바꿔도
+  /// 팔레트만 한국어로 남았다), 도구를 꺼도 계속 보였다(2026-10-27).
+  public static var all: [SlashCommand] { catalog }
+
+  /// 지금 설정에서 쓸 수 있는 명령 — 도우미 도구가 꺼져 있으면 도구가 필요한 명령은 숨긴다.
+  public static func available(agentToolsEnabled: Bool) -> [SlashCommand] {
+    agentToolsEnabled ? catalog : catalog.filter { !$0.requiresTools }
+  }
+
+  private static var catalog: [SlashCommand] {
+    [
     SlashCommand(
       name: "화면",
       aliases: ["screen", "screenshot", "캡처"],
@@ -84,14 +99,18 @@ public enum SlashCommands {
       aliases: ["settings", "config"],
       summary: L("QuickTalk 설정·기능 확인"),
       template: L("지금 QuickTalk 설정과 켜져 있는 기능을 알려 주세요."),
-      systemImage: "slider.horizontal.3"),
+      systemImage: "slider.horizontal.3",
+      // 설정·도움말은 도구 없이도 된다(앱 지식은 지시문에 실린다).
+      requiresTools: false),
     SlashCommand(
       name: "도움말",
       aliases: ["help", "commands"],
       summary: L("슬래시 명령 목록 보기"),
       template: L("슬래시 명령으로 무엇을 할 수 있는지 알려 주세요."),
-      systemImage: "questionmark.circle")
-  ]
+      systemImage: "questionmark.circle",
+      requiresTools: false)
+    ]
+  }
 
   /// 팔레트를 보여 줄 상태인가 — `/`로 시작하고 아직 한 줄이며 공백이 없는 **첫 토큰**일 때.
   public static func isPaletteVisible(for text: String) -> Bool {
@@ -102,11 +121,11 @@ public enum SlashCommands {
     return !body.contains(" ")
   }
 
-  /// 현재 입력으로 거른 목록.
-  public static func matches(_ text: String) -> [SlashCommand] {
+  /// 현재 입력으로 거른 목록 — `toolsEnabled` 가 false 면 도구가 필요한 명령은 빠진다.
+  public static func matches(_ text: String, toolsEnabled: Bool = true) -> [SlashCommand] {
     guard isPaletteVisible(for: text) else { return [] }
     let query = String(text.dropFirst())
-    return all.filter { $0.matches(query) }
+    return available(agentToolsEnabled: toolsEnabled).filter { $0.matches(query) }
   }
 
   /// 입력 전체가 슬래시 명령인가 — `/화면` 또는 `/화면 지금 바로`.
