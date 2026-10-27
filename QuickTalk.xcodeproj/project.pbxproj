@@ -62,6 +62,7 @@
 		9B81D3B83509FF5189FA3963 /* PiperTTS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61862A22D0D26A7FD8353492 /* PiperTTS.swift */; };
 		9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */; };
 		9E37D52B4BB4467F48E1C8D8 /* UndoStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6269B30CB5BB47B58A08AF /* UndoStack.swift */; };
+		C0FFEE00000000000000B002 /* ScrollMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000B001 /* ScrollMetrics.swift */; };
 		A4C52DEDF313B0B67FACAE78 /* SettingsView+WebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA84ABEFD1876BF8ED75C710 /* SettingsView+WebSearch.swift */; };
 		A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */; };
 		A5CD27110B006E899FDD8692 /* ShelfView+Files.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */; };
@@ -160,6 +161,7 @@
 		BA9BCCA747D217A179117D3A /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
 		BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTTS.swift; sourceTree = "<group>"; };
 		BC6269B30CB5BB47B58A08AF /* UndoStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStack.swift; sourceTree = "<group>"; };
+		C0FFEE00000000000000B001 /* ScrollMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollMetrics.swift; sourceTree = "<group>"; };
 		BDFC26990BB20F9BEE4815D1 /* SettingsView+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Archive.swift"; sourceTree = "<group>"; };
 		BF6F7E15FBDB5674F84A5739 /* OutgoingAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutgoingAttachment.swift; sourceTree = "<group>"; };
 		C1B2D0681DEA0AF92CD486A7 /* AttachmentRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentRetry.swift; sourceTree = "<group>"; };
@@ -312,6 +314,7 @@
 				977B88D65083332C14B1B0E6 /* ToolSchemas.swift */,
 				C7677F9ECC5E6A8A9402228C /* TrashRewrite.swift */,
 				BC6269B30CB5BB47B58A08AF /* UndoStack.swift */,
+				C0FFEE00000000000000B001 /* ScrollMetrics.swift */,
 				CCC6202DA471E06B93A3E247 /* VoiceService.swift */,
 				D95F7F96477810C260032BED /* WebSearch.swift */,
 				4340B244244ED63B5DEF0D28 /* WebTools.swift */,
@@ -484,6 +487,7 @@
 				C0FFEE00000000000000A501 /* TerminalHandoffService.swift in Sources */,
 				C0FFEE00000000000000A601 /* QuickTalkIntents.swift in Sources */,
 				9E37D52B4BB4467F48E1C8D8 /* UndoStack.swift in Sources */,
+				C0FFEE00000000000000B002 /* ScrollMetrics.swift in Sources */,
 				F5C5DFA30D02D21416C2BC23 /* VoiceService.swift in Sources */,
 				C9709D03BD65F3FF7B18377B /* WebSearch.swift in Sources */,
 				AECA4A0F7457C6FC3A20BE4E /* WebTools.swift in Sources */,
