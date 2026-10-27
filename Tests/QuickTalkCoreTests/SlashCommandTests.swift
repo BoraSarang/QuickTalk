@@ -16,6 +16,26 @@ final class SlashCommandTests: XCTestCase {
     XCTAssertTrue(SlashCommands.matches("일반 질문").isEmpty)
   }
 
+  /// 팔레트 문구는 **지금 언어**를 따라야 한다 — `static let` 이면 처음 읽은 언어로 고정된다.
+  func testCatalogFollowsCurrentLanguage() {
+    addTeardownBlock { L10n.language = .system }
+    L10n.language = .korean
+    let korean = SlashCommands.all.first { $0.name == "화면" }?.summary
+    L10n.language = .english
+    let english = SlashCommands.all.first { $0.name == "화면" }?.summary
+    XCTAssertNotEqual(korean, english, "언어를 바꾸면 팔레트 설명도 바뀌어야 한다")
+    XCTAssertEqual(korean, "지금 화면을 찍어서 보여 달라고 요청")
+  }
+
+  /// 도우미 도구를 끄면 도구가 필요한 명령은 팔레트에서 사라진다(2026-10-27).
+  func testToolCommandsHiddenWhenToolsDisabled() {
+    let off = SlashCommands.available(agentToolsEnabled: false).map(\.name)
+    XCTAssertEqual(Set(off), ["설정", "도움말"])
+    XCTAssertTrue(SlashCommands.matches("/디스크", toolsEnabled: false).isEmpty)
+    XCTAssertEqual(SlashCommands.matches("/도움말", toolsEnabled: false).first?.name, "도움말")
+    XCTAssertEqual(SlashCommands.available(agentToolsEnabled: true).count, SlashCommands.all.count)
+  }
+
   func testEmptySlashListsEverything() {
     XCTAssertEqual(SlashCommands.matches("/").count, SlashCommands.all.count)
     XCTAssertEqual(SlashCommands.matches("/화면").count, 1)

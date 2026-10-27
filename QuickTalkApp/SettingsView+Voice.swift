@@ -125,7 +125,7 @@ extension SettingsView {
         Button(L("선택…")) { showWhisperFolderPicker = true }
       }
       caption(L("기본 탐색 폴더: ~/Documents/Files/whisper · ~/Library/Application Support/QuickTalk/models"))
-      caption(L("whisper.cpp는 ggml-*.bin 파일, mlx-whisper는 config.json + 가중치 폴더를 씁니다. 모델을 비우면 감지된 것 중 **가장 큰 모델**을 자동으로 씁니다."))
+      caption(L("whisper.cpp는 ggml-*.bin 파일, mlx-whisper는 config.json + 가중치 폴더를 씁니다. 모델을 비우면 감지된 것 중 가장 큰 모델을 자동으로 씁니다."))
         .fileImporter(isPresented: $showWhisperPicker,
                       allowedContentTypes: whisperPickKind == .ggml ? [.item] : [.folder, .item]) { res in
           if case .success(let url) = res {

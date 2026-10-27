@@ -1,4 +1,6 @@
 import XCTest
+import CoreGraphics
+import ImageIO
 @testable import QuickTalkCore
 
 // [FEATURE] 에이전트 런타임 단위 테스트 (PLAN_v0.18 §8)
@@ -232,6 +234,37 @@ final class AgentTests: XCTestCase {
     XCTAssertTrue(secondMessages.contains { $0.role == .tool && $0.content.contains("df 출력") })
   }
 
+  /// 스크린샷이 사용자가 붙인 첨부를 **밀어내지 않아야** 한다(2026-10-27 사용자 보고).
+  @MainActor
+  func testScreenshotKeepsUserAttachments() async throws {
+    let shot = try writePNG()
+    defer { try? FileManager.default.removeItem(at: shot) }
+    let note = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-note-\(UUID().uuidString).txt")
+    try "참고 메모".write(to: note, atomically: true, encoding: .utf8)
+    defer { try? FileManager.default.removeItem(at: note) }
+    let userAttachment = AttachmentLoader.load(name: note.lastPathComponent,
+                                               kind: .file, url: note)
+    XCTAssertTrue(userAttachment.hasText, "사용자 첨부가 준비돼야 한다")
+
+    let client = MockAgentClient(steps: [
+      .toolCalls([AgentToolCall(id: "c1", name: "screenshot",
+                                arguments: #"{"target":"window"}"#)], reasoning: nil),
+      .finalAnswer("창을 찍었습니다.", reasoning: nil)
+    ])
+    let executor = MockAgentExecutor()
+    executor.imageURL = shot
+    let runner = AgentRunner(client: client, executor: executor)
+    _ = try await runner.run(prompt: "창 캡처해서 보여줘", history: [],
+                             tools: AgentToolCatalog.all, attachments: [userAttachment])
+
+    // 첫 스텝 = 사용자 첨부만, 둘째 스텝 = 사용자 첨부 + 스크린샷
+    let second = client.receivedAttachments.dropFirst().first ?? []
+    XCTAssertTrue(second.contains { $0.name == userAttachment.name },
+                  "스크린샷을 찍어도 사용자 첨부가 유지돼야 한다")
+    XCTAssertTrue(second.contains { $0.hasImage }, "스크린샷이 다음 스텝에 실려야 한다")
+  }
+
   @MainActor
   func testAgentRunnerStopsAtMaxSteps() async throws {
     // 서로 다른 명령이어야 반복 방지(같은 명령 3번째는 실행하지 않는다)에 걸리지 않는다
@@ -382,11 +415,14 @@ private final class MockAgentClient: AgentClient {
 
   init(steps: [AgentStep]) { self.steps = steps }
 
+  var receivedAttachments: [[OutgoingAttachment]] = []
+
   func nextStep(messages: [AgentMessage],
                 tools: [AgentTool],
                 attachments: [OutgoingAttachment],
                 onDelta: @escaping @MainActor (String) -> Void) async throws -> AgentStep {
     receivedMessages.append(messages)
+    receivedAttachments.append(attachments)
     guard index < steps.count else { return .finalAnswer("끝", reasoning: nil) }
     let step = steps[index]
     index += 1
@@ -398,9 +434,34 @@ private final class MockAgentClient: AgentClient {
 @MainActor
 private final class MockAgentExecutor: AgentToolExecutor {
   var executed: [AgentToolCall] = []
+  /// `screenshot` 도구가 돌려줄 이미지(있으면 다음 스텝에 첨부로 실린다)
+  var imageURL: URL?
 
   func execute(_ call: AgentToolCall, tools: [AgentTool]) async -> AgentToolOutcome {
     executed.append(call)
-    return AgentToolOutcome(output: "df 출력", level: .read, risk: .normal)
+    return AgentToolOutcome(output: "df 출력", level: .read, risk: .normal,
+                            imageURL: call.name == "screenshot" ? imageURL : nil)
   }
+}
+
+// MARK: - 테스트용 이미지
+
+/// 1×1 PNG 파일 — 스크린샷 도구가 돌려주는 이미지 자리.
+func writePNG() throws -> URL {
+  let width = 4, height = 4
+  let space = CGColorSpaceCreateDeviceRGB()
+  let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                      bytesPerRow: 0, space: space,
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  ctx.setFillColor(CGColor(red: 0.4, green: 0.3, blue: 0.9, alpha: 1))
+  ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+  let image = ctx.makeImage()!
+  let url = FileManager.default.temporaryDirectory
+    .appendingPathComponent("qt-shot-\(UUID().uuidString).png")
+  let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)!
+  CGImageDestinationAddImage(dest, image, nil)
+  guard CGImageDestinationFinalize(dest) else {
+    throw NSError(domain: "writePNG", code: 1)
+  }
+  return url
 }

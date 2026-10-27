@@ -161,7 +161,7 @@ extension SettingsView {
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
           .fill(Color.primary.opacity(0.04)))
       }
-      caption(L("여기서는 **위험도·허용 규칙·단계 정책**만 미리 봅니다. 샌드박스 실측(실제 실행)은 하지 않습니다 — 실측은 명령을 승인한 뒤에만 합니다."))
+      caption(L("여기서는 위험도·허용 규칙·단계 정책만 미리 봅니다. 샌드박스 실측(실제 실행)은 하지 않습니다 — 실측은 명령을 승인한 뒤에만 합니다."))
     }
 
     groupBox(L("실행 기록")) {
