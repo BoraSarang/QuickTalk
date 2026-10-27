@@ -10,7 +10,7 @@
 - **수정(원칙화)**: 지시문에서 **명령·기기 이름 삭제**(`기기 연결 상태`·`adb devices`·명령 예시 목록) + 판단 게이트 1개("이 결과가 답을 바꾸는가?") + "메모리"는 **이 컴퓨터의 RAM** 으로 한정 + `compactText` 동기화. 규칙을 더하지 않고 줄였다.
 - **거버넌스**: `docs/DESIGN.md` §13 — 행동 원칙(앱 공용) / 앱 구현 사실(공용) / 개인 환경·취향(설정) 3층 분류 + 테스트는 원칙을 고정.
 - **검증**: `swift test` **510/510**(6 skip, 신규 1 — 지시문에 명령 이름 나열 금지) · Debug/Release BUILD SUCCEEDED · Release 바이너리에 게이트 문장 존재·`adb devices` 0.
-- **배포**: **미실시**(사용자 확인 대기) — `~/Applications/QuickTalk.app` 교체는 확인 후.
+- **배포**: 2026-10-27 21:47 `~/Applications/QuickTalk.app` 교체(직전 v0.24 → `.QuickTalk.old`) · `codesign --verify --strict` OK · SHA-256 `943789ce0d1551a857944eee27f1caac26259de91137630c9a3c025fa07be8b3` · **앱 재실행 대기**(실행 중 아님 확인).
 - **대기(실측)**: 같은 질문에 셸 0회·`web_search` 1회인지 / "지금 메모리 얼마나 써?"는 그대로 `processes`·셸로 답하는지.
 
 ## 이전 (2026-10-27 15:35) — v0.24 설정 재구성

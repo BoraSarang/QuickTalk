@@ -12,9 +12,9 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **v0.24(2026-10-27)** `~/Applications/QuickTalk.app` · `codesign --verify --strict` OK · SHA-256 `1175ec9be1906520…` (직전 v0.23 빌드는 `~/Applications/.QuickTalk.old`) |
+| 현재 빌드 | **지시문 원칙화(2026-10-27 21:47)** `~/Applications/QuickTalk.app` · `codesign --verify --strict` OK · SHA-256 `943789ce0d15…` (직전 v0.24 빌드는 `~/Applications/.QuickTalk.old`) |
 | 테스트 | **510/510**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-27 지시문 원칙화 기준) |
-| 마지막 완료 | **에이전트 지시문 원칙화**(2026-10-27 21:45) — 명령·기기 이름 삭제 + "이 결과가 답을 바꾸는가?" 게이트 · `DESIGN.md` §13 거버넌스 · 510/510 · Debug/Release BUILD SUCCEEDED · **배포 전** |
+| 마지막 완료 | **에이전트 지시문 원칙화**(2026-10-27 21:45) — 명령·기기 이름 삭제 + "이 결과가 답을 바꾸는가?" 게이트 · `DESIGN.md` §13 거버넌스 · 510/510 · Debug/Release BUILD SUCCEEDED · **배포 완료(21:47)** |
 | 이전 완료 | **v0.24 설정 재구성**(2026-10-27 15:10) — 9탭/3묶음, 웹 검색→검색 · 기억/창/보관→대화 · 시스템 권한 한 곳. `swift test` 509/509 · BUILD SUCCEEDED · 한/영 렌더 확인. **배포 완료** |
 | 다음 작업 | **배포 확인 → 앱 재실행** → 기기 사양 질문에 셸 0회·`web_search` 1회 실측 → 새 구성 실측 3건(대화 탭 흐름 · 영어 탭 한 줄 · 시스템 권한 버튼) |
 | 실측 대기 | **v0.24 3건** + **v0.23 3건** + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |
