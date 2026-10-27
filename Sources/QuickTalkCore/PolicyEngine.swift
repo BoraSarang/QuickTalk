@@ -215,7 +215,10 @@ public enum PolicyEngine {
       if pattern == normalized { return true }
       if pattern.contains("*") {
         if matchesWildcard(command: normalized, pattern: pattern) { return true }
-      } else if normalized.hasPrefix(pattern + " ") || normalized.hasPrefix(pattern) {
+      } else if normalized.hasPrefix(pattern + " ") {
+        // 규칙이 **명령 접두어**일 때만: "brew install" → "brew install x".
+        // ★ 예전에는 `hasPrefix(pattern)` 도 통과시켜 `/tmp/a` 규칙이 `/tmp/ab` 까지
+        //   허용했다(허용 범위 초과, 2026-10-27). 경계(공백)를 요구한다.
         return true
       }
     }

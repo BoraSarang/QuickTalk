@@ -300,41 +300,60 @@ final class AgentExecutor: AgentToolExecutor {
     return text
   }
 
+  // MARK: - 실행 카드
+
+  /// 도구 호출 **1건 = 카드 1장**.
+  ///
+  /// 승인 대기(`.pending`) 카드를 먼저 띄운 뒤 실행 단계에서 새 카드를 또 추가하면,
+  /// `updateAgentEvent` 는 첫 장만 고치므로 **첫 카드가 "실행 중"으로 굳고** 결과 카드가
+  /// 따로 생긴다. 같은 id 가 이미 있으면 그 카드의 상태·출력만 바꾼다(2026-10-27).
+  private func upsertAgentEvent(_ event: AgentEvent) {
+    guard store.agentEvents.contains(where: { $0.id == event.id }) else {
+      store.appendAgentEvent(event)
+      return
+    }
+    store.updateAgentEvent(id: event.id) { existing in
+      existing.state = event.state
+      existing.output = event.output
+    }
+  }
+
   // MARK: - 파일 읽기 · 폴더 목록
 
   private func readFile(_ call: AgentToolCall) async -> AgentToolOutcome {
     let path = call.stringArgument("path") ?? ""
     let level = AgentPermissionLevel.read
     let risk = AgentRiskLevel.normal
-    // 읽기는 기본 자동 허용 — 정책이 "매번 확인"이면 확인 카드
-    if store.effectiveAgentPolicy.autoApprove(for: level) == .alwaysAsk {
+    // 읽기는 기본 자동 허용 — 정책이 "매번 확인"이면 확인 카드(판정은 스크린샷과 같은 곳)
+    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy) {
       let request = AgentApprovalRequest(command: path, level: level, risk: risk,
                                          capability: .read, writablePaths: [],
                                          reason: L("파일을 읽으려면 확인이 필요합니다."))
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
-                                        command: path, level: level, risk: risk,
-                                        state: .pending, output: request.reason))
+      upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+                                  command: path, level: level, risk: risk,
+                                  state: .pending, output: request.reason))
       if await requestApproval(request) == .deny {
         let text = L("사용자가 파일 읽기를 거부했습니다.")
         store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
         return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
       }
     }
-    store.updateAgentEvent(id: call.id) { $0.state = .running }
+    upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+                                command: path, level: level, risk: risk, state: .running))
     let fm = FileManager.default
     guard fm.fileExists(atPath: path) else {
       let text = Lf("파일이 없습니다: %@", path)
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
-                                        command: path, level: level, risk: risk,
-                                        state: .failed, output: text))
+      upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+                                  command: path, level: level, risk: risk,
+                                  state: .failed, output: text))
       return AgentToolOutcome(output: text, level: level, risk: risk)
     }
     let data = (try? Data(contentsOf: URL(fileURLWithPath: path))) ?? Data()
     let limited = data.count > 20_000 ? data.prefix(20_000) : data
     let text = String(data: limited, encoding: .utf8) ?? L("(텍스트가 아닌 파일입니다)")
-    store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
-                                      command: path, level: level, risk: risk,
-                                      state: .done, output: Lf("(파일 %d자)", text.count)))
+    upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+                                command: path, level: level, risk: risk,
+                                state: .done, output: Lf("(파일 %d자)", text.count)))
     return AgentToolOutcome(output: text, level: level, risk: risk)
   }
 
@@ -397,9 +416,28 @@ final class AgentExecutor: AgentToolExecutor {
   /// 읽기 전용이며, 화면 기록 권한이 없으면 **허용 방법**을 알려 준다.
   private func captureScreenshot(_ call: AgentToolCall) async -> AgentToolOutcome {
     let target = call.stringArgument("target") ?? "window"
-    let level = AgentPermissionLevel.read
+    let level = AgentToolPermission.level(for: call.name)
     let risk = AgentRiskLevel.normal
-    store.appendAgentEvent(AgentEvent(
+    // ★ 읽기 단계 정책을 그대로 따른다. 예전에는 이 판정이 없어 "읽기: 매번 확인"
+    //   으로 설정해도 화면 캡처가 무조건 실행됐다(2026-10-27).
+    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy) {
+      let command = "screenshot \(target)"
+      let request = AgentApprovalRequest(
+        command: command, level: level, risk: risk, capability: .read, writablePaths: [],
+        reason: L("화면을 캡처하려면 확인이 필요합니다."))
+      upsertAgentEvent(AgentEvent(
+        id: call.id, toolName: call.name,
+        title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
+        command: target, level: level, risk: risk, state: .pending, output: request.reason))
+      if await requestApproval(request) == .deny {
+        let text = L("사용자가 화면 캡처를 거부했습니다.")
+        store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
+        AgentAudit.record(command: command, level: level, risk: risk,
+                          decision: "deny", exitCode: nil, elapsedMs: 0)
+        return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+      }
+    }
+    upsertAgentEvent(AgentEvent(
       id: call.id, toolName: call.name,
       title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
       command: target, level: level, risk: risk, state: .running))

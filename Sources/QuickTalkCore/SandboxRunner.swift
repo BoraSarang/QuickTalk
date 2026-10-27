@@ -112,7 +112,7 @@ public enum SandboxRunner {
       // ★ 시스템 전역(루트 포함) 경로에는 쓰기를 열지 않는다 — 이 경로가 열리면
       //   앱이 디스크 전체를 지울 수 있다(2026-10-22 사고).
       if RiskClassifier.isSystemScopePath(path) { continue }
-      p += "(allow file-write* (subpath \"\(resolveRealPath(path))\"))"
+      p += "(allow file-write* (subpath \"\(profilePath(resolveRealPath(path)))\"))"
     }
     if allowNetwork { p += "(allow network*)" }
     return p
@@ -125,10 +125,28 @@ public enum SandboxRunner {
       p += "(deny file-write*)"
       p += "(allow file-write* (literal \"/dev/null\"))"
       for path in writablePaths {
-        p += "(allow file-write* (subpath \"\(resolveRealPath(path))\"))"
+        p += "(allow file-write* (subpath \"\(profilePath(resolveRealPath(path)))\"))"
       }
     }
     return p
+  }
+
+  /// 샌드박스 프로필의 문자열 리터럴 안에 넣을 값 — `\\`·`"` 를 이스케이프한다.
+  ///
+  /// 경로에 따옴표가 들어 있으면 프로필 문법이 깨져 규칙이 **엉뚱한 경로**에 걸리거나
+  /// 실행이 이유 없이 실패한다(2026-10-27). 제어문자는 프로필에 표현할 수 없으므로 지운다
+  /// (지운 경로는 존재하지 않으므로 쓰기가 열리지 않는다 — 넓어지지 않는다).
+  public static func profilePath(_ path: String) -> String {
+    var out = ""
+    for scalar in path.unicodeScalars {
+      switch scalar {
+      case "\\": out += "\\\\"
+      case "\"": out += "\\\""
+      default:
+        if scalar.value >= 0x20 { out.unicodeScalars.append(scalar) }
+      }
+    }
+    return out
   }
 
   /// realpath(3) — 존재하는 경로만 해석된다. `URL.resolvingSymlinksInPath()` 는 /var 를 못 푼다.
