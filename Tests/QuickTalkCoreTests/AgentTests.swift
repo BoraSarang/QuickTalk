@@ -309,20 +309,32 @@ final class AgentTests: XCTestCase {
     XCTAssertTrue(title.contains("Qoder vs Cursor"), title)
   }
 
-  /// 로컬 조사 범위 — "설치된 앱/도구"는 **이 컴퓨터의 상태**를 묻는 질문에만 쓴다.
-  /// (2026-10-26 사용자 보고: 제품 비교 질문에 `/Applications`·`mdfind`·`brew info` 를 실행했다)
+  /// 로컬 조사 범위 — **원칙**만 고정한다(사건별 예외 조항을 늘리지 않는다).
+  /// (2026-10-26 제품 비교 질문에 `/Applications`·`mdfind`·`brew info`,
+  ///  2026-10-27 기기 사양 질문에 `which adb && adb devices -l` 실행)
   func testInstructionsScopeLocalProbing() {
     let text = AgentInstructions.text
     XCTAssertTrue(text.contains("이 컴퓨터의 상태"), "조사 대상은 컴퓨터 상태로 한정한다")
-    XCTAssertTrue(text.contains("세상에 대한 질문은 로컬 조사 대상이 아니다"))
-    XCTAssertTrue(text.contains("설치 여부를 확인해 답을 바꾸지 말고"))
+    XCTAssertTrue(text.contains("나머지는 로컬 조사 대상이 아니다"))
+    XCTAssertTrue(text.contains("이 결과가 답을 바꾸는가?"), "실행 전 판단 게이트")
     XCTAssertTrue(text.contains("web_search"), "모르는 세상 사실은 검색 도구로 확인한다")
     XCTAssertTrue(text.contains("설정 › 웹 검색"), "검색이 없으면 설정 경로를 안내한다")
     XCTAssertTrue(text.contains("넓게 훑지 않는다"), "불확실할 때의 탐색 범위를 제한한다")
+    XCTAssertTrue(text.contains("다른 기기의 사양에 적힌 메모리"), "기기 사양 질문은 로컬 확인 대상이 아니다")
 
     let compact = AgentInstructions.compactText
     XCTAssertTrue(compact.contains("이 컴퓨터의 상태"))
-    XCTAssertTrue(compact.contains("제품 비교"))
+    XCTAssertTrue(compact.contains("제품"))
+    XCTAssertTrue(compact.contains("답을 바꾸지 않으면"))
+  }
+
+  /// 앱은 **명령어 사전을 갖지 않는다**(v0.18 설계 원칙). 지시문에 명령 이름을 나열하면
+  /// 그 이름이 곧 허용 신호가 되어, 그 도구가 설치된 사람에게만 다르게 동작한다.
+  func testInstructionsDoNotEnumerateCommands() {
+    let text = AgentInstructions.text + AgentInstructions.compactText
+    for name in ["adb", "brew", "vm_stat", "system_profiler", "pip", "ollama"] {
+      XCTAssertFalse(text.contains(name), "지시문에 명령·도구 이름을 나열하지 않는다: \(name)")
+    }
   }
 
   // MARK: - 설정 저장
