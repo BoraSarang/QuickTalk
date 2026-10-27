@@ -88,20 +88,24 @@ build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk \
 
 ---
 
-## 4. P2 백로그 (이번에 고치지 않음)
+## 4. P2 백로그
 
-| # | 항목 | 위치 | 비고 |
+> 2026-10-27 23:45 갱신 — **8건 완료**(#1·#2·#3·#4·#6·#8·#9 + 덤), 3건 남음(#5·#7·#10).
+
+| # | 항목 | 위치 | 상태 |
 |---|---|---|---|
-| 1 | 영어 번역 누락 **74곳** | `LocalizationTable.swift` 등 | 신규 화면 문구가 한국어로 폴백. 영어 UI 실측 전에 정리 |
-| 2 | 규칙 테스터 캡션에 `**` 노출 | `SettingsView+Tools.swift:95` | 마크다운 미적용 문자열 |
-| 3 | `screenshot` 이 "읽기 매번 확인" 설정을 무시 | `AgentExecutor` | 권한 단계 판정이 실행 단계 고정 |
-| 4 | 샌드박스 프로필 경로 미이스케이프 | `SandboxRunner` | 공백·괄호 포함 경로에서 규칙이 깨질 수 있음 |
-| 5 | `usleep` 폴링 | `SandboxRunner`·`TerminalHandoffService` | 50~200ms 대기. 취소 응답성 개선 여지 |
-| 6 | `matchesRule` 의 `hasPrefix` 과매칭 | `PolicyEngine` | `rm -rf /tmp/a` 규칙이 `/tmp/ab` 까지 허용 |
-| 7 | 규칙 테스터가 쓰기를 **실행 단계**로 판정 | `PolicyEngine` | 테스터 결과와 실제 실행 단계가 다를 수 있음 |
-| 8 | 스크린샷 후 **원 첨부 대체** | `AgentExecutor` | 첨부가 있으면 스크린샷이 밀려남 |
-| 9 | `SlashCommands.all` static 고정 | `SlashCommand.swift` | 설정 변경(도구 on/off)이 팔레트에 즉시 반영되지 않음 |
-| 10 | `UIStore.swift:940` 경고 | `UIStore` | 컴파일 경고 1건 |
+| 1 | 영어 번역 누락 **74곳** | `LocalizationTable.swift` 등 | ✅ **완료** — 재검사에서 **94곳**이 더 나왔다. 손보충 대신 `LocalizationCoverageTests`(리터럴 커버리지 · 보간 금지 · 한글 잔존 · 스캐너 자기검증)로 구조 고정 + 94건 보충 · PR #44 `484ac12` |
+| 2 | 규칙 테스터 캡션에 `**` 노출 | `SettingsView+Tools.swift` | ✅ **완료** — 문구에서 `**` 제거 + `caption(L("…**…"))` 를 잡는 소스 스캔 가드 · PR #45 `8039493` |
+| 3 | `screenshot` 이 "읽기 매번 확인" 설정을 무시 | `AgentExecutor` | ✅ **완료** — Core `AgentToolPermission`(도구→권한 단계) 신설, `read_file`·`screenshot` 이 같은 판정. 거부 시 카드·감사 기록 · PR #46 `28054bd` |
+| 4 | 샌드박스 프로필 경로 미이스케이프 | `SandboxRunner` | ✅ **완료** — `profilePath(_:)` 로 `\`·`"` 이스케이프 + 제어문자 제거. `/private/tmp` 실측: `qt "q"`·`qt\b`·`qt (1) space` 쓰기 성공 · PR #46 `28054bd` |
+| 5 | `usleep` 폴링 | `SandboxRunner`·`TerminalHandoffService` | ⬜ 남음 — 50~200ms 대기. 취소 응답성 개선 여지 |
+| 6 | `matchesRule` 의 `hasPrefix` 과매칭 | `PolicyEngine` | ✅ **완료** — 경계(`pattern + " "`)만 인정. `/tmp/a` vs `/tmp/ab`·`ls` vs `lsof` 회귀 테스트 · PR #46 `28054bd` |
+| 7 | 규칙 테스터가 쓰기를 **실행 단계**로 판정 | `PolicyEngine` | ⬜ 남음 — 테스터 결과와 실제 실행 단계가 다를 수 있음 |
+| 8 | 스크린샷 후 **원 첨부 대체** | `AgentRunner` | ✅ **완료** — `attachments + images`(예전엔 스크린샷이 있으면 `images` 만 전송). 되돌리면 실패하는 회귀 테스트 · PR #45 `8039493` |
+| 9 | `SlashCommands.all` static 고정 | `SlashCommand.swift` | ✅ **완료** — 계산 프로퍼티 + `available(agentToolsEnabled:)` + `requiresTools`(설정·도움말만 도구 없이) · PR #45 `8039493` |
+| 10 | `UIStore.swift:940` 경고 | `UIStore` | ⬜ 남음 — 컴파일 경고 1건 |
+| — | (덤) 승인 카드가 "실행 중"으로 굳음 | `AgentExecutor` | ✅ **완료** — 승인 대기 카드 뒤에 실행 카드를 또 추가해 `updateAgentEvent`(첫 장만 수정)가 첫 카드를 못 넘겼다 → `upsertAgentEvent`(호출당 카드 1장) · PR #46 `28054bd` |
+| — | (덤) "맨 아래로" 버튼이 스크롤 중 안 뜸 | `ContentView` | ✅ **완료** — `GeometryReader` 추정 → `ScrollMetrics` + `ScrollOffsetObserver`(`NSScrollView` 직접 관찰) · PR #43 `ce7532a` |
 
 ---
 
@@ -110,7 +114,7 @@ build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk \
 - 설정 › 도구의 **허용 규칙** 1건(내부 주소 `curl -s … http://192.168.86.30:8791/v1/models` + `http://127.0.0.1:8791/v1/models`)
   — 사용자 요청으로 **삭제 완료**(`rules` 1→0, 나머지 53키 보존). 원본 plist 백업: `.agent/backup/com.borasarang.QuickTalk-2026-10-25.plist`.
   되살릴 필요가 있으면 그 백업에서 `QuickTalk.settings` 데이터를 복원하면 된다.
-- 실행 중 앱은 아직 10-23 빌드다 — **앱을 종료·재실행해야** 이번 수정이 실사용 화면에 반영된다.
+- 실행 중 앱은 **2026-10-27 21:47 빌드**다 — 그 뒤 배포본(23:45, SHA-256 `d04da183…`)은 디스크에만 있다. **앱을 종료·재실행해야** 반영된다.
 
 ---
 
