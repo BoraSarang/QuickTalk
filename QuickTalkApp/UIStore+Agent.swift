@@ -180,11 +180,13 @@ extension UIStore {
                     prompt: String,
                     history: [Turn],
                     turnID: UUID,
+                    tools: [AgentTool] = AgentToolCatalog.all,
                     attachments: [OutgoingAttachment] = [],
                     onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
     let executor = AgentExecutor(store: self)
     agentExecutor = executor
     agentEvents = []
+    agentSearchSources = []
     agentTurnID = turnID
     agentHandoffNotice = nil
     defer {
@@ -194,10 +196,13 @@ extension UIStore {
 
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 12)
     let result = try await runner.run(prompt: prompt, history: history,
-                                      tools: AgentToolCatalog.all, attachments: attachments,
+                                      tools: tools, attachments: attachments,
                                       onDelta: onDelta)
-    NSLog("[QuickTalk] 에이전트 종료 — 스텝 %d · 실행 %d건 · 거부 %@",
-          result.steps, result.events.count, result.hadDenial ? "있음" : "없음")
+    // 모델이 `web_search` 로 확인한 출처 — 답변 아래 출처 카드로 남긴다.
+    agentSearchSources = executor.turnSources
+    NSLog("[QuickTalk] 에이전트 종료 — 스텝 %d · 실행 %d건 · 검색 출처 %d · 거부 %@",
+          result.steps, result.events.count, agentSearchSources.count,
+          result.hadDenial ? "있음" : "없음")
     if result.answer.isEmpty {
       return L("작업을 마쳤습니다.")
     }
@@ -211,6 +216,29 @@ extension UIStore {
     let executor = AgentExecutor(store: self)
     agentExecutor = executor
     return makeAgentClient(provider: provider, executor: executor)
+  }
+
+  /// 도구를 **실제로** 쓸 수 있는가 — `makeAgentClient` 와 같은 조건(모델·주소·키).
+  /// 사전 검색(주입/툴 콜링/Y-N 판정)을 건너뛰고 에이전트 루프로 갈지 판단한다.
+  @MainActor
+  func canUseAgentTools(_ provider: LLMProviderConfig) -> Bool {
+    guard settings.agentToolsEnabled else { return false }
+    switch provider.type {
+    case .appleFM:
+      if #available(macOS 26.0, *) { return true }
+      return false
+    case .ollama:
+      return !provider.model.isEmpty && URL(string: provider.baseURL) != nil
+    case .openAICompatible:
+      return !provider.model.isEmpty && !provider.secretID.isEmpty
+        && SecretStore.has(account: provider.secretID)
+        && URL(string: provider.baseURL) != nil
+    }
+  }
+
+  /// 이번 턴에 `web_search` 도구를 넘길 수 있는가(검색이 켜져 있고 Exa 키가 있을 때).
+  var webSearchToolAvailable: Bool {
+    settings.webSearchEnabled && webSearchKeyReady
   }
 
   /// QA: 헤드리스 에이전트 1회 — 도구 실행·권한 판정·최종 답을 로그로 남긴다.

@@ -16,9 +16,7 @@ extension SettingsView {
       .padding(.vertical, 2)
       caption(L("모든 대화가 보낼 때마다 자동 저장됩니다. 🔖 보관한 대화는 남고, 그 외는 보관일수를 지난 뒤 정리됩니다."))
       valueRow(L("저장된 대화"), Lf("%d개", store.archive.count))
-    }
-    groupBox(L("저장 위치")) {
-      valueRow(L("기록 파일"), PersistenceService.storeURL.path)
+      caption(L("기록 파일 위치는 '정보' 탭에서 확인할 수 있습니다. 아래 버튼은 보관한 대화까지 모두 지웁니다."))
       HStack {
         Spacer()
         Button(L("기록 모두 지우기")) { showClearArchiveConfirm = true }
@@ -41,6 +39,8 @@ extension SettingsView {
     groupBox(L("저장 위치")) {
       valueRow(L("설정"), "UserDefaults · QuickTalk.settings")
       valueRow(L("대화 기록"), PersistenceService.storeURL.path)
+      valueRow(L("실행 기록"), AgentAudit.logURL.path)
+      valueRow(L("퀵셸프"), UIStore.shelfDir?.path ?? "~/Library/Application Support/QuickTalk/shelf")
       valueRow(L("API 키"), SecretStore.fileURL.path)
       caption(L("키는 이 Mac의 로컬 파일(권한 600)에만 저장되며 화면·로그에 출력하지 않습니다. 키체인을 쓰지 않아 실행 때마다 허용 창이 뜨지 않습니다."))
     }

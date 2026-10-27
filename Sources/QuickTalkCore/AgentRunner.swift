@@ -142,7 +142,7 @@ public struct AgentRunner {
           try Task.checkCancellation()
           // 같은 명령을 몇 번이나 반복하면(특히 작은 온디바이스 모델) 무한 반복이 된다.
           // 2번 반복된 명령은 다시 실행하지 않고, 모델에게 다른 방법을 쓰라고 알린다.
-          let signature = "\(call.name)|\(call.stringArgument("command") ?? call.stringArgument("path") ?? "")"
+          let signature = "\(call.name)|\(call.stringArgument("command") ?? call.stringArgument("path") ?? call.stringArgument("query") ?? "")"
           let repeats = (signatures[signature] ?? 0) + 1
           signatures[signature] = repeats
           if repeats > 2 {
@@ -164,7 +164,9 @@ public struct AgentRunner {
           let summary = Self.summarize(outcome.output)
           events.append(AgentEvent(id: call.id, toolName: call.name,
                                    title: Self.title(for: call, tools: tools),
-                                   command: call.stringArgument("command") ?? call.stringArgument("path") ?? "",
+                                   command: call.stringArgument("command")
+                                     ?? call.stringArgument("path")
+                                     ?? call.stringArgument("query") ?? "",
                                    level: outcome.level, risk: outcome.risk,
                                    state: outcome.denied ? .denied : .done,
                                    output: summary, elapsedMs: 0,
@@ -203,6 +205,8 @@ public struct AgentRunner {
     case "screenshot":
       let target = (call.stringArgument("target") ?? "window") == "screen" ? L("화면") : L("창")
       return Lf("스크린샷 — %@", target)
+    case "web_search":
+      return Lf("웹 검색 — %@", call.stringArgument("query") ?? "")
     default:
       return tools.first { $0.name == call.name }?.name ?? call.name
     }

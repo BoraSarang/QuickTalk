@@ -17,6 +17,30 @@ extension SettingsView {
                 description: L("대화에 실제 실행한 명령과 그 출력을 보여줍니다. 끄면 도구 이름·결과 한 줄만 남습니다."))
     }
 
+    groupBox(L("전역 권한")) {
+      caption(L("앱 전체에 적용됩니다. 이 대화만 다르게 하려면 아래 '이 대화의 권한'을 쓰세요."))
+      pickerRow(L("읽기"), selection: $store.settings.agentPolicy.readPolicy,
+                options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
+      caption(AgentPermissionLevel.read.explanation)
+
+      pickerRow(L("쓰기"), selection: $store.settings.agentPolicy.writePolicy,
+                options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
+      caption(AgentPermissionLevel.write.explanation)
+
+      pickerRow(L("실행"), selection: $store.settings.agentPolicy.executePolicy,
+                options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
+      caption(AgentPermissionLevel.execute.explanation)
+
+      caption(L("확인이 필요한 명령은 대화 카드에 나타나고, [한 번 허용] [이 폴더 허용] [항상 허용] [거부] 중 고를 수 있습니다. [이 폴더 허용] 은 이번 대화에서 그 폴더의 쓰기를 다시 묻지 않습니다."))
+    }
+
+    groupBox(L("제한")) {
+      toggleRow(L("치명적 명령 허용"), isOn: $store.settings.agentPolicy.allowCritical,
+                description: L("rm -rf / · mkfs 같은 복구 불가능한 명령. 기본은 차단입니다."))
+      toggleRow(L("상승 권한 허용"), isOn: $store.settings.agentPolicy.allowElevated,
+                description: L("sudo 가 필요한 명령. 앱은 비밀번호를 묻지 않습니다."))
+    }
+
     groupBox(L("실행 방식")) {
       toggleRow(L("전역 자동 수락"), isOn: $store.settings.agentPolicy.autoAcceptAll,
                 description: L("일반 명령은 확인 없이 실행합니다. 중요·치명적 위험과 상승 권한(sudo)은 그대로 확인·차단합니다."))
@@ -26,6 +50,51 @@ extension SettingsView {
                 options: [(30, Lf("%d초", 30)), (60, Lf("%d초", 60)),
                           (120, Lf("%d초", 120)), (300, Lf("%d초", 300))])
       caption(L("제한 시간을 넘기면 앱이 프로세스를 멈춥니다. 실행 중에는 카드의 [중단]으로 직접 멈출 수 있습니다."))
+    }
+
+    groupBox(L("항상 허용 규칙")) {
+      if store.settings.agentPolicy.rules.isEmpty {
+        caption(L("규칙이 없습니다. 앱이 정해 주는 목록은 없습니다 — 직접 필요한 패턴만 추가하세요."))
+      } else {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(store.settings.agentPolicy.rules, id: \.self) { rule in
+            HStack(spacing: 6) {
+              Image(systemName: "checkmark.shield")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+              Text(rule)
+                .font(.system(size: 11, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+              Spacer()
+              Button {
+                store.settings.agentPolicy.rules.removeAll { $0 == rule }
+              } label: {
+                Image(systemName: "xmark.circle.fill")
+                  .font(.system(size: 11))
+                  .foregroundColor(.secondary)
+              }
+              .buttonStyle(.plain)
+              .help(L("규칙 삭제"))
+            }
+          }
+        }
+      }
+      HStack(spacing: 8) {
+        TextField(L("예: brew install *"), text: $newAgentRule)
+          .textFieldStyle(.roundedBorder)
+          .font(.system(size: 11, design: .monospaced))
+        Button(L("추가")) {
+          let p = newAgentRule.trimmingCharacters(in: .whitespacesAndNewlines)
+          guard !p.isEmpty else { return }
+          if !store.settings.agentPolicy.rules.contains(p) {
+            store.settings.agentPolicy.rules.append(p)
+          }
+          newAgentRule = ""
+        }
+        .disabled(newAgentRule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+      caption(L("* 는 와일드카드입니다. 예: brew install * · adb * install * · ls *"))
     }
 
     groupBox(L("이 대화의 권한")) {
@@ -95,20 +164,14 @@ extension SettingsView {
       caption(L("여기서는 **위험도·허용 규칙·단계 정책**만 미리 봅니다. 샌드박스 실측(실제 실행)은 하지 않습니다 — 실측은 명령을 승인한 뒤에만 합니다."))
     }
 
-    groupBox(L("권한")) {
-      pickerRow(L("읽기"), selection: $store.settings.agentPolicy.readPolicy,
-                options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
-      caption(AgentPermissionLevel.read.explanation)
-
-      pickerRow(L("쓰기"), selection: $store.settings.agentPolicy.writePolicy,
-                options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
-      caption(AgentPermissionLevel.write.explanation)
-
-      pickerRow(L("실행"), selection: $store.settings.agentPolicy.executePolicy,
-                options: AgentAutoApprove.allCases.map { ($0, $0.displayName) })
-      caption(AgentPermissionLevel.execute.explanation)
-
-      caption(L("확인이 필요한 명령은 대화 카드에 나타나고, [한 번 허용] [이 폴더 허용] [항상 허용] [거부] 중 고를 수 있습니다. [이 폴더 허용] 은 이번 대화에서 그 폴더의 쓰기를 다시 묻지 않습니다."))
+    groupBox(L("실행 기록")) {
+      Button(showAgentAudit ? L("기록 숨기기") : L("기록 보기")) {
+        showAgentAudit.toggle()
+      }
+      if showAgentAudit {
+        AgentAuditLogView()
+      }
+      caption(L("대화 속 실행 내역은 답변 아래 카드에 보입니다. 이 목록은 앱이 실행한 모든 명령의 감사 기록입니다 — 대화를 지워도 남고, 토큰·키·비밀번호는 가려집니다."))
     }
 
     groupBox(L("되돌리기 · 휴지통")) {
@@ -121,66 +184,29 @@ extension SettingsView {
       caption(L("백업은 최근 30건까지 보관합니다. 되돌리기 버튼은 앱을 다시 켜기 전까지 카드에 남습니다."))
     }
 
-    groupBox(L("제한")) {
-      toggleRow(L("치명적 명령 허용"), isOn: $store.settings.agentPolicy.allowCritical,
-                description: L("rm -rf / · mkfs 같은 복구 불가능한 명령. 기본은 차단입니다."))
-      toggleRow(L("상승 권한 허용"), isOn: $store.settings.agentPolicy.allowElevated,
-                description: L("sudo 가 필요한 명령. 앱은 비밀번호를 묻지 않습니다."))
-    }
-
-    groupBox(L("항상 허용 규칙")) {
-      if store.settings.agentPolicy.rules.isEmpty {
-        caption(L("규칙이 없습니다. 앱이 정해 주는 목록은 없습니다 — 직접 필요한 패턴만 추가하세요."))
-      } else {
-        VStack(alignment: .leading, spacing: 4) {
-          ForEach(store.settings.agentPolicy.rules, id: \.self) { rule in
-            HStack(spacing: 6) {
-              Image(systemName: "checkmark.shield")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-              Text(rule)
-                .font(.system(size: 11, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-              Spacer()
-              Button {
-                store.settings.agentPolicy.rules.removeAll { $0 == rule }
-              } label: {
-                Image(systemName: "xmark.circle.fill")
-                  .font(.system(size: 11))
-                  .foregroundColor(.secondary)
-              }
-              .buttonStyle(.plain)
-              .help(L("규칙 삭제"))
-            }
-          }
-        }
-      }
+    // 권한은 **한 곳**에 모은다 — 예전에는 '일반 › 창 연결'과 '퀵셸프'에 같은 화면 기록 권한이
+    // 두 번 나왔다(2026-10-27). 기능 탭은 이 그룹을 가리키기만 한다.
+    groupBox(L("시스템 권한")) {
+      valueRow(L("화면 기록"), CaptureService.hasPermission() ? L("허용됨") : L("허용되지 않음"))
       HStack(spacing: 8) {
-        TextField(L("예: brew install *"), text: $newAgentRule)
-          .textFieldStyle(.roundedBorder)
-          .font(.system(size: 11, design: .monospaced))
-        Button(L("추가")) {
-          let p = newAgentRule.trimmingCharacters(in: .whitespacesAndNewlines)
-          guard !p.isEmpty else { return }
-          if !store.settings.agentPolicy.rules.contains(p) {
-            store.settings.agentPolicy.rules.append(p)
+        Button(L("권한 요청")) {
+          if CaptureService.ensureScreenPermission() {
+            store.showShelfNotice(nil)
+          } else {
+            store.showShelfNotice(L("화면 기록 권한이 필요합니다 — 시스템 설정에서 QuickTalk를 허용한 뒤 앱을 다시 실행하세요."),
+                                  action: .screenRecording)
           }
-          newAgentRule = ""
         }
-        .disabled(newAgentRule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        Button(L("시스템 설정 열기")) { CaptureService.openScreenRecordingSettings() }
+        Spacer()
       }
-      caption(L("* 는 와일드카드입니다. 예: brew install * · adb * install * · ls *"))
-    }
-
-    groupBox(L("실행 기록")) {
-      Button(showAgentAudit ? L("기록 숨기기") : L("기록 보기")) {
-        showAgentAudit.toggle()
+      valueRow(L("손쉬운 사용"), WindowAttachmentService.hasAccessibilityPermission ? L("허용됨") : L("허용되지 않음"))
+      HStack(spacing: 8) {
+        Button(L("손쉬운 사용 설정 열기")) { WindowAttachmentService.openAccessibilitySettings() }
+        Spacer()
       }
-      if showAgentAudit {
-        AgentAuditLogView()
-      }
-      caption(L("대화 속 실행 내역은 답변 아래 카드에 보입니다. 이 목록은 앱이 실행한 모든 명령의 감사 기록입니다 — 대화를 지워도 남고, 토큰·키·비밀번호는 가려집니다."))
+      caption(L("화면 기록은 창 목록·스크린샷·퀵셸프 캡처에, 손쉬운 사용은 다른 앱 창의 글자를 읽는 데 씁니다. 허용 후에는 앱을 다시 실행해야 반영됩니다."))
+      caption(L("이 두 권한은 macOS가 관리합니다 — 앱이 대신 켤 수 없고, 시스템 설정에서 직접 허용해야 합니다."))
     }
   }
 }

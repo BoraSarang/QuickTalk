@@ -56,10 +56,8 @@ extension SettingsView {
       .menuStyle(.borderlessButton)
       .frame(maxWidth: 180, alignment: .leading)
       caption(L("종류를 고르면 설정 시트가 열립니다. 원격은 주소와 API 키를 저장해야 동작합니다."))
+      caption(L("웹 검색은 '검색' 탭, 기억과 보관은 '대화' 탭에서 설정합니다."))
     }
-    webSearchSection
-    globalMemorySection
-    memorySection
   }
 
   /// 대화 기억 정리 — 길어지면 오래된 턴을 요약해 첫 토큰 지연·비용을 줄인다.
