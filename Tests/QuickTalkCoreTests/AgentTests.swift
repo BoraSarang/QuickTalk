@@ -171,6 +171,92 @@ final class AgentTests: XCTestCase {
     XCTAssertFalse(PolicyEngine.matchesRule(command: "brew uninstall a", rules: ["brew install *"]))
   }
 
+  /// 규칙은 **명령 경계**에서만 접두어로 인정된다 — `/tmp/a` 규칙이 `/tmp/ab` 를 열면 안 된다.
+  func testRulePrefixRequiresWordBoundary() {
+    XCTAssertTrue(PolicyEngine.matchesRule(command: "rm -rf /tmp/a", rules: ["rm -rf /tmp/a"]))
+    XCTAssertTrue(PolicyEngine.matchesRule(command: "rm -rf /tmp/a extra", rules: ["rm -rf /tmp/a"]))
+    XCTAssertFalse(PolicyEngine.matchesRule(command: "rm -rf /tmp/ab", rules: ["rm -rf /tmp/a"]),
+                   "접두어만 같다고 다른 경로를 허용하면 안 된다")
+    XCTAssertFalse(PolicyEngine.matchesRule(command: "ls", rules: ["l"]))
+    XCTAssertFalse(PolicyEngine.matchesRule(command: "lsof -i", rules: ["ls"]))
+  }
+
+  /// 규칙 접두어 경계가 실제 정책 판정에도 반영된다(허용 범위 초과 방지).
+  func testRuleDoesNotAllowLongerPathViaPolicy() {
+    var policy = AgentPolicy()
+    policy.writePolicy = .alwaysAsk
+    policy.rules = ["rm -rf /tmp/a"]
+    guard case .ask = PolicyEngine.decide(command: "rm -rf /tmp/ab", capability: .write(path: "/tmp/ab"),
+                                          risk: .normal, policy: policy) else {
+      return XCTFail("경계를 넘는 명령은 규칙으로 허용되면 안 된다")
+    }
+    XCTAssertEqual(PolicyEngine.decide(command: "rm -rf /tmp/a", capability: .write(path: "/tmp/a"),
+                                       risk: .normal, policy: policy), .allow)
+  }
+
+  // MARK: - 도구 권한 단계 (A-3)
+
+  func testToolPermissionLevelsAreExplicit() {
+    XCTAssertEqual(AgentToolPermission.level(for: "screenshot"), .read)
+    XCTAssertEqual(AgentToolPermission.level(for: "read_file"), .read)
+    XCTAssertEqual(AgentToolPermission.level(for: "list_dir"), .read)
+    XCTAssertEqual(AgentToolPermission.level(for: "processes"), .read)
+    XCTAssertEqual(AgentToolPermission.level(for: "shell"), .execute)
+    XCTAssertEqual(AgentToolPermission.level(for: "알 수 없는 도구"), .execute,
+                   "모르는 도구는 가장 좁은(가장 묻는) 단계로 본다")
+  }
+
+  /// "읽기: 매번 확인" 이면 **스크린샷도** 확인을 받아야 한다(2026-10-27 수정).
+  func testReadPolicyGatesScreenshot() {
+    var policy = AgentPolicy()
+    policy.readPolicy = .alwaysAsk
+    XCTAssertTrue(AgentToolPermission.needsApproval(tool: "screenshot", policy: policy))
+    XCTAssertTrue(AgentToolPermission.needsApproval(tool: "read_file", policy: policy))
+    policy.readPolicy = .alwaysAllow
+    XCTAssertFalse(AgentToolPermission.needsApproval(tool: "screenshot", policy: policy))
+    // 실행은 기본이 확인 — 스크린샷을 열어 줬다고 실행까지 열리지 않는다
+    var defaults = AgentPolicy()
+    defaults.readPolicy = .alwaysAllow
+    XCTAssertTrue(AgentToolPermission.needsApproval(tool: "shell", policy: defaults))
+  }
+
+  /// 스크린샷은 **읽기 단계 정책**을 거쳐야 한다.
+  ///
+  /// `AgentExecutor` 는 앱 타깃이라 단위 테스트가 없다 — 게이트가 조용히 사라지지 않도록
+  /// 소스에서 확인한다(2026-10-27: "읽기: 매번 확인" 인데 캡처가 무조건 실행되던 버그).
+  func testScreenshotToolConsultsReadPolicy() throws {
+    let root = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let source = try String(contentsOf: root.appendingPathComponent("QuickTalkApp/AgentExecutor.swift"),
+                            encoding: .utf8)
+    guard let start = source.range(of: "private func captureScreenshot") else {
+      return XCTFail("captureScreenshot 을 찾지 못했습니다 — 이름이 바뀌었으면 이 검사도 고치세요")
+    }
+    let body = source[start.lowerBound...].prefix(1_200)
+    XCTAssertTrue(body.contains("AgentToolPermission.needsApproval"),
+                  "화면 캡처가 읽기 단계 정책(매번 확인)을 무시하고 있습니다")
+  }
+
+  /// 경로에 따옴표가 있어도 프로필 규칙이 깨지지 않는다(2026-10-27).
+  func testProfilePathEscapesQuotesAndBackslash() {
+    XCTAssertEqual(SandboxRunner.profilePath("/tmp/a\"b"), "/tmp/a\\\"b")
+    XCTAssertEqual(SandboxRunner.profilePath("/tmp/a\\b"), "/tmp/a\\\\b")
+    XCTAssertEqual(SandboxRunner.profilePath("/tmp/정상 경로"), "/tmp/정상 경로")
+  }
+
+  func testScopedProfileEscapesQuotedDirectory() {
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-agent \"quote\" \(UUID().uuidString.prefix(6))")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let profile = SandboxRunner.scopedProfile(writablePaths: [dir.path])
+    XCTAssertTrue(profile.contains("\\\""), "따옴표가 이스케이프돼야 한다: \(profile)")
+    // 경로에 `"` 가 있으므로 셸 명령은 **홑따옴표**로 감싼다(테스트 명령 자체가 깨지지 않게).
+    let result = SandboxRunner.run("echo ok > '\(dir.path)/inside.txt'", profile: profile)
+    XCTAssertTrue(result.succeeded, result.combined)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: "\(dir.path)/inside.txt"))
+  }
+
   // MARK: - 샌드박스 실측
 
   func testProbeDetectsReadOnlyCommand() {

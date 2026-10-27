@@ -1142,5 +1142,9 @@ extension L10n {
     "항상 한국어로, 결론부터 짧게, 코드는 전체 파일로 준다.": "Always answer in Korean, short and conclusion first, code as whole files.",
     "화면": "Screen",
 
+    // v0.25 — 스크린샷도 읽기 단계 정책을 따른다 (2026-10-27)
+    "화면을 캡처하려면 확인이 필요합니다.": "Screen capture needs your approval.",
+    "사용자가 화면 캡처를 거부했습니다.": "The user denied the screen capture.",
+
   ]
 }
