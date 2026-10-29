@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   /// QA 실행 인자 오버라이드(저장하지 않음) — 설정 변경 알림보다 우선한다
   private var languageOverride: AppLanguage?
   private var appearanceOverride: AppAppearance?
+  /// QA 렌더 하네스 전용 — `--lang=`/`--theme=` 오버라이드를 해제해 **실제 설정 경로**(sink)를 태운다.
+  func clearLaunchLanguageOverride() { languageOverride = nil }
 
   /// 앱 종료 — 잠금을 명시적으로 푼다(OS 가 어차피 풀지만, 즉시 재실행이 막히지 않게).
   func applicationWillTerminate(_ notification: Notification) {

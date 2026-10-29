@@ -14,7 +14,9 @@ import Foundation
 //   · 창 연결처럼 **권한·선택이 필요한 기능**은 팔레트에 넣지 않는다(입력독 🪟 버튼이 담당).
 
 public struct SlashCommand: Identifiable, Equatable {
-  /// 표시 이름(`/` 제외)
+  /// 언어와 무관한 **안정 식별자**(`screen`, `window`, …) — 표시 이름은 언어를 따라 바뀐다.
+  public let id: String
+  /// 지금 언어의 표시 이름(`/` 제외)
   public let name: String
   /// 검색 별칭(영문 포함)
   public let aliases: [String]
@@ -27,11 +29,11 @@ public struct SlashCommand: Identifiable, Equatable {
   /// 도우미 도구가 켜져 있어야 쓸 수 있는 명령인가 — 도구가 꺼져 있으면 팔레트에서 숨긴다.
   public let requiresTools: Bool
 
-  public var id: String { name }
   public var token: String { "/" + name }
 
-  public init(name: String, aliases: [String] = [], summary: String,
+  public init(id: String, name: String, aliases: [String] = [], summary: String,
               template: String, systemImage: String, requiresTools: Bool = true) {
+    self.id = id
     self.name = name
     self.aliases = aliases
     self.summary = summary
@@ -55,6 +57,10 @@ public enum SlashCommands {
   ///
   /// 예전에는 `static let` 이라 처음 읽는 순간의 언어로 문구가 고정됐고(설정에서 영어로 바꿔도
   /// 팔레트만 한국어로 남았다), 도구를 꺼도 계속 보였다(2026-10-27).
+  ///
+  /// 2026-10-29: **명령 이름(`/화면` 등)도 번역표를 따라간다.** 이름만 리터럴이라 영어 UI 에서도
+  /// `/화면` 이 그대로 남아 "팔레트가 설정 언어를 따르지 않는다"로 보였다.
+  /// 언어를 바꿔도 예전 이름으로 칠 수 있게 한/영 이름을 모두 `aliases` 에 넣는다.
   public static var all: [SlashCommand] { catalog }
 
   /// 지금 설정에서 쓸 수 있는 명령 — 도우미 도구가 꺼져 있으면 도구가 필요한 명령은 숨긴다.
@@ -65,46 +71,53 @@ public enum SlashCommands {
   private static var catalog: [SlashCommand] {
     [
     SlashCommand(
-      name: "화면",
-      aliases: ["screen", "screenshot", "캡처"],
+      id: "screen",
+      name: L("화면"),
+      aliases: ["화면", "screen", "screenshot", "캡처"],
       summary: L("지금 화면을 찍어서 보여 달라고 요청"),
       template: L("지금 화면을 캡처해서 보여 주세요."),
       systemImage: "camera.viewfinder"),
     SlashCommand(
-      name: "창",
-      aliases: ["window", "front"],
+      id: "window",
+      name: L("창"),
+      aliases: ["창", "window", "front"],
       summary: L("앞에 있는 창을 찍어서 보여 달라고 요청"),
       template: L("지금 앞에 있는 창을 캡처해서 보여 주세요."),
       systemImage: "macwindow"),
     SlashCommand(
-      name: "디스크",
-      aliases: ["disk", "storage", "용량"],
+      id: "disk",
+      name: L("디스크"),
+      aliases: ["디스크", "disk", "storage", "용량"],
       summary: L("디스크 여유 공간 확인"),
       template: L("디스크 여유 공간을 확인해 주세요."),
       systemImage: "internaldrive"),
     SlashCommand(
-      name: "프로세스",
-      aliases: ["process", "cpu", "top"],
+      id: "process",
+      name: L("프로세스"),
+      aliases: ["프로세스", "process", "cpu", "top"],
       summary: L("CPU를 많이 쓰는 프로세스 확인"),
       template: L("CPU를 많이 쓰는 프로세스를 알려 주세요."),
       systemImage: "chart.bar.xaxis"),
     SlashCommand(
-      name: "메모리",
-      aliases: ["memory", "ram"],
+      id: "memory",
+      name: L("메모리"),
+      aliases: ["메모리", "memory", "ram"],
       summary: L("메모리(RAM) 사용량 확인"),
       template: L("메모리(RAM) 사용량을 알려 주세요."),
       systemImage: "memorychip"),
     SlashCommand(
-      name: "설정",
-      aliases: ["settings", "config"],
+      id: "settings",
+      name: L("설정"),
+      aliases: ["설정", "settings", "config"],
       summary: L("QuickTalk 설정·기능 확인"),
       template: L("지금 QuickTalk 설정과 켜져 있는 기능을 알려 주세요."),
       systemImage: "slider.horizontal.3",
       // 설정·도움말은 도구 없이도 된다(앱 지식은 지시문에 실린다).
       requiresTools: false),
     SlashCommand(
-      name: "도움말",
-      aliases: ["help", "commands"],
+      id: "help",
+      name: L("도움말"),
+      aliases: ["도움말", "help", "commands"],
       summary: L("슬래시 명령 목록 보기"),
       template: L("슬래시 명령으로 무엇을 할 수 있는지 알려 주세요."),
       systemImage: "questionmark.circle",

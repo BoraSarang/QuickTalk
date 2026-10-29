@@ -43,6 +43,15 @@ extension AppDelegate {
         self.store.providerTestResult = Lf("실패 (%@): %@", e.code,
                                            AIErrorText.detail(for: e, url: url))
       }
+      // QA: **런타임 언어 전환** 재현 — 설정에서 언어를 바꾼 직후 팔레트가 어느 언어로 그려지는지.
+      //     `--lang=` 은 실행 시점 언어만 재현하므로, sink 경유 경로를 이 플래그로 확인한다(저장 없음).
+      if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--demo-lang-switch=") }),
+         let lang = AppLanguage(rawValue: String(arg.dropFirst("--demo-lang-switch=".count))) {
+        self.clearLaunchLanguageOverride()   // `--lang=` 오버라이드가 있으면 설정 변경이 무시된다
+        self.store.applyRenderOverride(language: lang)
+        // sink 는 `.receive(on: RunLoop.main)` 이라 다음 런루프에 돈다 — 실제 앱과 같은 순서를 재현한다.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+      }
       // QA: 공통 메모리 카드가 채워진 상태 — 저장하지 않는다.
       if CommandLine.arguments.contains("--demo-global-memory") {
         self.store.applyRenderOverride(memory: [
@@ -104,6 +113,7 @@ extension AppDelegate {
         $0 == "--demo-chat" || $0.hasPrefix("--demo-chat=") || $0.hasPrefix("--demo-search")
           || $0.hasPrefix("--demo-fallback")
           || $0.hasPrefix("--demo-draft-lines=")
+          || $0 == "--demo-slash"
           || $0 == "--demo-agent-write"
           || $0 == "--demo-agent"
       }) {
@@ -703,6 +713,10 @@ extension AppDelegate {
       let body = (1...n).map { "Line \($0) — composer growth check" }.joined(separator: "\n")
       // 끝의 빈 줄까지 포함해 Shift+Enter 직후 커서가 보이는지 확인한다.
       store.draft = body + "\n"
+    }
+    // 슬래시 팔레트 — 언어 전환 시 문구가 어느 언어로 나오는지 캡처로 비교한다(2026-10-29).
+    if CommandLine.arguments.contains("--demo-slash") {
+      store.draft = "/"
     }
   }
 

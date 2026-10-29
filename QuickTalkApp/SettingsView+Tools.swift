@@ -10,7 +10,7 @@ extension SettingsView {
   @ViewBuilder
   var toolsSection: some View {
     groupBox(L("도우미 도구")) {
-      toggleRow(L("도구 사용"), isOn: $store.settings.agentToolsEnabled,
+      toggleRow(L("도우미 도구 사용"), isOn: $store.settings.agentToolsEnabled,
                 description: L("질문하면 앱이 직접 확인하고 행동합니다. 예를 들어 디스크 용량이나 프로세스를 실제로 조회합니다."))
       caption(L("꺼도 일반 대화는 그대로 동작합니다. 앱은 명령어 이름을 몰라요 — 모델이 정한 명령을 그대로 실행하고, 그 명령이 무슨 권한을 요구하는지는 샌드박스로 확인합니다."))
       toggleRow(L("실행 과정 표시"), isOn: $store.settings.agentShowExecution,
