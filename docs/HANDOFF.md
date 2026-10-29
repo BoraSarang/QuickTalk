@@ -12,7 +12,7 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **"맨 아래로" 버튼 + B(i18n) + C(체감 3) + A(권한 3)(2026-10-27 23:45)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `d04da183297d…` (직전 21:47 빌드는 `~/Applications/.QuickTalk.old`) |
+| 현재 빌드 | **슬래시 팔레트 이름 번역 + #12 라벨(2026-10-29)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `c9a05a9a2196…` (직전 10-27 23:45 빌드는 `~/Applications/.QuickTalk.old`) · **앱 재실행 필요**(실행 중 PID 786 은 이전 빌드) |
 | 테스트 | **532/532**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-29 기준) |
 | 마지막 완료 | **슬래시 팔레트 언어 = 명령 이름 번역**(2026-10-29, QA #11) — `SlashCommand.name` 이 한국어 리터럴이라 영어 UI 에도 `/화면` 이 남았다 → `id` 분리 + `L()` + 한/영 별칭 · **도구 토글 라벨 "도우미 도구 사용"**(#12) · 532/532 · **미배포** |
 | 이전 완료 | **C — 체감 버그 3건**(23:20, `8039493`) 스크린샷이 첨부를 밀어냄 · 캡션 `**` 노출 · 슬래시 팔레트 고정 / **B — 번역 누락 자동 검출**(23:00, `484ac12`, 누락 94건) / **"맨 아래로" 버튼**(22:10, `ce7532a`) / **v0.24 설정 재구성**(2026-10-27 15:10) — 9탭/3묶음, 웹 검색→검색 · 기억/창/보관→대화 · 시스템 권한 한 곳. `swift test` 509/509 · BUILD SUCCEEDED · 한/영 렌더 확인. **배포 완료** |
@@ -32,6 +32,7 @@
 - **검증**: `swift test` **532/532**(6 skip, 신규 2) · Debug/Release BUILD SUCCEEDED · **되돌려 실패 확인**(이름을 리터럴로 되돌리면 4개 테스트 실패) · 렌더 `docs/qa/palette-lang-2026-10-29/`(전/후 · 한/영 · 런타임 전환) · 설정 › 도구 영어 라벨.
 - **미해결**: 사용자가 본 *"한글이면 영문"* 방향은 캡처로 재현되지 않았다. **팔레트 화면 스크린샷**을 받으면 확정한다(그 전에는 "고쳤다"고 단정하지 않는다).
 - **병합**: **PR #49 → squash merge `2a38c81`** (2026-10-29).
+- **배포**: 2026-10-29 `~/Applications/QuickTalk.app` 교체(직전 빌드는 `.QuickTalk.old`) · `codesign --verify --strict --deep` OK · SHA-256 `c9a05a9a2196b934659c87aa6fadd6fe6127a61b2711b482ebb6a89faecaeca7` · **앱 재실행 필요**.
 - **다음**: ① 배포(사용자 확인) → ② 배포본 실측 3건(영어 `/Screen` · 한국어 `/화면` · 양방향 옛 이름) → ③ P2 #5 `usleep` 폴링 · #7 규칙 테스터 단계 · #10 `UIStore:950` 경고 → ④ v0.24·v0.23 실측 6건.
 
 ### 다음 세션 시작점 (2026-10-28 마감) — **오늘 할 일: 언어 전환 역전 원인 규명**
