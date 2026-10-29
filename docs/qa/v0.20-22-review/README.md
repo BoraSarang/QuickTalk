@@ -90,7 +90,7 @@ build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk \
 
 ## 4. P2 백로그
 
-> 2026-10-29 갱신 — **9건 완료**(#1·#2·#3·#4·#6·#8·#9·#11·#12 + 덤 2), 3건 남음(#5·#7·#10).
+> 2026-10-29 갱신 — **P2 백로그 12건 모두 완료**(#1·#2·#3·#4·#5·#6·#7·#8·#9·#10·#11·#12 + 덤 2).
 
 | # | 항목 | 위치 | 상태 |
 |---|---|---|---|
@@ -98,12 +98,12 @@ build/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk \
 | 2 | 규칙 테스터 캡션에 `**` 노출 | `SettingsView+Tools.swift` | ✅ **완료** — 문구에서 `**` 제거 + `caption(L("…**…"))` 를 잡는 소스 스캔 가드 · PR #45 `8039493` |
 | 3 | `screenshot` 이 "읽기 매번 확인" 설정을 무시 | `AgentExecutor` | ✅ **완료** — Core `AgentToolPermission`(도구→권한 단계) 신설, `read_file`·`screenshot` 이 같은 판정. 거부 시 카드·감사 기록 · PR #46 `28054bd` |
 | 4 | 샌드박스 프로필 경로 미이스케이프 | `SandboxRunner` | ✅ **완료** — `profilePath(_:)` 로 `\`·`"` 이스케이프 + 제어문자 제거. `/private/tmp` 실측: `qt "q"`·`qt\b`·`qt (1) space` 쓰기 성공 · PR #46 `28054bd` |
-| 5 | `usleep` 폴링 | `SandboxRunner`·`TerminalHandoffService` | ⬜ 남음 — 50~200ms 대기. 취소 응답성 개선 여지 |
+| 5 | `usleep` 폴링 | `SandboxRunner`·`TerminalHandoffService` | ✅ **완료** — `SandboxCancellation.addCancelHandler` 로 취소 시 **즉시** 트리 종료(폴링 대기 없음) · 종료 대기는 `terminationHandler`+`DispatchSemaphore` · `terminateProcessTree` 는 자손 소멸 즉시 반환(10ms 확인, 상한 200ms). `TerminalHandoffService` 에는 `usleep` 없음(확인) · PR #52 `066232b` |
 | 6 | `matchesRule` 의 `hasPrefix` 과매칭 | `PolicyEngine` | ✅ **완료** — 경계(`pattern + " "`)만 인정. `/tmp/a` vs `/tmp/ab`·`ls` vs `lsof` 회귀 테스트 · PR #46 `28054bd` |
-| 7 | 규칙 테스터가 쓰기를 **실행 단계**로 판정 | `PolicyEngine` | ⬜ 남음 — 테스터 결과와 실제 실행 단계가 다를 수 있음 |
+| 7 | 규칙 테스터가 쓰기를 **실행 단계**로 판정 | `PolicyEngine` | ✅ **완료** — `PolicyEngine.stagePreview` 가 **실행 없이** 읽기/쓰기/실행 3단계 판정을 모두 반환 · UI 단계별 칩 + 실측 안내 · 상승 권한은 단일 판정 · 6개 테스트 · PR #52 `066232b` |
 | 8 | 스크린샷 후 **원 첨부 대체** | `AgentRunner` | ✅ **완료** — `attachments + images`(예전엔 스크린샷이 있으면 `images` 만 전송). 되돌리면 실패하는 회귀 테스트 · PR #45 `8039493` |
 | 9 | `SlashCommands.all` static 고정 | `SlashCommand.swift` | ✅ **완료** — 계산 프로퍼티 + `available(agentToolsEnabled:)` + `requiresTools`(설정·도움말만 도구 없이) · PR #45 `8039493` |
-| 10 | `UIStore.swift:940` 경고 | `UIStore` | ⬜ 남음 — 컴파일 경고 1건 |
+| 10 | `UIStore.swift:940` 경고 | `UIStore` | ✅ **완료** — `markInterruptedQuestion()` 의 `appendAssistant` 결과를 `_ =` 로 받아 경고 제거(되돌리면 `UIStore.swift:950` 재현). Debug 경고 0 · PR #52 `066232b` |
 | 11 | **슬래시 팔레트가 설정 언어와 반대로 표시** (2026-10-28 사용자 보고) | `ContentView.slashPalette`·`SlashCommand` | ✅ **완료** — 측정 결과 역전이 아니라 **명령 이름이 한국어 리터럴**이었다(`/화면` 이 영어 UI 에도 남음). `id` 분리 + `name` 번역 + 한/영 별칭 · 532/532 · `docs/qa/palette-lang-2026-10-29/` |
 | 12 | 도구 끄는 토글 발견성 | `SettingsView+Tools.swift` | ✅ **완료** — 그룹 "도우미 도구" 안의 토글을 **"도우미 도구 사용"** 으로 통일(사용자 보고) |
 | — | (덤) 승인 카드가 "실행 중"으로 굳음 | `AgentExecutor` | ✅ **완료** — 승인 대기 카드 뒤에 실행 카드를 또 추가해 `updateAgentEvent`(첫 장만 수정)가 첫 카드를 못 넘겼다 → `upsertAgentEvent`(호출당 카드 1장) · PR #46 `28054bd` |
