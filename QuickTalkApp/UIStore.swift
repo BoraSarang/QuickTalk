@@ -66,10 +66,15 @@ final class UIStore: ObservableObject {
   @Published var agentApproval: AgentApprovalRequest?
   /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
   @Published var agentTurnID: UUID?
-  /// 승인된 쓰기 폴더 — **대화별**로만 유효하다("이 폴더 허용", v0.19).
-  @Published var writeScopesByConversation: [UUID: [String]] = [:]
-  /// 이번 대화에서 이미 승인한 쓰기 폴더
-  var approvedWriteScopes: [String] { writeScopesByConversation[conversation.id] ?? [] }
+  /// 승인된 쓰기 폴더 — **대화별**로 유지되고 7일 뒤 만료된다("이 폴더 허용", v0.19 → 2026-10-29).
+  /// 대화 기록과 함께 저장하므로 앱을 다시 켜도 남는다.
+  var activeWriteScopeGrants: [WriteScopeGrant] {
+    (conversation.approvedWriteScopes ?? [])
+      .filter { $0.isActive() }
+      .sorted { $0.expiresAt < $1.expiresAt }
+  }
+  /// 이번 대화에서 지금 유효한 승인 쓰기 폴더
+  var approvedWriteScopes: [String] { activeWriteScopeGrants.map(\.path) }
   /// 실제 적용 정책 — 전역 설정 위에 **이 대화의 오버라이드**를 얹는다(v0.22).
   /// 치명적 차단·상승 권한 제한은 전역 값 그대로다.
   var effectiveAgentPolicy: AgentPolicy {
@@ -984,11 +989,17 @@ final class UIStore: ObservableObject {
     syncArchive()
   }
 
+  /// 승인 쓰기 폴더를 코어에 반영하고 즉시 저장한다.
+  func setWriteScopeGrants(_ grants: [WriteScopeGrant]) {
+    core.setWriteScopeGrants(grants)
+    conversation = core.conversation
+    syncArchive()
+  }
+
   /// 이번 대화에서 승인한 쓰기 폴더를 해제한다.
   func removeWriteScope(_ scope: String) {
-    guard var current = writeScopesByConversation[conversation.id] else { return }
-    current.removeAll { $0 == scope }
-    writeScopesByConversation[conversation.id] = current
+    let remaining = (conversation.approvedWriteScopes ?? []).filter { $0.path != scope }
+    setWriteScopeGrants(remaining)
   }
 
   /// 대화방 제목 변경 — 대화 헤더·보관함 공용.

@@ -10,7 +10,7 @@ import Foundation
 //   · nil = "설정 따름" — 값이 없으면 전역 설정이 그대로 쓰인다(구버전 기록 호환).
 //   · 오버라이드는 **좁히는 쪽도, 넓히는 쪽도** 가능하지만 치명적 차단은 전역 설정만 따른다.
 //     (대화 하나가 `allowCritical` 을 켜서 앱 전체 안전장치를 우회하면 안 된다)
-//   · 승인된 폴더 범위는 오버라이드가 아니라 `writeScopesByConversation` 에 따로 쌓인다.
+//   · 승인된 폴더 범위는 오버라이드가 아니라 `Conversation.approvedWriteScopes` 에 따로 쌓인다.
 
 public struct AgentOverride: Codable, Equatable {
   /// nil = 설정 따름
