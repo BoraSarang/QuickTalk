@@ -597,6 +597,13 @@ final class UIStore: ObservableObject {
     suppressSettingsSave = false
   }
 
+  /// QA 렌더 전용 — 전역 자동 수락을 켠 상태를 **메모리에서만** 재현한다(설정 저장 없음).
+  func applyRenderOverride(autoAcceptAll: Bool) {
+    suppressSettingsSave = true
+    settings.agentPolicy.autoAcceptAll = autoAcceptAll
+    suppressSettingsSave = false
+  }
+
   /// QA 렌더·실검증용 — 대화를 **메모리에만** 바꾼다(저장 없음).
   func applyConversationForSelfTest(_ c: Conversation) {
     // 자가검증이 실제 history.json을 덮어쓰지 않게 이 실행 동안 저장을 막는다.
@@ -947,7 +954,7 @@ final class UIStore: ObservableObject {
   private func markInterruptedQuestion() {
     guard let last = conversation.turns.last, last.role == .user else { return }
     let note = L("앱이 종료되어 응답이 끊겼습니다. 같은 질문을 다시 보내 주세요.")
-    core.appendAssistant(text: note)
+    _ = core.appendAssistant(text: note)
     conversation = core.conversation
     syncArchive()
     NSLog("[QuickTalk] E-MAC-AGENT-0002 응답이 끊긴 질문을 표시했습니다")

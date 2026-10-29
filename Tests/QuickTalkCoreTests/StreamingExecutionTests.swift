@@ -68,6 +68,38 @@ final class StreamingExecutionTests: XCTestCase {
     XCTAssertLessThan(elapsed, 3, "취소는 기다리지 않고 즉시 끝나야 한다")
   }
 
+  /// 취소 핸들러는 `cancel()` 안에서 **바로** 실행된다(다음 폴링을 기다리지 않는다).
+  func testCancelHandlerRunsImmediatelyAndOnce() {
+    let cancel = SandboxCancellation()
+    let hits = Chunks()
+    cancel.addCancelHandler { hits.append("x") }
+    XCTAssertEqual(hits.count, 0, "취소 전에는 실행되지 않는다")
+    cancel.cancel()
+    XCTAssertEqual(hits.count, 1, "취소하면 그 자리에서 실행된다")
+    cancel.cancel()
+    XCTAssertEqual(hits.count, 1, "두 번째 취소는 핸들러를 다시 부르지 않는다")
+  }
+
+  /// 이미 취소된 뒤 등록한 핸들러도 즉시 실행된다(취소를 놓치지 않는다).
+  func testCancelHandlerAddedAfterCancelRunsImmediately() {
+    let cancel = SandboxCancellation()
+    cancel.cancel()
+    let hits = Chunks()
+    let token = cancel.addCancelHandler { hits.append("x") }
+    XCTAssertNil(token)
+    XCTAssertEqual(hits.count, 1)
+  }
+
+  /// 실행이 끝난 뒤 남은 핸들러는 정리된다 — 다음 취소에 불리지 않는다.
+  func testRemovedCancelHandlerIsNotCalled() {
+    let cancel = SandboxCancellation()
+    let hits = Chunks()
+    let token = cancel.addCancelHandler { hits.append("x") }
+    cancel.removeCancelHandler(token)
+    cancel.cancel()
+    XCTAssertEqual(hits.count, 0)
+  }
+
   func testTimeoutIsReported() {
     let result = SandboxRunner.run("sleep 3", profile: SandboxRunner.readOnlyProfile(),
                                    timeout: 0.5)

@@ -194,6 +194,90 @@ final class AgentTests: XCTestCase {
                                        risk: .normal, policy: policy), .allow)
   }
 
+  // MARK: - 규칙 테스터 단계 미리보기 (#7)
+
+  /// 기본 설정: 읽기는 확인 없이, 쓰기·실행은 확인 — 세 단계를 **나란히** 보여 준다.
+  func testStagePreviewSplitsReadWriteExecute() {
+    let preview = PolicyEngine.stagePreview(command: "echo x > /tmp/a.txt",
+                                            risk: .normal, policy: AgentPolicy())
+    XCTAssertFalse(preview.elevated)
+    XCTAssertEqual(preview.stages.map(\.level), [.read, .write, .execute])
+    XCTAssertEqual(preview.stages[0].decision, .allow)
+    guard case .ask = preview.stages[1].decision else {
+      return XCTFail("쓰기는 기본적으로 확인해야 한다: \(preview.stages[1].decision)")
+    }
+    guard case .ask = preview.stages[2].decision else {
+      return XCTFail("실행은 기본적으로 확인해야 한다: \(preview.stages[2].decision)")
+    }
+    guard case .ask = preview.headline else {
+      return XCTFail("대표 판정은 가장 강한 확인이어야 한다: \(preview.headline)")
+    }
+  }
+
+  /// 쓰기 단계만 "항상 허용" 으로 바꾸면 쓰기만 확인 없이 실행된다 — 이전에는 둘 다 "실행"이었다.
+  func testStagePreviewReflectsWritePolicyOnly() {
+    var policy = AgentPolicy()
+    policy.writePolicy = .alwaysAllow
+    let preview = PolicyEngine.stagePreview(command: "echo x > /tmp/a.txt",
+                                            risk: .normal, policy: policy)
+    XCTAssertEqual(preview.stages[1].level, .write)
+    XCTAssertEqual(preview.stages[1].decision, .allow)
+    guard case .ask = preview.stages[2].decision else {
+      return XCTFail("실행 단계는 여전히 확인해야 한다: \(preview.stages[2].decision)")
+    }
+  }
+
+  /// 전역 자동 수락이면 일반 명령은 세 단계 모두 확인 없이 실행된다.
+  func testStagePreviewAutoAcceptAllowsEveryStage() {
+    var policy = AgentPolicy()
+    policy.autoAcceptAll = true
+    let preview = PolicyEngine.stagePreview(command: "echo x > /tmp/a.txt",
+                                            risk: .normal, policy: policy)
+    XCTAssertEqual(preview.stages.map(\.decision), [.allow, .allow, .allow])
+    XCTAssertEqual(preview.headline, .allow)
+  }
+
+  /// 치명적 명령은 단계와 무관하게 차단 — 미리보기도 실행하지 않는다.
+  func testStagePreviewCriticalDeniesWithoutRunning() throws {
+    let marker = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-stage-preview-\(UUID().uuidString).txt")
+    let command = "echo hacked > \(marker.path)"
+    let preview = PolicyEngine.stagePreview(command: command, risk: .critical,
+                                            policy: AgentPolicy())
+    XCTAssertEqual(preview.stages.count, 3)
+    for stage in preview.stages {
+      guard case .deny = stage.decision else {
+        return XCTFail("치명적 명령은 모든 단계에서 차단해야 한다: \(stage)")
+      }
+    }
+    guard case .deny = preview.headline else {
+      return XCTFail("대표 판정도 차단이어야 한다: \(preview.headline)")
+    }
+    XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path),
+                   "미리보기는 명령을 실행하면 안 된다")
+  }
+
+  /// 사용자 허용 규칙은 모든 단계에 적용되고, 그 사실을 결과에 남긴다.
+  func testStagePreviewMarksMatchedRule() {
+    var policy = AgentPolicy()
+    policy.rules = ["echo x *"]
+    let preview = PolicyEngine.stagePreview(command: "echo x > /tmp/a.txt",
+                                            risk: .normal, policy: policy)
+    XCTAssertTrue(preview.matchedRule)
+    XCTAssertEqual(preview.stages.map(\.decision), [.allow, .allow, .allow])
+  }
+
+  /// 상승 권한 명령은 단계 구분이 무의미 — 실행 단계 하나만 돌려준다.
+  func testStagePreviewElevatedIsSingleStage() {
+    let preview = PolicyEngine.stagePreview(command: "sudo ls", risk: .normal,
+                                            policy: AgentPolicy())
+    XCTAssertTrue(preview.elevated)
+    XCTAssertEqual(preview.stages.map(\.level), [.execute])
+    guard case .deny = preview.headline else {
+      return XCTFail("상승 권한은 기본적으로 차단해야 한다: \(preview.headline)")
+    }
+  }
+
   // MARK: - 도구 권한 단계 (A-3)
 
   func testToolPermissionLevelsAreExplicit() {
