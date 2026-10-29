@@ -83,6 +83,11 @@ extension SettingsView {
       caption(L("같은 조합을 다른 앱이 먼저 쓰고 있으면 등록에 실패합니다(⚠️). 그때는 다른 조합을 골라 주세요."))
     }
     .onDisappear { stopRecording() }
+    groupBox(L("Shortcuts · Siri")) {
+      toggleRow(L("질문을 받으면 바로 전송"), isOn: $store.settings.shortcutAutoSend,
+                description: L("끄면(기본) Shortcuts의 '질문하고 보내기'도 입력창에만 채웁니다. 켜면 확인 없이 바로 전송합니다."))
+      caption(L("'질문 채우기' 동작은 이 설정과 무관하게 항상 초안만 채웁니다. 자동 전송도 도구 권한 게이트는 그대로 거칩니다."))
+    }
     groupBox(L("창 안에서 쓰는 키")) {
       valueRow(L("보내기"), L("Return — 입력창에서 전송"))
       valueRow(L("줄바꿈"), L("Shift+Return"))
