@@ -3,7 +3,20 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-10-29 KST
 
-## 지금 (2026-10-29) — Exa `/answer` 정리: 옵션 유지 + 경로 판정 통합 (②)
+## 지금 (2026-10-29) — Shortcuts 자동 전송: 옵트인 (③)
+
+Shortcuts/Siri가 입력창에 질문을 **채우기만** 하던 원칙(v0.21)을 옵트인 설정으로 갱신했다. 사용자 선택은 "옵트인 · 항상 전송".
+
+- **설정**: `QuickTalkSettings.shortcutAutoSend` — 기본 **꺼짐**, 구버전 설정(키 없음)도 꺼짐.
+- **판정**: `ShortcutAutoSend.shouldSend(requested:enabled:)` — '보내기' 요청 + 설정 켜짐일 때만. '질문 채우기'는 `requested = false` 라서 **항상 초안만**.
+- **라우터**: `QuickTalkIntentRouter.Request{text, ask}` — 앱 준비 전에 들어온 요청도 보내기 의도를 보존.
+- **Intent**: 새 `QuickTalkAskIntent`('질문하고 보내기', `paperplane`) + AppShortcut 문구. 기존 동작은 그대로.
+- **UI**: 설정 › 단축키에 `Shortcuts · Siri` 그룹(토글 + 캡션 2줄, 한/영 키 4개).
+- **검증**: `swift test` **559/559**(6 skip, 신규 3) · Debug/Release BUILD SUCCEEDED(Debug 경고 0) · **되돌려 실패 확인**(설정 무시 → 1건) · 렌더 `docs/qa/shortcut-auto-send-2026-10-29/`.
+- **병합/배포**: PR #60 → squash merge **`0fda8a4`** · 2026-10-29 19:29 `~/Applications/QuickTalk.app` 교체 · SHA-256 `505f7b84…` · **앱 재실행 필요**(PID 44867 은 이전 빌드).
+- **실측 대기**: Shortcuts '질문하고 보내기' → 설정 꺼짐 = 초안만 / 켜짐 = 뒤에 있어도 전송 · Siri 문구 등록.
+
+## 이전 (2026-10-29) — Exa `/answer` 정리: 옵션 유지 + 경로 판정 통합 (②)
 
 `/answer` 방식은 남기고, v0.23 툴 콜링과 겹치던 판정·폴백을 정리했다.
 
