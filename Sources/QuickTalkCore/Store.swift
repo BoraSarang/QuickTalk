@@ -175,6 +175,14 @@ public final class ConversationStore {
     conversation.updatedAt = Date()
   }
 
+  /// 이 대화의 승인 쓰기 폴더를 통째로 바꾼다(2026-10-29) — 만료된 승인은 저장하지 않는다.
+  /// 비면 nil로 되돌려 "승인 없음" 상태를 기록에 남긴다.
+  public func setWriteScopeGrants(_ grants: [WriteScopeGrant], at now: Date = Date()) {
+    let active = grants.filter { $0.isActive(at: now) }.sorted { $0.path < $1.path }
+    conversation.approvedWriteScopes = active.isEmpty ? nil : active
+    conversation.updatedAt = Date()
+  }
+
   /// 자동 정리 다시 켜기.
   public func resumeAutoCompact() {
     conversation.compactPaused = nil

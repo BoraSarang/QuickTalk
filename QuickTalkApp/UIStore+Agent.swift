@@ -44,15 +44,13 @@ extension UIStore {
   }
 
   /// "이 폴더 허용" — 이번 대화에서 그 폴더의 쓰기는 다시 묻지 않는다(v0.19).
+  /// 승인은 대화 기록과 함께 저장되고 7일 뒤 만료되며, 다시 승인하면 기간이 갱신된다(2026-10-29).
   @MainActor
   func approveWriteScopes(_ scopes: [String]) {
     guard !scopes.isEmpty else { return }
-    var current = writeScopesByConversation[conversation.id] ?? []
-    for scope in scopes where !current.contains(scope) {
-      current.append(scope)
-    }
-    writeScopesByConversation[conversation.id] = current
-    NSLog("[QuickTalk] 쓰기 폴더 승인 — %d개 범위", current.count)
+    let grants = WriteScopeGrant.approve(scopes, into: conversation.approvedWriteScopes ?? [])
+    setWriteScopeGrants(grants)
+    NSLog("[QuickTalk] 쓰기 폴더 승인 — %d개 범위", approvedWriteScopes.count)
   }
 
   /// 진행 중인 셸 실행 중지(v0.20) — 카드 [중단] 버튼·응답 중지가 함께 쓴다.

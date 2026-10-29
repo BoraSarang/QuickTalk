@@ -113,21 +113,25 @@ extension SettingsView {
     }
 
     groupBox(L("승인된 폴더")) {
-      if store.approvedWriteScopes.isEmpty {
+      if store.activeWriteScopeGrants.isEmpty {
         caption(L("이 대화에서 승인한 폴더가 없습니다. 승인 카드의 [이 폴더 허용]으로 추가됩니다."))
       } else {
         VStack(alignment: .leading, spacing: 4) {
-          ForEach(store.approvedWriteScopes, id: \.self) { scope in
+          ForEach(store.activeWriteScopeGrants) { grant in
             HStack(spacing: 6) {
               Image(systemName: "folder.badge.checkmark")
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
-              Text(scope)
+              Text(grant.path)
                 .font(.system(size: 11, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(.middle)
               Spacer()
-              Button(L("해제")) { store.removeWriteScope(scope) }
+              Text(Lf("%@까지 유효", grant.expiresAt.formatted(date: .abbreviated, time: .omitted)))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+              Button(L("해제")) { store.removeWriteScope(grant.path) }
                 .buttonStyle(.plain)
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
@@ -135,7 +139,7 @@ extension SettingsView {
           }
         }
       }
-      caption(L("이 폴더 안의 쓰기는 이번 대화에서 다시 묻지 않습니다. 앱을 다시 켜면 초기화됩니다."))
+      caption(L("승인한 폴더는 이 대화에서 7일 동안 유지됩니다. 만료되거나 [해제]하면 다시 묻습니다."))
     }
 
     groupBox(L("규칙 테스터")) {

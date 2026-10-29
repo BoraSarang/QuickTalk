@@ -78,6 +78,16 @@ extension AppDelegate {
       if CommandLine.arguments.contains("--demo-auto-accept") {
         self.store.applyRenderOverride(autoAcceptAll: true)
       }
+      // QA: 승인 폴더 목록·만료일 표시 — 메모리에서만 채운다(저장 없음).
+      if CommandLine.arguments.contains("--demo-write-scopes") {
+        let now = Date()
+        self.store.conversation.approvedWriteScopes = [
+          WriteScopeGrant(path: NSHomeDirectory() + "/Documents/QuickTalk-Exports",
+                          approvedAt: now.addingTimeInterval(-4 * 24 * 60 * 60)),
+          WriteScopeGrant(path: NSHomeDirectory() + "/Projects/site",
+                          approvedAt: now.addingTimeInterval(-1 * 24 * 60 * 60))
+        ]
+      }
       self.renderPNG(AnyView(SettingsView(initialTab: tab,
                                           initialAgentRuleProbe: ruleProbe)
                               .environmentObject(self.store)),

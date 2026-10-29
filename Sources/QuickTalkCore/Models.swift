@@ -135,23 +135,27 @@ public struct Conversation: Codable, Equatable {
   /// 이 대화에서만 권한 정책을 덮어쓴다(v0.22). nil = 설정 따름.
   /// 치명적 차단·상승 권한 제한은 전역 설정이 그대로 적용된다.
   public var agentOverride: AgentOverride?
+  /// 이 대화에서 승인한 쓰기 폴더(2026-10-29) — 7일 뒤 자동 만료. 구버전 nil.
+  public var approvedWriteScopes: [WriteScopeGrant]?
   public init(id: UUID = UUID(), title: String = Conversation.defaultTitle, titleEdited: Bool = false,
               turns: [Turn] = [], pinned: Bool = false, updatedAt: Date = Date(),
               summary: String? = nil, summaryThroughTurnID: UUID? = nil,
               compactPaused: Bool? = nil, commonMemoryDisabled: Bool? = nil,
-              agentOverride: AgentOverride? = nil) {
+              agentOverride: AgentOverride? = nil,
+              approvedWriteScopes: [WriteScopeGrant]? = nil) {
     self.id = id; self.title = title; self.titleEdited = titleEdited
     self.turns = turns; self.pinned = pinned; self.updatedAt = updatedAt
     self.summary = summary; self.summaryThroughTurnID = summaryThroughTurnID
     self.compactPaused = compactPaused
     self.commonMemoryDisabled = commonMemoryDisabled
     self.agentOverride = agentOverride
+    self.approvedWriteScopes = approvedWriteScopes
   }
 
   private enum CodingKeys: String, CodingKey {
     case id, title, titleEdited, turns, pinned, updatedAt
     case summary, summaryThroughTurnID, compactPaused, commonMemoryDisabled
-    case agentOverride
+    case agentOverride, approvedWriteScopes
   }
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -166,6 +170,8 @@ public struct Conversation: Codable, Equatable {
     compactPaused = try c.decodeIfPresent(Bool.self, forKey: .compactPaused)
     commonMemoryDisabled = try c.decodeIfPresent(Bool.self, forKey: .commonMemoryDisabled)
     agentOverride = try c.decodeIfPresent(AgentOverride.self, forKey: .agentOverride)
+    approvedWriteScopes = try c.decodeIfPresent([WriteScopeGrant].self,
+                                                forKey: .approvedWriteScopes)
   }
 
   /// 실제로 쓸 수 있는 요약 — 경계 턴이 사라졌으면(기록 편집 등) nil로 본다.
