@@ -71,7 +71,16 @@ extension AppDelegate {
       if CommandLine.arguments.contains("--demo-memory") {
         self.seedDemoConversation()
       }
-      self.renderPNG(AnyView(SettingsView(initialTab: tab).environmentObject(self.store)),
+      // QA: 규칙 테스터 결과를 그려 본다(저장하지 않음)
+      let ruleProbe = CommandLine.arguments
+        .first { $0.hasPrefix("--demo-rule-probe=") }
+        .map { String($0.dropFirst("--demo-rule-probe=".count)) } ?? ""
+      if CommandLine.arguments.contains("--demo-auto-accept") {
+        self.store.applyRenderOverride(autoAcceptAll: true)
+      }
+      self.renderPNG(AnyView(SettingsView(initialTab: tab,
+                                          initialAgentRuleProbe: ruleProbe)
+                              .environmentObject(self.store)),
                      size: NSSize(width: 780, height: settingsHeight),
                      to: "\(dir)/settings-\(tab.rawValue)-\(suffix).png")
       if CommandLine.arguments.contains("--demo-hub") {

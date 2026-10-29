@@ -144,17 +144,35 @@ extension SettingsView {
         .textFieldStyle(.roundedBorder)
         .font(.system(size: 11, design: .monospaced))
       if let result = agentRuleProbeResult {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 5) {
           HStack(spacing: 6) {
             badgeText(result.risk.displayName, color: riskColor(result.risk))
-            badgeText(result.verdict.label, color: result.verdict.color)
+            badgeText(result.headline.label, color: result.headline.color)
+            if result.elevated { badgeText(L("상승 권한"), color: .red) }
             if result.matchedRule { badgeText(L("규칙 일치"), color: .green) }
             Spacer(minLength: 0)
           }
-          Text(result.verdict.detail)
-            .font(.system(size: 10.5))
-            .foregroundColor(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+          VStack(alignment: .leading, spacing: 3) {
+            ForEach(result.stages) { stage in
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(stage.level.displayName)
+                  .font(.system(size: 10.5, weight: .medium))
+                  .frame(width: 42, alignment: .leading)
+                badgeText(stage.label, color: stage.color)
+                Text(stage.detail)
+                  .font(.system(size: 10.5))
+                  .foregroundColor(.secondary)
+                  .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+              }
+            }
+          }
+          if !result.elevated {
+            Text(L("실제 단계는 실행 직전 읽기 전용 샌드박스 실측으로 정해집니다. 위 결과는 각 단계로 판정됐을 때의 미리보기입니다."))
+              .font(.system(size: 10))
+              .foregroundColor(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
         .padding(6)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -373,18 +391,66 @@ extension SettingsView {
   /// 규칙 테스터 결과 — **실행하지 않고** 위험도·규칙·단계 정책만 계산한다.
   struct AgentRuleProbe {
     let risk: AgentRiskLevel
-    let verdict: AgentRuleVerdict
+    /// 가장 강한 판정(차단 > 확인 > 허용) — 한눈에 보여 준다.
+    let headline: AgentRuleVerdict
+    /// 읽기·쓰기·실행 단계별 미리보기. 상승 권한 명령은 실행 단계 하나뿐이다.
+    let stages: [AgentRuleStage]
     let matchedRule: Bool
+    let elevated: Bool
+  }
+
+  /// 단계 하나의 미리보기 — 라벨·색·안내는 **단계별**로 만든다.
+  struct AgentRuleStage: Identifiable {
+    let level: AgentPermissionLevel
+    let decision: AgentDecision
+
+    var id: String { level.rawValue }
+
+    var label: String {
+      switch decision {
+      case .allow: return L("확인 없이 실행")
+      case .ask: return L("확인 필요")
+      case .deny: return L("차단")
+      }
+    }
+
+    var color: Color {
+      switch decision {
+      case .allow: return .green
+      case .ask: return .orange
+      case .deny: return .red
+      }
+    }
+
+    /// 단계별 안내 — 실측 전이라 쓰기 경로를 모르므로 **비어 있는 경로 사유는 쓰지 않는다**.
+    var detail: String {
+      switch decision {
+      case .allow:
+        return L("이 단계로 판정되면 지금 설정은 다시 묻지 않습니다.")
+      case .ask:
+        return L("이 단계로 판정되면 실행 전에 확인을 받습니다.")
+      case .deny(let reason):
+        return reason
+      }
+    }
   }
 
   enum AgentRuleVerdict {
     case allow
-    case ask(String)
-    case deny(String)
+    case ask
+    case deny
+
+    init(_ decision: AgentDecision) {
+      switch decision {
+      case .allow: self = .allow
+      case .ask: self = .ask
+      case .deny: self = .deny
+      }
+    }
 
     var label: String {
       switch self {
-      case .allow: return L("실행")
+      case .allow: return L("확인 없이 실행")
       case .ask: return L("확인 필요")
       case .deny: return L("차단")
       }
@@ -397,42 +463,21 @@ extension SettingsView {
       case .deny: return .red
       }
     }
-
-    var detail: String {
-      switch self {
-      case .allow:
-        return L("지금 설정이면 확인 없이 실행됩니다(샌드박스 실측은 실행 직전에 합니다).")
-      case .ask(let reason):
-        return reason
-      case .deny(let reason):
-        return reason
-      }
-    }
   }
 
   var agentRuleProbeResult: AgentRuleProbe? {
     let command = agentRuleProbe.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !command.isEmpty else { return nil }
-    let risk = RiskClassifier.classify(command)
-    let policy = store.effectiveAgentPolicy
-    let matched = PolicyEngine.matchesRule(command: command, rules: policy.rules)
-    // ★ 실측(샌드박스 실행)은 하지 않는다 — 상승 권한이 필요하면 그 단계,
-    //   아니면 보수적으로 "실행" 단계로 가정해 판정한다.
-    let capability: AgentCapability = RiskClassifier.requiresElevation(command)
-      ? .elevated : .unprobed
-    let decision = PolicyEngine.decide(command: command, capability: capability,
-                                       risk: risk, policy: policy,
-                                       approvedScopes: store.approvedWriteScopes)
-    let verdict: AgentRuleVerdict
-    switch decision {
-    case .allow:
-      verdict = .allow
-    case .ask(let request):
-      verdict = .ask(request.reason)
-    case .deny(let reason):
-      verdict = .deny(reason)
-    }
-    return AgentRuleProbe(risk: risk, verdict: verdict, matchedRule: matched)
+    let preview = PolicyEngine.stagePreview(command: command,
+                                            risk: RiskClassifier.classify(command),
+                                            policy: store.effectiveAgentPolicy,
+                                            approvedScopes: store.approvedWriteScopes)
+    return AgentRuleProbe(
+      risk: preview.risk,
+      headline: AgentRuleVerdict(preview.headline),
+      stages: preview.stages.map { AgentRuleStage(level: $0.level, decision: $0.decision) },
+      matchedRule: preview.matchedRule,
+      elevated: preview.elevated)
   }
 
   func riskColor(_ risk: AgentRiskLevel) -> Color {

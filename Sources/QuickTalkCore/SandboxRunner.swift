@@ -73,11 +73,44 @@ public struct SandboxProbe: Equatable {
 public final class SandboxCancellation: @unchecked Sendable {
   private let lock = NSLock()
   private var cancelled = false
+  private var handlers: [Int: @Sendable () -> Void] = [:]
+  private var nextToken = 0
   public init() {}
 
+  /// 취소 — 등록된 핸들러를 **그 자리에서** 실행한다(다음 폴링을 기다리지 않는다).
   public func cancel() {
     lock.lock()
+    guard !cancelled else {
+      lock.unlock()
+      return
+    }
     cancelled = true
+    let pending = Array(handlers.values)
+    handlers.removeAll()
+    lock.unlock()
+    for handler in pending { handler() }
+  }
+
+  /// 취소될 때 실행할 핸들러를 등록한다. 이미 취소된 뒤라면 **즉시** 실행하고 `nil` 을 돌려준다.
+  @discardableResult
+  public func addCancelHandler(_ handler: @escaping @Sendable () -> Void) -> Int? {
+    lock.lock()
+    if cancelled {
+      lock.unlock()
+      handler()
+      return nil
+    }
+    nextToken += 1
+    let token = nextToken
+    handlers[token] = handler
+    lock.unlock()
+    return token
+  }
+
+  public func removeCancelHandler(_ token: Int?) {
+    guard let token else { return }
+    lock.lock()
+    handlers[token] = nil
     lock.unlock()
   }
 
@@ -85,6 +118,34 @@ public final class SandboxCancellation: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     return cancelled
+  }
+}
+
+/// 실행이 끝난 PID 를 취소 핸들러가 건드리지 않게 하는 작은 문.
+/// (종료 직후 PID 가 재사용되면 엉뚱한 프로세스를 죽일 수 있다.)
+private final class ProcessExitGate: @unchecked Sendable {
+  private let lock = NSLock()
+  private var pid: pid_t = 0
+  private var active = false
+
+  func activate(pid: pid_t) {
+    lock.lock()
+    self.pid = pid
+    active = true
+    lock.unlock()
+  }
+
+  func deactivate() {
+    lock.lock()
+    active = false
+    lock.unlock()
+  }
+
+  func terminateIfActive() {
+    lock.lock()
+    let target = active ? pid : 0
+    lock.unlock()
+    if target > 1 { SandboxRunner.terminateProcessTree(target) }
   }
 }
 
@@ -207,38 +268,61 @@ public enum SandboxRunner {
     collector.drain(out.fileHandleForReading, stream: .stdout)
     collector.drain(err.fileHandleForReading, stream: .stderr)
 
-    let deadline = Date().addingTimeInterval(timeout)
-    var cancelled = false
-    while p.isRunning && Date() < deadline {
-      if cancellation?.isCancelled == true {
-        cancelled = true
-        break
-      }
-      usleep(20_000)
-    }
-    var timedOut = false
-    if cancelled {
-      terminateProcessTree(p.processIdentifier)
-    } else if p.isRunning {
-      timedOut = true
-      terminateProcessTree(p.processIdentifier)
-    }
-    p.waitUntilExit()
+    // 취소는 핸들러가 **즉시** 트리를 종료한다 — 여기서는 종료·기한만 기다린다.
+    let gate = ProcessExitGate()
+    gate.activate(pid: p.processIdentifier)
+    let cancelToken = cancellation?.addCancelHandler { gate.terminateIfActive() }
+    var reason = waitForExit(p, timeout: timeout, cancellation: cancellation)
+    gate.deactivate()
+    cancellation?.removeCancelHandler(cancelToken)
+    // 취소 직후 프로세스가 먼저 끝나 루프가 취소를 못 본 경우를 보정한다.
+    if reason == .exited && cancellation?.isCancelled == true { reason = .cancelled }
+
     // 파이프를 붙든 자식이 남아 있을 수 있어 잠깐만 기다린다(늦어도 2초).
     collector.wait(timeout: 2)
     let stdout = clip(collector.stdout, limit: outputLimit)
     let stderr = clip(collector.stderr, limit: outputLimit)
-    if cancelled {
+    switch reason {
+    case .cancelled:
       return SandboxResult(exitCode: -1, stdout: stdout,
                            stderr: L("사용자가 실행을 중지했습니다."))
-    }
-    if timedOut {
+    case .timedOut:
       return SandboxResult(exitCode: -1, stdout: stdout,
                            stderr: Lf("시간 초과(%d초)", Int(timeout)))
+    case .exited:
+      return SandboxResult(exitCode: p.terminationStatus,
+                           stdout: stdout,
+                           stderr: stderr)
     }
-    return SandboxResult(exitCode: p.terminationStatus,
-                         stdout: stdout,
-                         stderr: stderr)
+  }
+
+  private enum StopReason { case exited, cancelled, timedOut }
+
+  /// 프로세스 종료를 기다린다 — 종료되면 세마포어가 즉시 깨어난다.
+  private static func waitForExit(_ p: Process,
+                                  timeout: TimeInterval,
+                                  cancellation: SandboxCancellation?) -> StopReason {
+    let done = DispatchSemaphore(value: 0)
+    p.terminationHandler = { _ in done.signal() }
+    let deadline = Date().addingTimeInterval(timeout)
+    var reason = StopReason.exited
+    while p.isRunning {
+      if cancellation?.isCancelled == true {
+        reason = .cancelled
+        break
+      }
+      if Date() >= deadline {
+        reason = .timedOut
+        break
+      }
+      _ = done.wait(timeout: .now() + 0.05)
+    }
+    if reason != .exited {
+      terminateProcessTree(p.processIdentifier)
+    }
+    p.terminationHandler = nil
+    p.waitUntilExit()
+    return reason
   }
 
   /// 파이프 출력을 **조각 단위로** 모으는 도우미 — 교착 없이 읽기 위해 스레드를 쓴다.
@@ -304,10 +388,21 @@ public enum SandboxRunner {
   /// 손자 프로세스(`sleep`·`find`·`rm` …)는 계속 살아남는다(2026-10-25 실측: 부모 종료 후에도
   /// 자식 `sleep 30` 생존). [중단]·시간 초과가 실제로 멈추도록 트리를 모아 함께 종료한다.
   public static func terminateProcessTree(_ root: pid_t) {
-    let tree = descendantPIDs(of: root) + [root]
+    guard root > 1 else { return }
+    let descendants = descendantPIDs(of: root)
+    let tree = descendants + [root]
     // 깊은 자식부터 정상 종료를 시도하고, 남아 있으면 강제 종료한다.
     for pid in tree.reversed() { kill(pid, SIGTERM) }
-    usleep(200_000)
+    // ★ 고정 200ms 대기 대신 자손이 사라지는 **즉시** 돌아온다(10ms 확인, 상한 200ms).
+    //   루트(sandbox-exec)는 부모가 거둬 갈 때까지 좀비라 `kill(pid, 0) == 0` 이므로
+    //   자손만 소멸 여부를 본다.
+    if !descendants.isEmpty {
+      let deadline = Date().addingTimeInterval(0.2)
+      while Date() < deadline {
+        if descendants.allSatisfy({ kill($0, 0) != 0 }) { break }
+        usleep(10_000)
+      }
+    }
     for pid in tree where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
   }
 

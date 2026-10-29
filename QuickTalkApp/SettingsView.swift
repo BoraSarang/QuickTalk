@@ -158,6 +158,8 @@ struct SettingsView: View {
   @State var showAgentAudit = false
   /// 규칙 테스터 — 판정을 미리 확인할 명령(v0.22). 실행하지는 않는다.
   @State var agentRuleProbe: String = ""
+  /// QA 렌더용: 규칙 테스터에 미리 넣을 명령(저장하지 않음)
+  var initialAgentRuleProbe: String = ""
   /// 로그인 시 자동 시작 — 시스템 로그인 항목 상태(설정 JSON 에는 저장하지 않는다)
   @State var launchAtLogin = LoginItem.isEnabled
   @State var loginItemError: String?
@@ -170,7 +172,10 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .frame(minWidth: 700, minHeight: 460)
-    .onAppear { tab = initialTab }
+    .onAppear {
+      tab = initialTab
+      if !initialAgentRuleProbe.isEmpty { agentRuleProbe = initialAgentRuleProbe }
+    }
     .sheet(item: $editingProvider) { p in
       ProviderEditorSheet(provider: p, isNew: editingIsNew)
         .environmentObject(store)

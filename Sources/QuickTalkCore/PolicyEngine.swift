@@ -109,6 +109,35 @@ public enum AgentPlan: Equatable {
   case allow(AgentCapability)
 }
 
+/// 규칙 테스터용 미리보기 — **실행하지 않고** 읽기·쓰기·실행 단계별 판정을 모두 계산한다.
+///
+/// 실제 권한 단계는 실행 직전 샌드박스 실측으로 정해진다. 그래서 테스터는 하나의 추측 대신
+/// "각 단계로 판정되면 어떻게 되는가"를 보여 준다(쓰기 명령이 늘 "실행"으로 보이던 문제).
+public struct AgentStagePreview: Equatable {
+  public struct Stage: Equatable {
+    public let level: AgentPermissionLevel
+    public let decision: AgentDecision
+  }
+
+  public let risk: AgentRiskLevel
+  /// 상승 권한 명령 — 단계와 무관하게 하나의 판정만 의미가 있다.
+  public let elevated: Bool
+  /// 사용자가 쓴 허용 규칙과 일치했는가(규칙은 모든 단계에 같이 적용된다).
+  public let matchedRule: Bool
+  public let stages: [Stage]
+
+  /// 가장 강한 판정 — deny > ask > allow.
+  public var headline: AgentDecision {
+    if let denial = stages.first(where: { if case .deny = $0.decision { return true }; return false }) {
+      return denial.decision
+    }
+    if let question = stages.first(where: { if case .ask = $0.decision { return true }; return false }) {
+      return question.decision
+    }
+    return .allow
+  }
+}
+
 public enum PolicyEngine {
   /// ★ 결정 — 단계(사용자 설정) × 위험도(시스템 판정).
   ///
@@ -151,6 +180,42 @@ public enum PolicyEngine {
     case .alwaysAsk:
       return .ask(request(command: command, capability: capability, risk: risk,
                           reason: reason(for: capability)))
+    }
+  }
+
+  /// ★ 규칙 테스터 — **실행(실측) 없이** 읽기·쓰기·실행 세 단계의 판정을 모두 돌려준다.
+  ///
+  /// 이전 테스터는 `.unprobed`(단계 = 실행) 하나만 계산해, 쓰기 명령도 "실행" 단계로 보였다.
+  /// 실제 단계는 실행 직전 읽기 전용 샌드박스 실측으로 정해지므로, 미리보기는 각 단계로
+  /// 판정됐을 때의 결과를 나란히 보여 주는 것이 맞다. 상승 권한 명령은 단계 구분이
+  /// 무의미하므로 실행 단계 하나만 돌려준다.
+  public static func stagePreview(command: String,
+                                  risk: AgentRiskLevel,
+                                  policy: AgentPolicy,
+                                  approvedScopes: [String] = []) -> AgentStagePreview {
+    let matched = matchesRule(command: command, rules: policy.rules)
+    if RiskClassifier.requiresElevation(command) {
+      let decision = decide(command: command, capability: .elevated, risk: risk,
+                            policy: policy, approvedScopes: approvedScopes)
+      return AgentStagePreview(risk: risk, elevated: true, matchedRule: matched,
+                               stages: [.init(level: .execute, decision: decision)])
+    }
+    let stages = AgentPermissionLevel.allCases.map { level in
+      AgentStagePreview.Stage(level: level,
+                              decision: decide(command: command,
+                                               capability: capability(for: level),
+                                               risk: risk, policy: policy,
+                                               approvedScopes: approvedScopes))
+    }
+    return AgentStagePreview(risk: risk, elevated: false, matchedRule: matched, stages: stages)
+  }
+
+  /// 단계 → 실측 전 가정. 쓰기 경로는 아직 모르므로 비워 둔다(사유 문구도 경로를 쓰지 않는다).
+  private static func capability(for level: AgentPermissionLevel) -> AgentCapability {
+    switch level {
+    case .read: return .read
+    case .write: return .write(path: "")
+    case .execute: return .unprobed
     }
   }
 
@@ -198,7 +263,8 @@ public enum PolicyEngine {
   private static func reason(for capability: AgentCapability) -> String {
     switch capability {
     case .read: return L("읽기만 필요합니다.")
-    case .write(let path): return Lf("쓰기가 필요합니다: %@", path)
+    case .write(let path):
+      return path.isEmpty ? L("쓰기 권한이 필요합니다.") : Lf("쓰기가 필요합니다: %@", path)
     case .network: return L("네트워크 접근이 필요합니다.")
     case .elevated: return L("상승 권한이 필요합니다.")
     case .blocked: return L("샌드박스가 막았습니다.")
