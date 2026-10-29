@@ -92,6 +92,8 @@ public struct QuickTalkSettings: Codable, Equatable {
   // 화면 가장자리 핸들 표시는 제거했다(2026-10-21 사용자 결정).
   /// 캡처 직후 클립보드에도 복사(다른 앱에서 바로 붙여넣기)
   public var shelfCopyCaptureToClipboard: Bool = true
+  /// Shortcuts/AppIntent가 보낸 질문을 확인 없이 전송할지(2026-10-29). 기본 **꺼짐** — 옵트인.
+  public var shortcutAutoSend: Bool = false
 
   // 창 연결 (P0-1) — 창 하나의 텍스트·스크린샷을 질문 컨텍스트로 붙인다(읽기 전용).
   /// 입력독의 🪟 버튼을 보일지. 끄면 진입점이 사라진다(권한을 건드리지 않는다).
@@ -220,7 +222,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case appleSpeechLocale, ttsLanguage, ttsVoiceID, ttsRate
     case ttsEngine, edgeVoice, edgeBinaryPath
     case piperModelPath, piperBinaryPath
-    case shelfCopyCaptureToClipboard
+    case shelfCopyCaptureToClipboard, shortcutAutoSend
     case windowAttachmentEnabled
     case webSearchProvider, webSearchResultCount
     case webSearchFreshness, webSearchMaxCharacters, exaSecretID
@@ -278,6 +280,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     piperModelPath = try c.decodeIfPresent(String.self, forKey: .piperModelPath) ?? ""
     piperBinaryPath = try c.decodeIfPresent(String.self, forKey: .piperBinaryPath) ?? ""
     shelfCopyCaptureToClipboard = try c.decodeIfPresent(Bool.self, forKey: .shelfCopyCaptureToClipboard) ?? true
+    shortcutAutoSend = try c.decodeIfPresent(Bool.self, forKey: .shortcutAutoSend) ?? false
     windowAttachmentEnabled = try c.decodeIfPresent(Bool.self, forKey: .windowAttachmentEnabled) ?? true
     webSearchProvider = Self.decodeEnum(WebSearchProvider.self, c, .webSearchProvider, default: .none)
     webSearchResultCount = try c.decodeIfPresent(Int.self, forKey: .webSearchResultCount) ?? 5
@@ -353,6 +356,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(piperModelPath, forKey: .piperModelPath)
     try c.encode(piperBinaryPath, forKey: .piperBinaryPath)
     try c.encode(shelfCopyCaptureToClipboard, forKey: .shelfCopyCaptureToClipboard)
+    try c.encode(shortcutAutoSend, forKey: .shortcutAutoSend)
     try c.encode(windowAttachmentEnabled, forKey: .windowAttachmentEnabled)
     try c.encode(webSearchProvider, forKey: .webSearchProvider)
     try c.encode(webSearchResultCount, forKey: .webSearchResultCount)

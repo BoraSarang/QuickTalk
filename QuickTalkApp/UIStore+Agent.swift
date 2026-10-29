@@ -67,13 +67,22 @@ extension UIStore {
     agentHandoffNotice = TerminalHandoffService.open(command: command)
   }
 
-  /// Shortcuts/AppIntent가 채운 질문을 입력창에 넣는다 — **자동 전송하지 않는다**.
+  /// Shortcuts/AppIntent가 채운 질문을 입력창에 넣는다 — 기본은 **자동 전송하지 않는다**.
   @MainActor
   func fillDraft(_ text: String) {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }
     draft = trimmed
     composerFocusToken = UUID()
+  }
+
+  /// Shortcuts/AppIntent가 보낸 질문 — '질문하고 보내기'는 옵트인 설정이 켜져 있을 때만 바로 전송한다(2026-10-29).
+  @MainActor
+  func receiveShortcutQuestion(_ text: String, autoSend: Bool) {
+    fillDraft(text)
+    guard ShortcutAutoSend.shouldSend(requested: autoSend, enabled: settings.shortcutAutoSend) else { return }
+    NSLog("[QuickTalk] Shortcuts 자동 전송 — 설정에 따라 확인 없이 전송")
+    send()
   }
 
   /// 쓰기 실행이 끝나면 되돌리기 스냅샷을 카드와 연결한다.
