@@ -3,7 +3,18 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-10-29 KST
 
-## 지금 (2026-10-29) — 승인된 쓰기 폴더 기억: 대화별 저장 · 7일 만료 (①)
+## 지금 (2026-10-29) — Exa `/answer` 정리: 옵션 유지 + 경로 판정 통합 (②)
+
+`/answer` 방식은 남기고, v0.23 툴 콜링과 겹치던 판정·폴백을 정리했다.
+
+- **`WebSearchRouting`(Core, 신설)**: `skipsPreSearch`(도우미 도구 + 검색 준비 + Apple FM 아님) · `usesPreSearch` · `usesAnswerDraft` — 앱과 설정 화면이 **같은 규칙**을 쓴다.
+- **폴백 중복 제거**: `/answer` 실패 → 일반 검색 폴백과 일반 검색 성공 경로가 복사하던 프롬프트 주입(6줄)을 `applySearchResults(_:)` 한 곳으로 합쳤다.
+- **안내 정확화**: `agentToolsEnabled` 만 보던 캡션을 실제 판정(`isAgentDrivenWebSearch`)으로 교체 — Apple FM·키 없음에서 "모델이 직접 검색한다"고 잘못 말하지 않는다. `/answer` 모드에서는 "초안이 쓰이지 않는다"는 전용 문구를 보여 주고 중복 캡션을 제거(한/영 키 1개 추가).
+- **QA**: `--demo-web-answer-agent`(실제 키의 `secretID` 를 빌린 가짜 OpenAI 호환, 메모리 전용) · `--demo-web-answer-tools-off` · `docs/qa/exa-answer-2026-10-29/` 한/영 · 도구 ON/OFF.
+- **검증**: `swift test` **556/556**(6 skip, 신규 5) · Debug/Release BUILD SUCCEEDED(Debug 경고 0) · **되돌려 실패 확인**(Apple FM 예외 제거 → 3건).
+- **병합/배포**: PR #58 → squash merge **`c6f04a2`** · 2026-10-29 19:11 `~/Applications/QuickTalk.app` 교체 · SHA-256 `50e232ea…` · **앱 재실행 필요**(PID 44867 은 이전 빌드).
+
+## 이전 (2026-10-29) — 승인된 쓰기 폴더 기억: 대화별 저장 · 7일 만료 (①)
 
 권장 순서 ①. 승인 폴더가 메모리에만 있어 앱을 다시 켜면 사라지던 것을 고쳤다. 범위는 그대로 **대화별**.
 
