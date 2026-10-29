@@ -43,6 +43,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "processes": return await runProcesses(call)
     case "screenshot": return await captureScreenshot(call)
     case "web_search": return await runWebSearch(call)
+    case "ui_snapshot": return await runUiSnapshot(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
@@ -456,6 +457,75 @@ final class AgentExecutor: AgentToolExecutor {
       AgentAudit.record(command: "screenshot \(target)", level: level, risk: risk,
                         decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: message, denied: true, level: level, risk: risk)
+    }
+  }
+
+  // MARK: - 화면 요소 읽기 (PLAN_v0.25 Phase 1)
+
+  /// `ui_snapshot` — 다른 앱 창의 접근성 요소를 **읽기만** 한다.
+  ///
+  /// 마스터 토글(`uiControlEnabled`)이 꺼져 있으면 도구가 목록에 없지만,
+  /// 설정을 방금 끈 경우를 대비해 실행 직전에 한 번 더 막는다.
+  /// 권한이 없으면 **허용 방법**을 돌려준다(스크린샷 도구와 같은 방식).
+  private func runUiSnapshot(_ call: AgentToolCall) async -> AgentToolOutcome {
+    let level = AgentToolPermission.level(for: call.name)
+    let risk = AgentRiskLevel.normal
+    let app = (call.stringArgument("app") ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let command = app.isEmpty ? "ui_snapshot" : "ui_snapshot \(app)"
+
+    guard store.settings.uiControlEnabled else {
+      let text = L("컴퓨터 제어가 꺼져 있어 화면 요소를 읽을 수 없습니다 — 설정 › 도구·권한에서 켜세요.")
+      upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+                                  title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
+                                  command: command, level: level, risk: risk,
+                                  state: .denied, output: text))
+      AgentAudit.record(command: command, level: level, risk: risk,
+                        decision: "deny", exitCode: nil, elapsedMs: 0)
+      return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+    }
+
+    // 읽기 단계 정책을 그대로 따른다(화면은 민감하다 — "읽기: 매번 확인"이면 묻는다).
+    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy) {
+      let request = AgentApprovalRequest(
+        command: command, level: level, risk: risk, capability: .read, writablePaths: [],
+        reason: L("다른 앱의 화면 요소를 읽으려면 확인이 필요합니다."))
+      upsertAgentEvent(AgentEvent(
+        id: call.id, toolName: call.name,
+        title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
+        command: app, level: level, risk: risk, state: .pending, output: request.reason))
+      if await requestApproval(request) == .deny {
+        let text = L("사용자가 화면 요소 읽기를 거부했습니다.")
+        store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
+        AgentAudit.record(command: command, level: level, risk: risk,
+                          decision: "deny", exitCode: nil, elapsedMs: 0)
+        return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+      }
+    }
+
+    upsertAgentEvent(AgentEvent(
+      id: call.id, toolName: call.name,
+      title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
+      command: app, level: level, risk: risk, state: .running))
+
+    switch await AccessibilityService.snapshot(app: app.isEmpty ? nil : app) {
+    case .success(let snapshot):
+      let text = snapshot.render()
+      store.updateAgentEvent(id: call.id) { event in
+        event.state = .done
+        event.output = Lf("요소 %d개를 읽었습니다.", snapshot.count)
+      }
+      AgentAudit.record(command: command, level: level, risk: risk,
+                        decision: "allow", exitCode: 0, elapsedMs: 0)
+      NSLog("[QuickTalk] 화면 요소 %d개 읽음 (앱=%@)", snapshot.count, snapshot.appName)
+      return AgentToolOutcome(output: text, level: level, risk: risk)
+
+    case .failure(let error):
+      let text = error.message
+      store.updateAgentEvent(id: call.id) { $0.state = .failed; $0.output = text }
+      AgentAudit.record(command: command, level: level, risk: risk,
+                        decision: "deny", exitCode: nil, elapsedMs: 0)
+      return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
   }
 

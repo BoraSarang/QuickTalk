@@ -1,6 +1,6 @@
 # PLAN v0.25 — 컴퓨터 제어 (macOS)
 
-> 작성: 2026-10-29 · 상태: **계획 (미구현)**
+> 작성: 2026-10-29 · 상태: **Phase 1 구현 완료(2026-10-29) · Phase 2 계획**
 > 상위 문서: `docs/HANDOFF.md`(단일 출처) · `docs/CHANGELOG.md` · `docs/plans/PLAN_v0.18_agent-runtime_macos.md` · `docs/plans/PLAN_v0.20-0.22_execution_macos.md`
 > 선행 결정: `PLAN_v0.20-0.22 §7` — "창 제어(computer use)는 넣지 않았다". 이 문서는 그 결정을 **어떤 조건이면 뒤집어도 되는지**를 정하고, 그 조건을 코드로 고정한다.
 
@@ -286,12 +286,15 @@ ui_action 도착
 
 ## 11. 작업 순서
 
-### Phase 1 (먼저 배포)
+### Phase 1 (먼저 배포) — **구현 완료 2026-10-29**
 
-- [ ] `UiElementPath` + `AccessibilityService` 스냅샷 (예산·타임아웃)
-- [ ] `ui_snapshot` 도구 + `AgentToolPermission`(읽기) + 카드·감사
-- [ ] 설정: `컴퓨터 제어` 그룹(마스터 토글은 Phase 2에서 활성, Phase 1은 "요소 읽기"만)
-- [ ] 테스트 `UiElementPathTests` · 렌더 · 실측 U1·U4(읽기 쪽)
+- [x] `UiElementPath` + `AccessibilityService` 스냅샷 (예산·타임아웃)
+- [x] `ui_snapshot` 도구 + `AgentToolPermission`(읽기) + 카드·감사
+- [x] 설정: `컴퓨터 제어` 그룹 — Phase 1은 **읽기 전용**이므로 토글 이름도 `화면 요소 읽기 허용`
+- [x] 테스트 `UiSnapshotTests` 16건 · `AgentTests.testUiSnapshotToolIsOptIn` · 렌더 한/영
+- [ ] 실측 U1·U4(읽기 쪽) — **앱 재실행 후 사용자**
+- [x] 공통 AX 헬퍼 `AXAccess` 로 `AXWindowReader` 중복 제거
+- [x] QuickTalk 자신을 기본 대상에서 제외(다른 앱 창이 없으면 빈 결과)
 
 ### Phase 2
 
@@ -305,8 +308,17 @@ ui_action 도착
 
 - 픽셀 좌표 클릭 · 드래그 · 비전 모델 좌표 해석 · 다중 창 시나리오
 
-## 12. 결정 필요 (사용자)
+## 12. 결정 (2026-10-29 확정)
 
-1. **앱별 승인 기간** — ①승인 폴더와 같이 **7일 만료**(권장) / 세션 한정 / 영구.
-2. **터미널 계열 금지** — 유지(권장, 셸 우회 차단) / 허용(터미널 작업 자동화가 필요하면).
-3. **Phase 1 먼저 배포** — 읽기 전용부터 배포해 실측 후 Phase 2(권장) / 한 번에 Phase 2까지.
+1. **앱별 승인 기간** — **7일 만료** (①승인 폴더와 같은 모델, 만료 시 재승인·설정에 만료일 표시).
+2. **터미널 계열 금지** — **유지** (셸 우회 차단. 명령은 `shell` 도구 게이트로만).
+3. **배포 단위** — **Phase 1 먼저** (읽기 전용 배포 → 실측 → Phase 2).
+
+### Phase 1 구현 메모
+
+- `ui_snapshot`은 `AgentToolCatalog.all`에 넣지 않았다 — `available(includingUI:)`로만 추가한다.
+  기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 가고, 마스터 토글이 꺼진 사용자에게도 노출된다.
+- 참조 `r<n>`은 스냅샷 안에서만 유효하며, 이름 없는 컨테이너를 평탄화해도 **같은 부모의 순번표를 이어 쓴다**
+  (따로 세면 평탄화된 형제끼리 index가 겹쳐 Phase 2에서 엉뚱한 요소를 누른다).
+- 비밀번호 필드는 `hasValue = false`로 보고한다 — 값이 있어도 없다고 말한다.
+- 손쉬운 사용 권한이 없으면 `noPermission`과 **허용 경로**를 돌려준다(스크린샷과 같은 방식).

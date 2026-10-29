@@ -209,6 +209,9 @@ public struct AgentRunner {
       return Lf("스크린샷 — %@", target)
     case "web_search":
       return Lf("웹 검색 — %@", call.stringArgument("query") ?? "")
+    case "ui_snapshot":
+      let app = (call.stringArgument("app") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      return Lf("화면 요소 — %@", app.isEmpty ? L("앞에 있는 앱") : app)
     default:
       return tools.first { $0.name == call.name }?.name ?? call.name
     }

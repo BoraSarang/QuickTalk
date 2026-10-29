@@ -10,10 +10,11 @@ public enum AgentToolPermission {
   ///
   /// - `screenshot` 은 **읽기**다 — 화면 내용을 읽어 올 뿐 클릭·입력은 하지 않는다.
   ///   다만 "읽기: 매번 확인" 이면 다른 읽기 도구와 똑같이 확인을 받는다(화면은 민감하다).
+  /// - `ui_snapshot` 은 **읽기**다 — 화면의 요소를 읽어 올 뿐 클릭·입력은 하지 않는다(PLAN_v0.25).
   /// - `shell` 은 **실행** 단계다. 실제로 필요한 권한은 샌드박스 실측이 좁힌다.
   public static func level(for tool: String) -> AgentPermissionLevel {
     switch tool {
-    case "read_file", "list_dir", "processes", "screenshot": return .read
+    case "read_file", "list_dir", "processes", "screenshot", "ui_snapshot": return .read
     case "shell": return .execute
     // 정의되지 않은 도구는 **가장 좁은(가장 묻는)** 단계로 본다 — 모르면 묻는다.
     default: return .execute

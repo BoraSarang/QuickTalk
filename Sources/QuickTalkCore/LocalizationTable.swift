@@ -1159,5 +1159,28 @@ extension L10n {
     "화면을 캡처하려면 확인이 필요합니다.": "Screen capture needs your approval.",
     "사용자가 화면 캡처를 거부했습니다.": "The user denied the screen capture.",
 
+    // v0.25 Phase 1 — 컴퓨터 제어: 화면 요소 읽기(ui_snapshot)
+    "컴퓨터 제어": "Computer control",
+    "화면 요소 읽기 허용": "Allow reading screen elements",
+    "다른 앱의 버튼·입력란 이름을 읽어 무엇을 할 수 있는지 확인합니다. 지금은 읽기만 하며 클릭·입력은 하지 않습니다.": "Read the names of buttons and fields in other apps to see what can be done. For now it only reads — it never clicks or types.",
+    "기본은 꺼짐입니다. 꺼져 있으면 모델이 이 도구를 아예 받지 않습니다. 읽으려면 손쉬운 사용 권한이 필요합니다.": "Off by default. When off, the model does not receive this tool at all. Reading requires Accessibility permission.",
+    "읽기는 화면을 바꾸지 않습니다. 비밀번호 입력란의 값은 읽지 않습니다.": "Reading does not change the screen. Values in secure password fields are never read.",
+    "화면 기록은 창 목록·스크린샷·퀵셸프 캡처에, 손쉬운 사용은 다른 앱 창의 글자를 읽고 컴퓨터 제어(화면 요소 읽기)에 씁니다. 허용 후에는 앱을 다시 실행해야 반영됩니다.": "Screen Recording is used for the window list, screenshots and Quick Shelf captures; Accessibility is used to read text in other apps and to read screen elements for computer control. Relaunch the app after allowing permission.",
+    "컴퓨터 제어가 꺼져 있어 화면 요소를 읽을 수 없습니다 — 설정 › 도구·권한에서 켜세요.": "Computer control is off, so screen elements cannot be read — turn it on in Settings › Tools & Permissions.",
+    "다른 앱의 화면 요소를 읽으려면 확인이 필요합니다.": "Reading another app's screen elements needs your approval.",
+    "사용자가 화면 요소 읽기를 거부했습니다.": "The user denied reading screen elements.",
+    "요소 %d개를 읽었습니다.": "Read %d elements.",
+    "화면 요소 — %@": "Screen elements — %@",
+    "앞에 있는 앱": "the frontmost app",
+    "알 수 없는 앱": "Unknown app",
+    "읽을 앱을 찾지 못했습니다 — 앱 이름이나 번들 ID를 지정하세요.": "No app to read — specify an app name or bundle identifier.",
+    "'%@' 앱을 찾지 못했습니다 — 실행 중인지, 이름이 맞는지 확인하세요.": "App '%@' was not found — check that it is running and the name is correct.",
+    "'%@' 앱에서 읽을 창을 찾지 못했습니다 — 창이 최소화되었는지 확인하세요.": "No window to read in '%@' — check whether the window is minimized.",
+    "손쉬운 사용 권한이 없어 화면 요소를 읽을 수 없습니다 — 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 QuickTalk를 허용한 뒤 앱을 다시 실행하세요.": "Accessibility permission is missing, so screen elements cannot be read — allow QuickTalk in System Settings › Privacy & Security › Accessibility, then relaunch the app.",
+    "화면에서 요소를 찾지 못했습니다 — 앱이 접근성 트리를 노출하지 않을 수 있습니다. 스크린샷(screenshot 도구)을 대신 쓰세요.": "No elements found on screen — the app may not expose an accessibility tree. Use the screenshot tool instead.",
+    "(제목 없음)": "(untitled)",
+    "앱: %@ · 창: %@ · 요소 %d개": "App: %@ · Window: %@ · %d elements",
+    "… 요소가 많아 %d개까지만 표시했습니다.": "… Too many elements, showing only the first %d.",
+
   ]
 }
