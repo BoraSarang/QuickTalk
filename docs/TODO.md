@@ -13,7 +13,8 @@
 - **UI**: 설정 › 도구·권한 › 승인된 폴더에 **만료일** 표시, 캡션을 "이 대화에서 7일 동안 유지 · 만료/[해제] 시 다시 묻습니다"로 교체(한/영 키). 기존 "앱을 다시 켜면 초기화됩니다" 문구 삭제.
 - **QA**: `--demo-write-scopes` 렌더 플래그(메모리 전용) · `docs/qa/write-scope-grants-2026-10-29/` 한/영.
 - **검증**: `swift test` **551/551**(6 skip, 신규 10) · Debug/Release BUILD SUCCEEDED(Debug 경고 0) · **되돌려 실패 확인**(`isActive` 항상 true → 4건, Store 만료 필터 제거 → 1건).
-- **병합**: PR #55 → squash merge **`5589105`**. **미배포**(사용자 확인 후 교체).
+- **병합**: PR #55 → squash merge **`5589105`**.
+- **배포**: 2026-10-29 18:45 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `4b64ba602ce2…` · **앱 재실행 필요**(PID 44867 은 이전 빌드).
 
 ## 이전 (2026-10-29) — P2 백로그 마감: 취소 응답성 · 테스터 단계 판정 · 경고
 
