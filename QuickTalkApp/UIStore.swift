@@ -609,6 +609,27 @@ final class UIStore: ObservableObject {
     suppressSettingsSave = false
   }
 
+  /// QA 렌더 전용 — 웹 검색 답변 방식을 **메모리에서만** 바꾼다(설정 저장 없음).
+  /// `simulateRemoteProvider` 면 OpenAI 호환 모델을 하나 심어 "도구 루프가 검색을 가져가는" 상태를 재현한다.
+  func applyRenderOverride(webSearchMode: WebSearchMode, agentTools: Bool? = nil,
+                           simulateRemoteProvider: Bool = false) {
+    suppressSettingsSave = true
+    settings.webSearchProvider = .exa
+    settings.webSearchMode = webSearchMode
+    if let agentTools { settings.agentToolsEnabled = agentTools }
+    if simulateRemoteProvider {
+      // 실제 키가 있는 secretID 를 빌려 쓴다 — `canUseAgentTools` 는 키 존재까지 확인한다.
+      let keyID = settings.providers.map(\.secretID)
+        .first { SecretStore.has(account: $0) } ?? settings.exaSecretID
+      let qa = LLMProviderConfig(id: "qa-remote", name: "QA Remote", type: .openAICompatible,
+                                 baseURL: "http://127.0.0.1:1/v1", model: "qa-model",
+                                 secretID: keyID, enabled: true)
+      settings.providers = [qa]
+      settings.activeProviderID = qa.id
+    }
+    suppressSettingsSave = false
+  }
+
   /// QA 렌더·실검증용 — 대화를 **메모리에만** 바꾼다(저장 없음).
   func applyConversationForSelfTest(_ c: Conversation) {
     // 자가검증이 실제 history.json을 덮어쓰지 않게 이 실행 동안 저장을 막는다.
@@ -1256,6 +1277,17 @@ final class UIStore: ObservableObject {
         var searchNote: String?
         /// 실제로 프롬프트에 들어간 검색 컨텍스트 토큰 — 기록 예산을 정확히 다시 맞춘다.
         var searchContextTokens = 0
+        // 검색 결과를 프롬프트에 넣는다 — `/answer` 폴백과 일반 검색이 **같은 규칙**을 쓰게 한 곳에 둔다.
+        func applySearchResults(_ results: [SearchResult]) {
+          guard !results.isEmpty else { return }
+          let context = cappedSearchContext(WebSearchContext.build(
+            results: results,
+            maxCharacters: searchLimits.maxCharacters,
+            limit: searchLimits.resultCount))
+          searchContextTokens = ConversationMemory.estimateTokens(context)
+          modelPrompt = memoryPrefix + context + "\n\n질문: " + prompt
+          sources = WebSearchContext.sources(from: results, limit: searchLimits.resultCount)
+        }
         /// 툴 콜링이 검색 없이 바로 답한 경우 — 두 번째 모델 호출을 건너뛴다.
         var precomputedAnswer: String?
         let forced = self.forceWebSearch
@@ -1267,7 +1299,9 @@ final class UIStore: ObservableObject {
         let searchToolReady = self.webSearchToolAvailable
         // 사전 검색을 건너뛰어도 되는 경우 = **루프 안에서 검색할 수 있을 때**만.
         // Apple FM 은 web_search 를 등록하지 않으므로 사전 검색을 남긴다(안 그러면 검색을 잃는다).
-        let skipPreSearch = usesAgentTools && searchToolReady && provider.type != .appleFM
+        let skipPreSearch = WebSearchRouting.skipsPreSearch(
+          agentTools: usesAgentTools, searchToolReady: searchToolReady,
+          providerType: provider.type)
 
         // P3-a) 툴 콜링 — 모델이 `web_search`를 직접 호출한다. OpenAI 호환에서만 시도하고,
         // 프록시가 tools를 모르면(400) 아래 기존 주입 경로로 조용히 폴백한다.
@@ -1348,14 +1382,8 @@ final class UIStore: ObservableObject {
               searchNote = error.userText
               NSLog("[ERROR] %@ /answer 실패 → 일반 검색 폴백", error.code)
               let fallback = await self.searchWeb(query: prompt)
-              if case .success(let results) = fallback, !results.isEmpty {
-                let context = cappedSearchContext(WebSearchContext.build(
-                  results: results,
-                  maxCharacters: searchLimits.maxCharacters,
-                  limit: searchLimits.resultCount))
-                searchContextTokens = ConversationMemory.estimateTokens(context)
-                modelPrompt = memoryPrefix + context + "\n\n질문: " + prompt
-                sources = WebSearchContext.sources(from: results, limit: searchLimits.resultCount)
+              if case .success(let results) = fallback {
+                applySearchResults(results)
               }
             }
           } else {
@@ -1366,13 +1394,7 @@ final class UIStore: ObservableObject {
               if results.isEmpty {
                 searchNote = L("⚠️ 웹 검색 결과가 없습니다 — 모델 지식으로 답합니다.")
               } else {
-                let context = cappedSearchContext(WebSearchContext.build(
-                  results: results,
-                  maxCharacters: searchLimits.maxCharacters,
-                  limit: searchLimits.resultCount))
-                searchContextTokens = ConversationMemory.estimateTokens(context)
-                modelPrompt = memoryPrefix + context + "\n\n질문: " + prompt
-                sources = WebSearchContext.sources(from: results, limit: searchLimits.resultCount)
+                applySearchResults(results)
                 NSLog("[QuickTalk] 웹 검색 %d건 → 프롬프트 주입", sources.count)
               }
             case .failure(let error):

@@ -239,6 +239,16 @@ extension UIStore {
     settings.webSearchEnabled && webSearchKeyReady
   }
 
+  /// 지금 설정에서 모델이 **도구 루프 안에서** 웹 검색을 하는가 — 설정 화면 안내용(2026-10-29).
+  /// 참이면 앱의 사전 검색·Exa `/answer` 초안은 쓰이지 않는다.
+  @MainActor
+  var isAgentDrivenWebSearch: Bool {
+    guard let provider = settings.activeProvider else { return false }
+    return WebSearchRouting.skipsPreSearch(agentTools: canUseAgentTools(provider),
+                                            searchToolReady: webSearchToolAvailable,
+                                            providerType: provider.type)
+  }
+
   /// QA: 헤드리스 에이전트 1회 — 도구 실행·권한 판정·최종 답을 로그로 남긴다.
   /// 승인이 필요한 명령은 **거부**로 처리한다(헤드리스에서 대면 창이 없으므로).
   @MainActor

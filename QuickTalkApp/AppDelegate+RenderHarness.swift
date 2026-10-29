@@ -78,6 +78,17 @@ extension AppDelegate {
       if CommandLine.arguments.contains("--demo-auto-accept") {
         self.store.applyRenderOverride(autoAcceptAll: true)
       }
+      // QA: Exa /answer 모드 — 도우미 도구 ON(초안 미사용 안내) / OFF(초안 사용) 두 상태(저장 없음).
+      if CommandLine.arguments.contains("--demo-web-answer") {
+        self.store.applyRenderOverride(webSearchMode: .answer)
+      }
+      if CommandLine.arguments.contains("--demo-web-answer-tools-off") {
+        self.store.applyRenderOverride(webSearchMode: .answer, agentTools: false)
+      }
+      if CommandLine.arguments.contains("--demo-web-answer-agent") {
+        self.store.applyRenderOverride(webSearchMode: .answer,
+                                       simulateRemoteProvider: true)
+      }
       // QA: 승인 폴더 목록·만료일 표시 — 메모리에서만 채운다(저장 없음).
       if CommandLine.arguments.contains("--demo-write-scopes") {
         let now = Date()

@@ -687,6 +687,7 @@ extension L10n {
     "모델이 필요할 때 web_search 도구를 호출합니다. OpenAI 호환 + tools를 지원하는 프록시에서만 동작하며, 실패하면 자동으로 검색 결과 주입으로 돌아갑니다.": "The model calls the web_search tool when needed. Works only with OpenAI-compatible proxies that support tools; on failure it falls back to search-result injection.",
     "Exa가 검색과 요약을 한 번에 처리하고 인용을 돌려줍니다. 선택한 모델이 그 답변을 참고해 다시 씁니다.": "Exa handles search and summarization in one call and returns citations. The selected model uses that answer as a reference and rewrites it.",
     "도우미 도구가 켜져 있으면 위 방식과 무관하게 모델이 web_search 도구로 직접 검색합니다. 이때는 검색 여부를 미리 판정하지 않습니다.": "With assistant tools on, the model searches directly through the web_search tool regardless of the mode above. Search is no longer decided in advance.",
+    "지금은 도우미 도구가 켜져 있어 모델이 web_search 도구로 직접 검색합니다. /answer 초안은 쓰이지 않으니, 초안을 쓰려면 도우미 도구를 끄세요.": "Assistant tools are on, so the model searches directly through the web_search tool. The /answer draft is not used; turn off assistant tools to use it.",
     "웹 검색 — %@": "Web search — %@",
     "검색 결과 %d건 · 출처 %d개": "%d results · %d sources",
     "검색 결과가 없습니다. 다른 검색어로 시도하거나 아는 범위에서 답하세요.": "No results. Try another query, or answer from what you already know.",

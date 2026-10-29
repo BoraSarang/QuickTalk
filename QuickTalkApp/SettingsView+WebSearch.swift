@@ -15,8 +15,12 @@ extension SettingsView {
         pickerRow(L("답변 방식"), selection: $store.settings.webSearchMode,
                   options: WebSearchMode.allCases.map { ($0, $0.displayName) })
         caption(store.settings.webSearchMode.explanation)
-        if store.settings.agentToolsEnabled {
-          caption(L("도우미 도구가 켜져 있으면 위 방식과 무관하게 모델이 web_search 도구로 직접 검색합니다. 이때는 검색 여부를 미리 판정하지 않습니다."))
+        if store.isAgentDrivenWebSearch {
+          if store.settings.webSearchMode == .answer {
+            caption(L("지금은 도우미 도구가 켜져 있어 모델이 web_search 도구로 직접 검색합니다. /answer 초안은 쓰이지 않으니, 초안을 쓰려면 도우미 도구를 끄세요."))
+          } else {
+            caption(L("도우미 도구가 켜져 있으면 위 방식과 무관하게 모델이 web_search 도구로 직접 검색합니다. 이때는 검색 여부를 미리 판정하지 않습니다."))
+          }
         }
 
         valueRow(L("검색 시점"), L("필요할 때만"))
