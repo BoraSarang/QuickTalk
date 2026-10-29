@@ -3,7 +3,19 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-10-29 KST
 
-## 지금 (2026-10-29) — P2 백로그 마감: 취소 응답성 · 테스터 단계 판정 · 경고
+## 지금 (2026-10-29) — 승인된 쓰기 폴더 기억: 대화별 저장 · 7일 만료 (①)
+
+권장 순서 ①. 승인 폴더가 메모리에만 있어 앱을 다시 켜면 사라지던 것을 고쳤다. 범위는 그대로 **대화별**.
+
+- **모델**: `Conversation.approvedWriteScopes: [WriteScopeGrant]?` — 대화 기록과 함께 저장(구버전 키 없음 = 승인 없음). `WriteScopeGrant` 는 `path`·`approvedAt`·`expiresAt`, 기본 수명 **7일**.
+- **만료**: 만료 시각과 같은 순간도 만료로 본다. 판정(`AgentExecutor`)·설정 목록에서 빠지고, 다시 승인하면 같은 경로의 **기간이 새로 시작**된다. 승인·저장 시 만료 항목은 정리.
+- **저장**: `Store.setWriteScopeGrants` — 활성 승인만 저장, 0건이면 `nil`. `UIStore.writeScopesByConversation` 메모리 사전은 제거하고 `activeWriteScopeGrants`/`approvedWriteScopes` 계산 프로퍼티로 대체.
+- **UI**: 설정 › 도구·권한 › 승인된 폴더에 **만료일** 표시, 캡션을 "이 대화에서 7일 동안 유지 · 만료/[해제] 시 다시 묻습니다"로 교체(한/영 키). 기존 "앱을 다시 켜면 초기화됩니다" 문구 삭제.
+- **QA**: `--demo-write-scopes` 렌더 플래그(메모리 전용) · `docs/qa/write-scope-grants-2026-10-29/` 한/영.
+- **검증**: `swift test` **551/551**(6 skip, 신규 10) · Debug/Release BUILD SUCCEEDED(Debug 경고 0) · **되돌려 실패 확인**(`isActive` 항상 true → 4건, Store 만료 필터 제거 → 1건).
+- **병합**: PR #55 → squash merge **`5589105`**. **미배포**(사용자 확인 후 교체).
+
+## 이전 (2026-10-29) — P2 백로그 마감: 취소 응답성 · 테스터 단계 판정 · 경고
 
 P2 백로그 마지막 3건(#5·#7·#10)을 끝내 **12건 전부 완료**로 만들었다.
 
