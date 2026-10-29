@@ -582,6 +582,14 @@ final class UIStore: ObservableObject {
     suppressSettingsSave = false
   }
 
+  /// QA 렌더 전용 — **실제 언어 전환 경로**를 태운다(설정 발행 → AppDelegate sink → applyLanguage).
+  /// `--lang=`(실행 인자)은 시작 시점만 재현하므로, 사용자가 설정에서 언어를 바꾸는 경우는 이쪽으로 확인한다.
+  func applyRenderOverride(language: AppLanguage) {
+    suppressSettingsSave = true
+    settings.language = language
+    suppressSettingsSave = false
+  }
+
   /// QA 렌더·실검증용 — 웹 검색을 켠 상태로 **메모리에서만** 바꾼다(설정 저장 없음).
   func applyRenderOverride(webSearch enabled: Bool) {
     suppressSettingsSave = true

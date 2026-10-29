@@ -826,8 +826,9 @@ extension L10n {
     "네트워크": "Network",
     "네트워크 접근이 필요합니다.": "Network access is required.",
     "도구": "Tools",
-    "도구 사용": "Use tools",
     "도우미 도구": "Assistant tools",
+    "도우미 도구 사용": "Use assistant tools",
+    "도움말": "Help",
     "도우미가 컴퓨터를 대신 확인하고 행동할 때의 권한 설정입니다.": "Permissions for when the assistant checks and acts on the computer for you.",
     "매번 확인": "Ask every time",
     "명령이 비어 있습니다.": "The command is empty.",
@@ -878,7 +879,7 @@ extension L10n {
 
     // 창 연결 (P0-1) — 창 하나의 텍스트·스크린샷을 참고 자료로 붙인다(읽기 전용)
     "창 텍스트": "Window text",
-    "창": "window",
+    "창": "Window",
     "창 연결": "Connect window",
     "사용자가 이 창을 질문의 컨텍스트로 첨부했습니다.": "The user attached this window as context for the question.",
     "앱": "App",
@@ -984,6 +985,7 @@ extension L10n {
     "지금 화면을 캡처해서 보여 주세요.": "Capture the screen and show me.",
     "앞에 있는 창을 찍어서 보여 달라고 요청": "Ask for a screenshot of the frontmost window",
     "지금 앞에 있는 창을 캡처해서 보여 주세요.": "Capture the frontmost window and show me.",
+    "디스크": "Disk",
     "디스크 여유 공간 확인": "Check free disk space",
     "디스크 여유 공간을 확인해 주세요.": "Check the free disk space.",
     "CPU를 많이 쓰는 프로세스 확인": "Check the top CPU processes",
