@@ -12,7 +12,8 @@ P2 백로그 마지막 3건(#5·#7·#10)을 끝내 **12건 전부 완료**로 �
 - **#10 경고**: `UIStore.markInterruptedQuestion()` 의 `appendAssistant` 결과를 `_ =` 로 받아 `UIStore.swift:950` 경고 제거 → Debug 경고 0.
 - **QA 렌더**: `--demo-rule-probe=<명령>` · `--demo-auto-accept`(메모리 전용, 저장 안 함) 추가 → `docs/qa/p2-backlog-2026-10-29/` 한/영 + 자동 수락 3장.
 - **검증**: `swift test` **541/541**(6 skip, 신규 9) · Debug/Release BUILD SUCCEEDED · **되돌려 실패 확인**(핸들러 미호출 → 2건 · 단일 실행 단계 → 6건 · `_ =` 제거 → 경고 재현).
-- **병합**: PR #52 → squash merge **`066232b`**. **배포는 사용자 확인 후** — 실행 중 앱은 건드리지 않았다.
+- **병합**: PR #52 → squash merge **`066232b`** (문서 #53 → `9c1b68e`).
+- **배포**: 2026-10-29 18:03 `~/Applications/QuickTalk.app` 교체(직전 빌드 `.QuickTalk.old`) · `codesign --verify --strict --deep` OK · SHA-256 `351aa836247a…` · **앱 재실행 필요**(PID 786 은 이전 빌드).
 
 ## 이전 (2026-10-29) — 슬래시 팔레트 언어(명령 이름 번역) · 도구 토글 라벨(QA #11·#12)
 
