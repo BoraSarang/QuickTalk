@@ -499,6 +499,21 @@ final class AgentTests: XCTestCase {
                    "기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 간다")
   }
 
+  /// `ui_snapshot` 은 **마스터 토글이 켜진 턴에만** 도구 목록에 붙는다 (PLAN_v0.25 Phase 1).
+  /// 기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 가고, 꺼 둔 사용자에게도 노출된다.
+  func testUiSnapshotToolIsOptIn() {
+    XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 5)
+    XCTAssertFalse(AgentToolCatalog.available(includingWebSearch: false)
+      .contains { $0.name == "ui_snapshot" })
+    let withUI = AgentToolCatalog.available(includingWebSearch: false, includingUI: true)
+    XCTAssertEqual(withUI.count, 6)
+    XCTAssertTrue(withUI.contains { $0.name == "ui_snapshot" })
+    XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "ui_snapshot" },
+                   "기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 간다")
+    // 읽기 단계 도구여야 한다 — 실행 단계로 두면 읽기 정책을 우회한다.
+    XCTAssertEqual(AgentToolPermission.level(for: "ui_snapshot"), .read)
+  }
+
   func testWebSearchToolRequiresQuery() {
     let fn = AgentToolCatalog.webSearch.openAISchema["function"] as? [String: Any]
     XCTAssertEqual(fn?["name"] as? String, "web_search")

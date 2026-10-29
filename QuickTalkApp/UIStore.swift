@@ -609,6 +609,13 @@ final class UIStore: ObservableObject {
     suppressSettingsSave = false
   }
 
+  /// QA 렌더 전용 — 컴퓨터 제어(화면 요소 읽기)를 켠 상태를 **메모리에서만** 재현한다(설정 저장 없음).
+  func applyRenderOverride(uiControl: Bool) {
+    suppressSettingsSave = true
+    settings.uiControlEnabled = uiControl
+    suppressSettingsSave = false
+  }
+
   /// QA 렌더 전용 — 웹 검색 답변 방식을 **메모리에서만** 바꾼다(설정 저장 없음).
   /// `simulateRemoteProvider` 면 OpenAI 호환 모델을 하나 심어 "도구 루프가 검색을 가져가는" 상태를 재현한다.
   func applyRenderOverride(webSearchMode: WebSearchMode, agentTools: Bool? = nil,
@@ -1462,8 +1469,10 @@ final class UIStore: ObservableObject {
             // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
             // 웹 검색도 **같은 루프**에 넣는다(v0.23) — 모델이 답을 모르면 `web_search` 를 고른다.
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
+            // 컴퓨터 제어(ui_snapshot)는 마스터 토글이 켜져 있을 때만 목록에 넣는다.
             let agentTools = AgentToolCatalog.available(
-              includingWebSearch: searchToolReady && p.type != .appleFM)
+              includingWebSearch: searchToolReady && p.type != .appleFM,
+              includingUI: settings.uiControlEnabled && p.type != .appleFM)
             do {
               reply = try await self.runAgentTurn(client: agentClient, prompt: modelPrompt,
                                                   history: finalHistory, turnID: aid,

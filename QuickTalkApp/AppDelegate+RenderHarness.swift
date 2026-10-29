@@ -78,6 +78,10 @@ extension AppDelegate {
       if CommandLine.arguments.contains("--demo-auto-accept") {
         self.store.applyRenderOverride(autoAcceptAll: true)
       }
+      // QA: 컴퓨터 제어(화면 요소 읽기)를 켠 상태 — 마스터 토글 ON(저장 없음).
+      if CommandLine.arguments.contains("--demo-ui-control") {
+        self.store.applyRenderOverride(uiControl: true)
+      }
       // QA: Exa /answer 모드 — 도우미 도구 ON(초안 미사용 안내) / OFF(초안 사용) 두 상태(저장 없음).
       if CommandLine.arguments.contains("--demo-web-answer") {
         self.store.applyRenderOverride(webSearchMode: .answer)

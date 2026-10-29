@@ -520,14 +520,7 @@ enum AXWindowReader {
     return nil
   }
 
-  private static func size(_ el: AXUIElement) -> CGSize? {
-    var value: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &value) == .success,
-          let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
-    var size = CGSize.zero
-    guard AXValueGetValue(value as! AXValue, .cgSize, &size) else { return nil }
-    return size
-  }
+  private static func size(_ el: AXUIElement) -> CGSize? { AXAccess.size(el) }
 
   // MARK: - 선택 텍스트
 
@@ -552,36 +545,18 @@ enum AXWindowReader {
   // MARK: - AX 유틸
 
   private static func element(_ el: AXUIElement, _ attr: String) -> AXUIElement? {
-    var value: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(el, attr as CFString, &value) == .success,
-          let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-    return (value as! AXUIElement)
+    AXAccess.element(el, attr)
   }
 
   private static func elements(_ el: AXUIElement, _ attr: String) -> [AXUIElement] {
-    var value: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(el, attr as CFString, &value) == .success,
-          let array = value as? NSArray else { return [] }
-    return array.compactMap { any -> AXUIElement? in
-      guard CFGetTypeID(any as CFTypeRef) == AXUIElementGetTypeID() else { return nil }
-      return (any as! AXUIElement)
-    }
+    AXAccess.elements(el, attr)
   }
 
-  private static func children(_ el: AXUIElement) -> [AXUIElement] {
-    elements(el, kAXChildrenAttribute)
-  }
+  private static func children(_ el: AXUIElement) -> [AXUIElement] { AXAccess.children(el) }
 
   private static func string(_ el: AXUIElement, _ attr: String) -> String? {
-    var value: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(el, attr as CFString, &value) == .success,
-          let value else { return nil }
-    if let s = value as? String { return s }
-    if let n = value as? NSNumber { return n.stringValue }
-    return nil
+    AXAccess.string(el, attr)
   }
 
-  private static func appName(of app: AXUIElement) -> String? {
-    string(app, kAXTitleAttribute)
-  }
+  private static func appName(of app: AXUIElement) -> String? { AXAccess.appName(of: app) }
 }

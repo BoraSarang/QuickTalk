@@ -105,6 +105,30 @@ public enum AgentToolCatalog {
 
   public static let all: [AgentTool] = [shell, readFile, listDir, processes, screenshot]
 
+  /// 화면 요소 읽기 — **읽기 전용** (PLAN_v0.25 Phase 1, 컴퓨터 제어).
+  ///
+  /// 좌표를 주지 않고 **접근성 요소**를 돌려준다. 모델이 "무엇을 누를 수 있는지"를
+  /// 사람과 같은 언어로 말하게 하는 것이 목적이다. 클릭·입력은 아직 없다(Phase 2).
+  public static let uiSnapshot = AgentTool(
+    name: "ui_snapshot",
+    description: """
+      Read the accessibility elements of one window of another app: buttons, text fields, \
+      checkboxes, tabs and their screen positions. Use it when the answer depends on what \
+      controls are on screen, or when you need to name a control precisely. \
+      Read-only: it never clicks, types, scrolls or moves focus. \
+      Element references (r1, r2, …) are valid only inside this one snapshot — call it again \
+      after the screen changes. Requires Accessibility permission; when missing, the result \
+      explains how to allow it (a screenshot may be used instead).
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "app": ["type": "string",
+                "description": "App name or bundle identifier to read. Omit for the frontmost app other than QuickTalk."]
+      ],
+      "required": []
+    ])
+
   /// 웹 검색 — 모델이 **모르는 세상 사실**을 직접 확인하는 손 (2026-10-27).
   /// 셸과 달리 앱이 Exa를 호출하므로 승인·샌드박스가 필요 없다(읽기 전용).
   public static let webSearch = AgentTool(
@@ -127,8 +151,12 @@ public enum AgentToolCatalog {
     ])
 
   /// 지금 넘길 도구 목록 — 웹 검색이 준비되어 있을 때만 `web_search` 를 더한다.
-  public static func available(includingWebSearch: Bool) -> [AgentTool] {
-    includingWebSearch ? all + [webSearch] : all
+  public static func available(includingWebSearch: Bool,
+                               includingUI: Bool = false) -> [AgentTool] {
+    var tools = all
+    if includingWebSearch { tools.append(webSearch) }
+    if includingUI { tools.append(uiSnapshot) }
+    return tools
   }
 
   /// 이름으로 도구를 찾는다.

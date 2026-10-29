@@ -95,6 +95,10 @@
 		C0FFEE00000000000000C101 /* WriteScopeGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C111 /* WriteScopeGrant.swift */; };
 		C0FFEE00000000000000C201 /* WebSearchRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C211 /* WebSearchRouting.swift */; };
 		C0FFEE00000000000000C301 /* ShortcutAutoSend.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C311 /* ShortcutAutoSend.swift */; };
+		C0FFEE00000000000000C401 /* UiElementPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C411 /* UiElementPath.swift */; };
+		C0FFEE00000000000000C501 /* UiSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C511 /* UiSnapshot.swift */; };
+		C0FFEE00000000000000C601 /* AXAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C611 /* AXAccess.swift */; };
+		C0FFEE00000000000000C701 /* AccessibilityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000C711 /* AccessibilityService.swift */; };
 		EB20E54DEE3DDAEF4B5E0ED7 /* AttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BAB723416C088EFEEE3C3E /* AttachmentPreview.swift */; };
 		F06A7D16B0027C4E173E3A35 /* ShelfPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B27D2AFFA346E1FB886FED /* ShelfPanel.swift */; };
 		F4BBBDC9664636EF6E07F955 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AEE95E9756FB6329F5C014 /* Store.swift */; };
@@ -165,6 +169,10 @@
 		C0FFEE00000000000000C111 /* WriteScopeGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WriteScopeGrant.swift; sourceTree = "<group>"; };
 		C0FFEE00000000000000C211 /* WebSearchRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearchRouting.swift; sourceTree = "<group>"; };
 		C0FFEE00000000000000C311 /* ShortcutAutoSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutAutoSend.swift; sourceTree = "<group>"; };
+		C0FFEE00000000000000C411 /* UiElementPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiElementPath.swift; sourceTree = "<group>"; };
+		C0FFEE00000000000000C511 /* UiSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiSnapshot.swift; sourceTree = "<group>"; };
+		C0FFEE00000000000000C611 /* AXAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXAccess.swift; sourceTree = "<group>"; };
+		C0FFEE00000000000000C711 /* AccessibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityService.swift; sourceTree = "<group>"; };
 		BA9BCCA747D217A179117D3A /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
 		BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTTS.swift; sourceTree = "<group>"; };
 		BC6269B30CB5BB47B58A08AF /* UndoStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStack.swift; sourceTree = "<group>"; };
@@ -264,6 +272,8 @@
 				E1A2B3C4E5F60718293A4B5C /* WindowPickerSheet.swift */,
 				C0FFEE00000000000000A511 /* TerminalHandoffService.swift */,
 				C0FFEE00000000000000A611 /* QuickTalkIntents.swift */,
+				C0FFEE00000000000000C611 /* AXAccess.swift */,
+				C0FFEE00000000000000C711 /* AccessibilityService.swift */,
 			);
 			path = QuickTalkApp;
 			sourceTree = "<group>";
@@ -339,6 +349,8 @@
 				C0FFEE00000000000000C111 /* WriteScopeGrant.swift */,
 				C0FFEE00000000000000C211 /* WebSearchRouting.swift */,
 				C0FFEE00000000000000C311 /* ShortcutAutoSend.swift */,
+				C0FFEE00000000000000C411 /* UiElementPath.swift */,
+				C0FFEE00000000000000C511 /* UiSnapshot.swift */,
 			);
 			name = QuickTalkCore;
 			path = Sources/QuickTalkCore;
@@ -511,6 +523,10 @@
 				C0FFEE00000000000000C101 /* WriteScopeGrant.swift in Sources */,
 				C0FFEE00000000000000C201 /* WebSearchRouting.swift in Sources */,
 				C0FFEE00000000000000C301 /* ShortcutAutoSend.swift in Sources */,
+				C0FFEE00000000000000C401 /* UiElementPath.swift in Sources */,
+				C0FFEE00000000000000C501 /* UiSnapshot.swift in Sources */,
+				C0FFEE00000000000000C601 /* AXAccess.swift in Sources */,
+				C0FFEE00000000000000C701 /* AccessibilityService.swift in Sources */,
 				A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
