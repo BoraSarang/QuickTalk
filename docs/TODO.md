@@ -11,7 +11,8 @@
 - **수정**: `PanelToggle.decide` (Core 순수 함수) — pill → 닫기 · 창(키 여부 무관) → 숨기기 · 없음 → 열기. 숨길 때 위치를 건드리지 않는다.
 - **Xcode**: `PanelToggle.swift` 를 `project.pbxproj` 에 등록(앱 타깃은 명시 참조).
 - **검증**: `swift test` **621/621**(6 skip, 신규 3) · Debug/Release BUILD SUCCEEDED · **되돌려 실패 확인**(보이는 창 → show → 1건).
-- **다음**: 배포(사용자 확인) → ⌘Space 두 번으로 숨김/재표시 확인.
+- **병합/배포**: **PR #72 → squash merge `7802cfc`** · 2026-10-31 22:09 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `ca715df8…` · 직전 21:50 빌드는 `.QuickTalk.old` · **앱 재실행 필요**(PID 38888 은 이전 빌드).
+- **다음**: 재실행 후 ⌘Space 두 번으로 **숨김/재표시** 확인.
 
 ## 다음 (2026-10-31 2차) — Phase 2 승인 단순화: 화면 제어를 전역 권한과 분리
 
