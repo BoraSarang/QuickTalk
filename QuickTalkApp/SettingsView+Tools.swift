@@ -21,6 +21,7 @@ extension SettingsView {
     groupBox(L("컴퓨터 제어")) {
       toggleRow(L("화면 조작 허용"), isOn: $store.settings.uiControlEnabled,
                 description: L("켜면 모델이 다른 앱의 버튼을 클릭하고 글자를 입력할 수 있습니다. 좌표가 아니라 접근성 요소로만 조작하고, 앱마다 한 번 더 승인을 받습니다. 이 동작은 되돌릴 수 없습니다."))
+      caption(L("이 그룹은 전역 권한(읽기/쓰기/실행)과 별개입니다. 화면 읽기는 이 토글만 보고, 화면 조작은 앱마다 한 번 승인하면 7일 동안 다시 묻지 않습니다."))
       caption(L("기본은 꺼짐입니다. 꺼져 있으면 모델이 이 도구를 아예 받지 않습니다. 읽고 조작하려면 손쉬운 사용 권한이 필요합니다."))
       caption(L("비밀번호 입력란은 읽지도 쓰지도 않습니다. 터미널·비밀번호 관리자·시스템 설정·관리자 암호 창은 조작할 수 없습니다."))
       if store.activeUiAppGrants.isEmpty {

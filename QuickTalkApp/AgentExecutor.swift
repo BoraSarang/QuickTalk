@@ -498,23 +498,8 @@ final class AgentExecutor: AgentToolExecutor {
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
 
-    // 읽기 단계 정책을 그대로 따른다(화면은 민감하다 — "읽기: 매번 확인"이면 묻는다).
-    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy) {
-      let request = AgentApprovalRequest(
-        command: command, level: level, risk: risk, capability: .read, writablePaths: [],
-        reason: L("다른 앱의 화면 요소를 읽으려면 확인이 필요합니다."))
-      upsertAgentEvent(AgentEvent(
-        id: call.id, toolName: call.name,
-        title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
-        command: app, level: level, risk: risk, state: .pending, output: request.reason))
-      if await requestApproval(request) == .deny {
-        let text = L("사용자가 화면 요소 읽기를 거부했습니다.")
-        store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
-        AgentAudit.record(command: command, level: level, risk: risk,
-                          decision: "deny", exitCode: nil, elapsedMs: 0)
-        return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
-      }
-    }
+    // 화면 읽기는 마스터 토글만 본다 — 전역 읽기 정책(셸·파일용)과 분리한다.
+    // 읽기 전용이고, 토글 자체가 사용자의 명시적 동의이므로 동작마다 다시 묻지 않는다.
 
     upsertAgentEvent(AgentEvent(
       id: call.id, toolName: call.name,

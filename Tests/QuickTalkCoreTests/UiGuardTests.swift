@@ -7,7 +7,7 @@ import XCTest
 //   · 금지 앱(터미널·비밀번호 관리자·시스템 설정·QuickTalk)은 승인과 무관하게 거부한다.
 //   · 금지 키 조합(cmd+q 등)은 실행하지 않는다.
 //   · 보안 필드·텍스트가 아닌 요소에는 입력하지 않는다.
-//   · 앱 승인이 없으면 ask, 정책이 매번 확인이면 ask, 둘 다 통과해야 allow.
+//   · 앱 승인이 없으면 ask, 있으면 allow — 전역 실행 정책은 화면 제어에 적용하지 않는다.
 //   · 한 요청 30번을 넘으면 31번째는 나가지 않는다.
 
 final class UiGuardTests: XCTestCase {
@@ -31,11 +31,10 @@ final class UiGuardTests: XCTestCase {
 
   private func evaluate(_ spec: UiActionSpec, target: UiActionTarget? = nil,
                         bundleID: String = "com.apple.Notes", appName: String = "Notes",
-                        actions: Int = 0, grant: Bool = true,
-                        policy: AgentAutoApprove = .alwaysAllow) -> UiGuardDecision {
+                        actions: Int = 0, grant: Bool = true) -> UiGuardDecision {
     UiGuard.evaluate(spec: spec, target: target,
                      appBundleID: bundleID, appName: appName,
-                     actionsThisTurn: actions, hasAppGrant: grant, policy: policy)
+                     actionsThisTurn: actions, hasAppGrant: grant)
   }
 
   // MARK: - 금지 앱
@@ -122,13 +121,9 @@ final class UiGuardTests: XCTestCase {
     XCTAssertTrue(reason.contains("처음"))
   }
 
-  func testGrantAndAlwaysAskStillAsks() {
-    let decision = evaluate(spec(.click), target: target, grant: true, policy: .alwaysAsk)
-    guard case .ask = decision else { return XCTFail("매번 확인 정책은 승인 뒤에도 물어야 한다") }
-  }
-
-  func testGrantAndAlwaysAllowAllows() {
-    XCTAssertEqual(evaluate(spec(.click), target: target, grant: true, policy: .alwaysAllow), .allow)
+  func testGrantAllowsWithoutPerActionPrompt() {
+    // 전역 실행 정책이 "매번 확인"이어도 화면 제어는 앱 승인으로만 판정한다.
+    XCTAssertEqual(evaluate(spec(.click), target: target, grant: true), .allow)
   }
 
   func testActionLimitDeniesTheThirtyFirstAction() {

@@ -162,15 +162,13 @@ extension AgentExecutor {
     let audit = spec.auditCommand(appName: app.name, target: target)
     let display = Self.displayCommand(audit)
 
-    // ③~⑥ 판정 — 금지 앱·키·보안 필드·한도·앱 승인·단계 정책.
+    // ③~⑤ 판정 — 금지 앱·키·보안 필드·한도·앱 승인.
+    // 전역 읽기/쓰기/실행 정책은 보지 않는다 — 화면 제어는 앱 승인(7일)으로만 판정한다.
     let hasGrant = store.conversation.hasActiveUiAppGrant(bundleID: app.bundleID)
-    let policy: AgentAutoApprove = store.effectiveAgentPolicy.autoAcceptAll
-      ? .alwaysAllow
-      : store.effectiveAgentPolicy.autoApprove(for: .execute)
     let decision = UiGuard.evaluate(spec: spec, target: target,
                                     appBundleID: app.bundleID, appName: app.name,
                                     actionsThisTurn: uiActionsThisTurn,
-                                    hasAppGrant: hasGrant, policy: policy)
+                                    hasAppGrant: hasGrant)
 
     switch decision {
     case .deny(let reason):

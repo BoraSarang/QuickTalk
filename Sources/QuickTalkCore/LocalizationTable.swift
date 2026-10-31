@@ -1186,6 +1186,7 @@ extension L10n {
     "화면 조작 허용": "Allow screen control",
     "켜면 모델이 다른 앱의 버튼을 클릭하고 글자를 입력할 수 있습니다. 좌표가 아니라 접근성 요소로만 조작하고, 앱마다 한 번 더 승인을 받습니다. 이 동작은 되돌릴 수 없습니다.": "When on, the model can click buttons and type text in other apps. It acts only through accessibility elements, never coordinates, and each app needs one more approval. This action cannot be undone.",
     "기본은 꺼짐입니다. 꺼져 있으면 모델이 이 도구를 아예 받지 않습니다. 읽고 조작하려면 손쉬운 사용 권한이 필요합니다.": "Off by default. When off, the model does not receive this tool at all. Reading and controlling require Accessibility permission.",
+    "이 그룹은 전역 권한(읽기/쓰기/실행)과 별개입니다. 화면 읽기는 이 토글만 보고, 화면 조작은 앱마다 한 번 승인하면 7일 동안 다시 묻지 않습니다.": "This group is separate from the global permissions (read/write/execute). Screen reading depends only on this toggle, and screen control stops asking for 7 days after you approve an app once.",
     "비밀번호 입력란은 읽지도 쓰지도 않습니다. 터미널·비밀번호 관리자·시스템 설정·관리자 암호 창은 조작할 수 없습니다.": "Password fields are never read or written. Terminals, password managers, System Settings and admin password dialogs cannot be controlled.",
     "이 대화에서 승인한 앱이 없습니다. 승인 카드의 [이 앱 허용]으로 추가됩니다.": "No apps are approved in this conversation. Use [Allow this app] on an approval card to add one.",
     "승인한 앱은 이 대화에서 7일 동안 유지됩니다. 만료되거나 [해제]하면 다시 묻습니다.": "Approved apps stay allowed in this conversation for 7 days. After expiry or [Revoke], you are asked again.",
