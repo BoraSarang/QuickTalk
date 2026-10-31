@@ -18,7 +18,7 @@
 - **검증**: `swift test` **621/621**(6 skip, 신규 3 — pill 우선 · 비키 창 숨김 · 없을 때 열기) · Debug/Release **BUILD SUCCEEDED** · **되돌려 실패 확인**(보이는 창 → show 로 되돌림 → 1건).
 - **병합**: **PR #72 → squash merge `7802cfc`**(2026-10-31).
 - **배포**: 2026-10-31 22:09 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `ca715df81aa2cc051eb63b561b1822644b80b7c267c8ff0d3b2a5c4038ebf727` · 직전 21:50 빌드는 `.QuickTalk.old` · **앱 재실행 필요**(PID 38888 은 이전 빌드).
-- **미완**: 재실행 후 ⌘Space 두 번으로 **숨김/재표시** 확인.
+- **확인**: 2026-10-31 사용자 실측 — ⌘Space 두 번으로 **숨김/재표시 정상**("잘 됨"). 중앙 이동 없음.
 
 ### 2026-10-31 (2) 인계 — Phase 2 승인 단순화: 화면 제어를 전역 권한과 분리 (배포 완료)
 
