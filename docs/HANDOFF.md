@@ -1,12 +1,23 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-30 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-10-31 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 >
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. 최신 빌드는 **2026-10-29 19:59 배포**했다.
+
+### 2026-10-31 인계 — ④ 컴퓨터 제어 Phase 2 구현 완료 (테스트·빌드 통과, **미배포**)
+
+- **무엇**: `PLAN_v0.25` Phase 2. 에이전트가 **다른 앱의 화면 요소를 실제로 조작**한다(`ui_action`) — 클릭 · 텍스트 입력 · 키 조합 · 스크롤 · 앱 열기 · 창 앞으로. **좌표 클릭 없음** — `ui_snapshot` 이 준 참조(`r1`, `r2`, …)만 받는다.
+- **Core(순수)**: `UiAction`(6동작 파싱·인자 검증·카드/감사 문구) · `UiGuard`(금지 앱 14개 고정 · 텍스트 입력 가능 역할 4개 · 금지 키 조합 5개 · 턴당 **30동작** · 최소 간격 **0.15초** · 텍스트 **2,000자**) · `UiAppGrant`(앱별 승인 **7일**, 만료 시각과 같은 순간도 만료).
+- **실행(App)**: `UiControlService` — `NSWorkspace` 로 앱 활성/열기, `CGEvent` 로 클릭·유니코드 입력·키·스크롤, **유휴 가드**(사용자 입력 후 0.4초 대기, 최대 2초). `AgentExecutor+UI` — 검증 → 앱/요소 해석 → 게이트 → 승인 → 유휴 → **라이브 AX 재해석** → 주입 → 감사.
+- **재해석(핵심 안전)**: 승인 후·주입 전에 AX 트리를 **다시 읽는다**. 경로가 사라졌거나 역할/이름이 바뀌면 `elementChanged`(“UI가 바뀌었습니다…”)로 **실행하지 않는다**. 비밀번호 필드는 읽지도 쓰지도 않는다.
+- **UI**: 승인 카드 `[거부] [이 앱 허용] [한 번 허용]` · **“되돌릴 수 없음” 배지** · UI 동작에는 “항상 허용” 없음. 설정 › 도구·권한 › **“화면 조작 허용”** 토글 + 승인된 앱 목록(만료일·[해제]) + 금지 앱·한도 캡션.
+- **검증**: `swift test` **619/619**(6 skip, 신규 44 — `UiActionSpecTests` 19 · `UiGuardTests` 15 · `UiAppGrantTests` 10) · Debug/Release `xcodebuild` **BUILD SUCCEEDED**(기존 `AgentClients.swift:171` 경고 1건만) · **되돌려 실패 확인**(항상 허용 → 7건 · 금지 키 제거 → 10건 · 좌표 거부 제거 → 1건).
+- **미완**: **실측 U2~U8**(앱 재실행 필요) — U2 승인 카드/거부 · U3 7일 기억·만료일 · U4 비밀번호 거부 · U5 터미널 금지 · U6 입력 중 거부 · U7 [중단] · U8 31번째 동작. **U1·U4(읽기 쪽)도 여전히 대기**(Phase 1).
+- **재개 확인**: `git log --oneline -1 && git status --short && swift test` · 설계: `docs/plans/PLAN_v0.25_computer-control_macos.md` · 배포는 사용자 확인 후.
 
 ### 2026-10-30 인계 — Phase 1 배포본 재실행 대기 (코드 변경 없음)
 
@@ -21,15 +32,15 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **①②③④ Phase 1 통합(2026-10-29 19:59)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `66025bf1d35c…` (직전 ③ 빌드는 `~/Applications/.QuickTalk.old`, ② 빌드는 `.QuickTalk.old-505f7b84`) · **앱 재실행 필요**(실행 중 PID 44867 은 이전 빌드) |
-| 테스트 | **576/576**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-29 기준) |
-| 마지막 완료 | **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · **배포 완료(2026-10-29 19:59)** |
-| 이전 완료 | **Shortcuts 자동 전송(③)** — 옵트인 설정 · `ShortcutAutoSend` 판정 · '질문하고 보내기' AppIntent/AppShortcut · **`0fda8a4`** · 559/559 · 배포 19:29 / **Exa `/answer` 정리(②)** — `WebSearchRouting` · **`c6f04a2`** · 배포 19:11 |
-| 다음 작업 | **④ Phase 2 `ui_action`** — `UiGuard`(금지 앱·보안 필드·금지 키·좌표 거부·턴당 30동작) · `UiAppGrant`(7일) · `UiControlService`(클릭·키·텍스트·스크롤·앱 전환) · 유휴 가드 · [이 앱 허용] 카드. **먼저** 앱 재실행 후 Phase 1 실측 U1~U5 + ①②③ 실측 5건 |
-| 실측 대기 | **v0.24 3건** + **v0.23 3건** + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |
+| 현재 빌드 | **①②③④ Phase 1 통합(2026-10-29 19:59)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `66025bf1d35c…` · **Phase 2 는 아직 배포하지 않았다**(빌드만 통과) |
+| 테스트 | **619/619**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-31 기준) |
+| 마지막 완료 | **컴퓨터 제어 Phase 2(④)** — `ui_action` 실행(클릭·텍스트·키·스크롤·앱 열기·창 앞으로) · `UiGuard`(금지 앱·키·보안 필드·좌표 거부·30동작/턴·0.15초) · `UiAppGrant`(7일) · 유휴 가드 · [이 앱 허용] 카드 · 619/619 · **미배포** |
+| 이전 완료 | **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
+| 다음 작업 | **④ Phase 2 배포 후 실측 U2~U8** — 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작. **먼저** 앱 재실행 후 Phase 1 U1~U5 + ①②③ 실측 5건 |
+| 실측 대기 | **U2~U8(Phase 2)** + **U1~U5(Phase 1)** + v0.24 3건 + v0.23 3건 + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **이전 빌드**(PID 44867 — 재실행하면 ①②③④ Phase 1 빌드 `66025bf1d35c…` 로 뜬다) |
-| git | `main` = **`8bed1ef`(PR #63 — 컴퓨터 제어 Phase 1)** · 이전 `0fda8a4`(#60 Shortcuts 자동 전송) · 이전 `c6f04a2`(#58 `/answer` 정리) · `5589105`(#55 승인 폴더) · `066232b`(#52 P2 #5·#7·#10) · `2a38c81`(#49 팔레트 이름·#12) · `28054bd`(#46 권한) · `8039493`(#45 C) · `484ac12`(#44 B) · `ce7532a`(#43 버튼) · `main` 직접 push 금지(브랜치 → PR) |
+| 실행 중 앱 | **Phase 1 빌드**(PID 6058) — Phase 2 는 **미배포**라 재실행해도 반영되지 않는다. 배포는 사용자 확인 후 |
+| git | `main` = **`e2926eb`(문서 #65)** · **Phase 2 변경은 작업 트리에 미커밋** → 브랜치 → PR → squash merge · 이전 `8bed1ef`(#63 Phase 1) · `0fda8a4`(#60) · `c6f04a2`(#58) · `5589105`(#55) · `main` 직접 push 금지 |
 
 ### 다음 세션 시작점 (2026-10-29) — **④ 컴퓨터 제어 Phase 1 완료 · 배포 완료**
 

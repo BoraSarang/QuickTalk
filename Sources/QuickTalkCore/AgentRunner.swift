@@ -144,7 +144,7 @@ public struct AgentRunner {
           try Task.checkCancellation()
           // 같은 명령을 몇 번이나 반복하면(특히 작은 온디바이스 모델) 무한 반복이 된다.
           // 2번 반복된 명령은 다시 실행하지 않고, 모델에게 다른 방법을 쓰라고 알린다.
-          let signature = "\(call.name)|\(call.stringArgument("command") ?? call.stringArgument("path") ?? call.stringArgument("query") ?? "")"
+          let signature = "\(call.name)|\(Self.signatureDetail(for: call))"
           let repeats = (signatures[signature] ?? 0) + 1
           signatures[signature] = repeats
           if repeats > 2 {
@@ -212,9 +212,30 @@ public struct AgentRunner {
     case "ui_snapshot":
       let app = (call.stringArgument("app") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       return Lf("화면 요소 — %@", app.isEmpty ? L("앞에 있는 앱") : app)
+    case "ui_action":
+      let raw = (call.stringArgument("action") ?? "").lowercased()
+      let kind = UiActionKind(rawValue: raw)
+      let label = kind?.displayName ?? (raw.isEmpty ? call.name : raw)
+      let app = (call.stringArgument("app") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      return app.isEmpty ? label : Lf("%@ — %@", label, app)
     default:
       return tools.first { $0.name == call.name }?.name ?? call.name
     }
+  }
+
+  /// 반복 호출 판정에 쓰는 인자 요약 — `ui_action` 은 action/ref/text 까지 본다.
+  /// (명령·경로만 보면 `ui_action` 이 늘 빈 문자열이라 두 번 뒤에 막힌다)
+  static func signatureDetail(for call: AgentToolCall) -> String {
+    if call.name == "ui_action" {
+      return ["action", "ref", "app", "title"]
+        .compactMap { call.stringArgument($0) }
+        .joined(separator: "|")
+        + "|" + String((call.stringArgument("text") ?? "").prefix(40))
+    }
+    return call.stringArgument("command")
+      ?? call.stringArgument("path")
+      ?? call.stringArgument("query")
+      ?? ""
   }
 
   /// 모델에게 돌려줄 요약 — 출력이 크면 자른다.

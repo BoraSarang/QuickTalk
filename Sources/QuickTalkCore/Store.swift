@@ -183,6 +183,13 @@ public final class ConversationStore {
     conversation.updatedAt = Date()
   }
 
+  /// 이 대화의 승인 조작 앱을 통째로 바꾼다(2026-10-31) — 만료된 승인은 저장하지 않는다.
+  public func setUiAppGrants(_ grants: [UiAppGrant], at now: Date = Date()) {
+    let active = grants.filter { $0.isActive(at: now) }.sorted { $0.bundleID < $1.bundleID }
+    conversation.approvedUiApps = active.isEmpty ? nil : active
+    conversation.updatedAt = Date()
+  }
+
   /// 자동 정리 다시 켜기.
   public func resumeAutoCompact() {
     conversation.compactPaused = nil

@@ -19,6 +19,8 @@ struct AgentCard: View {
   var onAllowOnce: () -> Void = {}
   /// "이 폴더 허용" — 쓰기 범위를 이번 대화 동안 승인한다
   var onAllowScope: () -> Void = {}
+  /// "이 앱 허용" — 화면 조작 대상을 이번 대화 동안 승인한다(7일)
+  var onAllowApp: () -> Void = {}
   var onAlwaysAllow: () -> Void = {}
   var onDeny: () -> Void = {}
   var onUndo: (() -> Void)? = nil
@@ -195,6 +197,13 @@ struct AgentCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
           .fill(Color.primary.opacity(0.06)))
+      // 무엇을 어디에 할지 — 컴퓨터 제어는 대상·이유·되돌릴 수 없음을 함께 보여 준다.
+      if let detail = request.detail, !detail.isEmpty {
+        Text(detail)
+          .font(.system(size: 11))
+          .foregroundColor(.primary.opacity(0.85))
+          .fixedSize(horizontal: false, vertical: true)
+      }
       Text(request.reason)
         .font(.caption)
         .foregroundColor(.secondary)
@@ -250,6 +259,10 @@ struct AgentCard: View {
       if request.risk != .normal {
         badge(request.risk.displayName, color: request.risk == .critical ? .red : .orange)
       }
+      // 화면 조작은 파일 백업처럼 되돌릴 수 없다 — 위험도와 별개로 항상 표시한다.
+      if request.irreversible {
+        badge(L("되돌릴 수 없음"), color: .red)
+      }
     }
   }
 
@@ -269,9 +282,17 @@ struct AgentCard: View {
           .foregroundColor(Color.accentColor)
           .help(Lf("이번 대화 동안 %@ 폴더의 쓰기를 다시 묻지 않습니다", shortPath(scope)))
       }
+      if let app = request.uiAppName, request.uiAppBundleID != nil {
+        // 이 앱을 이번 대화 동안 허용 — 7일 뒤 만료(승인 폴더와 같은 모델).
+        Button(L("이 앱 허용")) { onAllowApp() }
+          .buttonStyle(.plain)
+          .font(.system(size: 12))
+          .foregroundColor(Color.accentColor)
+          .help(Lf("이번 대화에서 %@ 앱 조작을 7일 동안 다시 묻지 않습니다", app))
+      }
       // 중요·치명적 명령은 **항상 허용할 수 없다** — 규칙을 저장해도 확인을 건너뛰지 않으므로
-      // 버튼을 숨긴다(눌러도 매번 다시 묻던 원인).
-      if request.risk == .normal {
+      // 버튼을 숨긴다(눌러도 매번 다시 묻던 원인). 화면 조작은 명령 규칙과 무관하므로 숨긴다.
+      if request.risk == .normal && request.uiAppBundleID == nil {
         Button(L("항상 허용")) { onAlwaysAllow() }
           .buttonStyle(.plain)
           .font(.system(size: 12))

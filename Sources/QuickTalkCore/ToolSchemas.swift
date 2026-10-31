@@ -129,6 +129,46 @@ public enum AgentToolCatalog {
       "required": []
     ])
 
+  /// 화면 조작 — **승인 게이트를 모두 통과해야** 실행된다 (PLAN_v0.25 Phase 2).
+  ///
+  /// 좌표가 아니라 `ui_snapshot` 이 준 참조로만 조작한다. 모델이 좌표를 시도하면 앱이 거부한다.
+  public static let uiAction = AgentTool(
+    name: "ui_action",
+    description: """
+      Control one element of another app: click it, type text into it, press a key combination, \
+      scroll it, open an app, or bring one of its windows to the front. \
+      Always call ui_snapshot first and pass its element reference (r1, r2, …) in `ref` — \
+      coordinates (x, y) are not supported and will be rejected. \
+      The user approves every app once per conversation (7 days) and may approve each action. \
+      This cannot be undone: type actions overwrite the field. \
+      Requires Accessibility permission and the Computer control setting.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "action": ["type": "string",
+                   "enum": ["click", "type", "key", "scroll", "open_app", "focus_window"],
+                   "description": "What to do."],
+        "ref": ["type": "string",
+                "description": "Element reference from the most recent ui_snapshot (r1, r2, …). Required for click; optional for type/scroll."],
+        "text": ["type": "string",
+                 "description": "Text to type (max 2000 characters). A line break may send the message in mail or chat apps."],
+        "keys": ["type": "string",
+                 "description": "Key combination such as cmd+s, return, escape, tab. System shortcuts such as cmd+q are rejected."],
+        "direction": ["type": "string", "enum": ["up", "down"],
+                      "description": "Scroll direction (default down)."],
+        "amount": ["type": "integer",
+                   "description": "Scroll amount 1–20 (default 3)."],
+        "app": ["type": "string",
+                "description": "Target app name or bundle identifier. Omit to use the app from the last snapshot."],
+        "title": ["type": "string",
+                  "description": "Window title for focus_window."],
+        "purpose": ["type": "string",
+                    "description": "One short line in the user's language saying why this action is needed. Shown on the approval card."]
+      ],
+      "required": ["action", "purpose"]
+    ])
+
   /// 웹 검색 — 모델이 **모르는 세상 사실**을 직접 확인하는 손 (2026-10-27).
   /// 셸과 달리 앱이 Exa를 호출하므로 승인·샌드박스가 필요 없다(읽기 전용).
   public static let webSearch = AgentTool(
@@ -155,7 +195,7 @@ public enum AgentToolCatalog {
                                includingUI: Bool = false) -> [AgentTool] {
     var tools = all
     if includingWebSearch { tools.append(webSearch) }
-    if includingUI { tools.append(uiSnapshot) }
+    if includingUI { tools.append(uiSnapshot); tools.append(uiAction) }
     return tools
   }
 
@@ -188,6 +228,9 @@ public enum AgentInstructions {
       읽은 목록을 답변에 그대로 옮기지 않는다.
     - **화면에 보이는 것**이 답에 필요하면(차트·오류 대화상자·레이아웃·영상 화면) `screenshot` 도구로
       창 또는 화면을 찍어 다음 스텝에서 본다. 글자가 많은 창은 `shell`/`read_file` 이 더 정확하다.
+    - **다른 앱을 조작**해야 하면 먼저 `ui_snapshot` 으로 요소를 고르고, 그 참조(r…)를 `ui_action` 에 넣는다.
+      좌표(x·y)는 쓰지 않는다 — 앱이 거부한다. 클릭·입력은 **되돌릴 수 없으므로** `purpose` 에 이유를 적고
+      한 번에 필요한 동작만 한다.
     - 사용자가 "메모리"라고만 하면 **이 컴퓨터의 RAM**을 뜻한다. 다른 기기의 사양에 적힌 메모리는
       그 기기의 이야기이므로 이 컴퓨터에서 확인하지 않는다.
       앱의 대화 기억(저장된 기록)을 물어본다고 **명확히** 말한 경우에만 그쪽을 본다.

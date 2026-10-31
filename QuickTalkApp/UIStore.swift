@@ -75,6 +75,12 @@ final class UIStore: ObservableObject {
   }
   /// 이번 대화에서 지금 유효한 승인 쓰기 폴더
   var approvedWriteScopes: [String] { activeWriteScopeGrants.map(\.path) }
+  /// 승인된 화면 조작 앱 — 대화별 7일(PLAN_v0.25 Phase 2).
+  var activeUiAppGrants: [UiAppGrant] {
+    (conversation.approvedUiApps ?? [])
+      .filter { $0.isActive() }
+      .sorted { $0.expiresAt < $1.expiresAt }
+  }
   /// 실제 적용 정책 — 전역 설정 위에 **이 대화의 오버라이드**를 얹는다(v0.22).
   /// 치명적 차단·상승 권한 제한은 전역 값 그대로다.
   var effectiveAgentPolicy: AgentPolicy {
@@ -1028,6 +1034,27 @@ final class UIStore: ObservableObject {
   func removeWriteScope(_ scope: String) {
     let remaining = (conversation.approvedWriteScopes ?? []).filter { $0.path != scope }
     setWriteScopeGrants(remaining)
+  }
+
+  /// 승인된 조작 앱을 코어에 반영하고 즉시 저장한다 — 만료된 승인은 저장하지 않는다.
+  func setUiAppGrants(_ grants: [UiAppGrant]) {
+    core.setUiAppGrants(grants)
+    conversation = core.conversation
+    syncArchive()
+  }
+
+  /// [이 앱 허용] — 이 대화에서 그 앱을 7일 동안 다시 묻지 않는다.
+  func approveUiApp(bundleID: String, name: String) {
+    let grants = UiAppGrant.approve(bundleID: bundleID, name: name,
+                                    into: conversation.approvedUiApps ?? [])
+    setUiAppGrants(grants)
+    NSLog("[QuickTalk] 화면 조작 앱 승인 — %d개 앱", activeUiAppGrants.count)
+  }
+
+  /// 승인한 조작 앱을 해제한다 — 다음 조작은 다시 묻는다.
+  func removeUiAppGrant(bundleID: String) {
+    let remaining = (conversation.approvedUiApps ?? []).filter { $0.bundleID != bundleID }
+    setUiAppGrants(remaining)
   }
 
   /// 대화방 제목 변경 — 대화 헤더·보관함 공용.

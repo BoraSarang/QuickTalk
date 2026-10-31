@@ -51,10 +51,14 @@ public struct UiNode: Equatable, Sendable {
   public var isEnabled: Bool
   public var frame: UiRect?
   public var children: [UiNode]
+  /// 앱 쪽에서 매긴 불투명한 식별자 — Phase 2 에서 경로로 실제 AX 요소를 다시 찾을 때 쓴다.
+  /// 순수 계산(Core)은 이 값을 해석하지 않는다.
+  public var token: Int?
 
   public init(role: String, name: String = "", hasValue: Bool = false,
               isSecure: Bool = false, isEnabled: Bool = true,
-              frame: UiRect? = nil, children: [UiNode] = []) {
+              frame: UiRect? = nil, children: [UiNode] = [],
+              token: Int? = nil) {
     self.role = role
     self.name = name
     self.hasValue = hasValue
@@ -62,6 +66,7 @@ public struct UiNode: Equatable, Sendable {
     self.isEnabled = isEnabled
     self.frame = frame
     self.children = children
+    self.token = token
   }
 }
 
@@ -98,10 +103,12 @@ public struct UiSnapshot: Equatable, Sendable {
     public var isEnabled: Bool
     public var center: UiPoint?
     public var path: UiElementPath
+    /// 앱 쪽 불투명 식별자(Phase 2 재해석용) — 없으면 nil.
+    public var token: Int?
 
     public init(ref: String, depth: Int, role: String, name: String,
                 hasValue: Bool, isSecure: Bool, isEnabled: Bool,
-                center: UiPoint?, path: UiElementPath) {
+                center: UiPoint?, path: UiElementPath, token: Int? = nil) {
       self.ref = ref
       self.depth = depth
       self.role = role
@@ -111,18 +118,23 @@ public struct UiSnapshot: Equatable, Sendable {
       self.isEnabled = isEnabled
       self.center = center
       self.path = path
+      self.token = token
     }
   }
 
   public var appName: String
   public var windowTitle: String
+  /// 대상 앱 번들 ID — Phase 2 승인·금지 앱 판정에 쓴다(모르면 빈 문자열).
+  public var bundleID: String
   public var entries: [Entry]
   /// 노드 상한에 걸려 잘렸는가.
   public var truncated: Bool
 
-  public init(appName: String, windowTitle: String, entries: [Entry], truncated: Bool) {
+  public init(appName: String, windowTitle: String, entries: [Entry], truncated: Bool,
+              bundleID: String = "") {
     self.appName = appName
     self.windowTitle = windowTitle
+    self.bundleID = bundleID
     self.entries = entries
     self.truncated = truncated
   }
@@ -134,6 +146,12 @@ public struct UiSnapshot: Equatable, Sendable {
     entries.first { $0.ref == ref }
   }
 
+  /// 같은 경로(역할·이름·형제 순번)의 요소 — Phase 2 재해석.
+  /// 없으면 UI 가 바뀐 것이므로 호출부는 **실행하지 않는다**.
+  public func entry(matching path: UiElementPath) -> Entry? {
+    entries.first { $0.path.matches(path) }
+  }
+
   /// AX 역할(`AXButton`) → 목록에 쓰는 이름(`button`).
   public static func displayRole(_ axRole: String) -> String {
     var role = axRole
@@ -143,7 +161,7 @@ public struct UiSnapshot: Equatable, Sendable {
 
   /// 트리 → 목록. 화면 상태를 바꾸지 않는다.
   public static func build(appName: String, windowTitle: String,
-                           root: UiNode) -> UiSnapshot {
+                           root: UiNode, bundleID: String = "") -> UiSnapshot {
     var entries: [Entry] = []
     var truncated = false
 
@@ -185,7 +203,8 @@ public struct UiSnapshot: Equatable, Sendable {
                                isSecure: child.isSecure,
                                isEnabled: child.isEnabled,
                                center: child.frame?.center,
-                               path: path))
+                               path: path,
+                               token: child.token))
           // 이름 있는 요소의 자식은 **새 부모** 아래에서 순번을 다시 센다.
           var childOccurrences: [String: Int] = [:]
           walk(children: child.children, depth: depth + 1, parent: path,
@@ -204,7 +223,7 @@ public struct UiSnapshot: Equatable, Sendable {
     walk(children: root.children, depth: 0, parent: UiElementPath(),
          occurrences: &rootOccurrences)
     return UiSnapshot(appName: appName, windowTitle: windowTitle,
-                      entries: entries, truncated: truncated)
+                      entries: entries, truncated: truncated, bundleID: bundleID)
   }
 
   /// 모델에게 넘길 본문. 요소가 없으면 이유를 함께 적는다(빈 문자열을 돌려주지 않는다).

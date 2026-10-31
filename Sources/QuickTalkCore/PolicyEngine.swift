@@ -70,11 +70,22 @@ public struct AgentApprovalRequest: Equatable {
   public let writablePaths: [String]
   /// 왜 확인하는지(한 줄)
   public let reason: String
+  /// 컴퓨터 제어(Phase 2) — 대상 앱 이름·번들 ID. 있으면 카드에 [이 앱 허용]이 뜬다.
+  public let uiAppName: String?
+  public let uiAppBundleID: String?
+  /// 되돌릴 수 없는 동작인가 — 컴퓨터 제어는 항상 true.
+  public let irreversible: Bool
+  /// 무엇을 어디에 할지(카드 본문). 없으면 command 를 그대로 보여 준다.
+  public let detail: String?
 
   public init(command: String, level: AgentPermissionLevel, risk: AgentRiskLevel,
-              capability: AgentCapability, writablePaths: [String], reason: String) {
+              capability: AgentCapability, writablePaths: [String], reason: String,
+              uiAppName: String? = nil, uiAppBundleID: String? = nil,
+              irreversible: Bool = false, detail: String? = nil) {
     self.command = command; self.level = level; self.risk = risk
     self.capability = capability; self.writablePaths = writablePaths; self.reason = reason
+    self.uiAppName = uiAppName; self.uiAppBundleID = uiAppBundleID
+    self.irreversible = irreversible; self.detail = detail
   }
 
   /// 승인하면 열어 줄 **폴더 범위** — "이 폴더 허용" 버튼이 쓴다.

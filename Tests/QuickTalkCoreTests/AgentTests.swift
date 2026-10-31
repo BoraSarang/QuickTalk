@@ -506,12 +506,15 @@ final class AgentTests: XCTestCase {
     XCTAssertFalse(AgentToolCatalog.available(includingWebSearch: false)
       .contains { $0.name == "ui_snapshot" })
     let withUI = AgentToolCatalog.available(includingWebSearch: false, includingUI: true)
-    XCTAssertEqual(withUI.count, 6)
+    XCTAssertEqual(withUI.count, 7)
     XCTAssertTrue(withUI.contains { $0.name == "ui_snapshot" })
+    XCTAssertTrue(withUI.contains { $0.name == "ui_action" })
     XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "ui_snapshot" },
                    "기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 간다")
-    // 읽기 단계 도구여야 한다 — 실행 단계로 두면 읽기 정책을 우회한다.
+    XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "ui_action" })
+    // 읽기는 읽기 단계, 조작은 실행 단계여야 한다 — 조작을 읽기로 두면 실행 정책을 우회한다.
     XCTAssertEqual(AgentToolPermission.level(for: "ui_snapshot"), .read)
+    XCTAssertEqual(AgentToolPermission.level(for: "ui_action"), .execute)
   }
 
   func testWebSearchToolRequiresQuery() {

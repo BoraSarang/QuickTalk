@@ -56,6 +56,8 @@ extension UIStore {
   /// 진행 중인 셸 실행 중지(v0.20) — 카드 [중단] 버튼·응답 중지가 함께 쓴다.
   @MainActor
   func cancelAgentRun() {
+    // 화면 조작은 셸 프로세스가 없으므로 실행기의 손잡이를 따로 취소한다(PLAN_v0.25 §4.4).
+    agentExecutor?.cancelUIActions()
     guard let handle = agentRunHandle else { return }
     NSLog("[QuickTalk] 도구 실행 중지 요청")
     handle.cancel()

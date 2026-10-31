@@ -16,6 +16,8 @@ enum AgentApprovalChoice {
   case allowOnce
   /// 이 폴더(쓰기 범위)를 이번 대화 동안 허용
   case allowScope
+  /// 이 앱(화면 조작)을 이번 대화 동안 허용 — 7일
+  case allowApp
   /// 이 명령 패턴을 항상 허용
   case alwaysAllow
   /// 거부
@@ -24,10 +26,20 @@ enum AgentApprovalChoice {
 
 @MainActor
 final class AgentExecutor: AgentToolExecutor {
-  private unowned let store: UIStore
+  unowned let store: UIStore
   private var continuation: CheckedContinuation<AgentApprovalChoice, Never>?
   /// 이번 턴에 `web_search` 로 모은 출처 — 답변 아래 출처 카드에 쓴다.
   private(set) var turnSources: [TurnSource] = []
+  /// 이번 턴에 받은 화면 스냅샷 — 참조(`r12`)를 경로로 되돌린다(앱별 1장).
+  var uiTrees: [String: UiTree] = [:]
+  /// 마지막 스냅샷의 키 — 모델이 앱을 생략하면 이 앱을 쓴다.
+  var lastUiTreeKey: String?
+  /// 이번 턴에 실제로 나간 화면 조작 수 — 30번을 넘지 않는다.
+  var uiActionsThisTurn = 0
+  /// 마지막 화면 조작 시각 — 동작 사이 150ms 간격.
+  var lastUiActionAt: Date?
+  /// 화면 조작 중지 손잡이 — 카드 [중단]이 취소한다.
+  var uiCancellation: SandboxCancellation?
 
   init(store: UIStore) {
     self.store = store
@@ -44,6 +56,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "screenshot": return await captureScreenshot(call)
     case "web_search": return await runWebSearch(call)
     case "ui_snapshot": return await runUiSnapshot(call)
+    case "ui_action": return await runUiAction(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
@@ -508,16 +521,17 @@ final class AgentExecutor: AgentToolExecutor {
       title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
       command: app, level: level, risk: risk, state: .running))
 
-    switch await AccessibilityService.snapshot(app: app.isEmpty ? nil : app) {
-    case .success(let snapshot):
-      let text = snapshot.render()
+    switch await AccessibilityService.tree(app: app.isEmpty ? nil : app) {
+    case .success(let tree):
+      cacheUiTree(tree)
+      let text = tree.snapshot.render()
       store.updateAgentEvent(id: call.id) { event in
         event.state = .done
-        event.output = Lf("요소 %d개를 읽었습니다.", snapshot.count)
+        event.output = Lf("요소 %d개를 읽었습니다.", tree.snapshot.count)
       }
       AgentAudit.record(command: command, level: level, risk: risk,
                         decision: "allow", exitCode: 0, elapsedMs: 0)
-      NSLog("[QuickTalk] 화면 요소 %d개 읽음 (앱=%@)", snapshot.count, snapshot.appName)
+      NSLog("[QuickTalk] 화면 요소 %d개 읽음 (앱=%@)", tree.snapshot.count, tree.snapshot.appName)
       return AgentToolOutcome(output: text, level: level, risk: risk)
 
     case .failure(let error):
@@ -619,6 +633,12 @@ final class AgentExecutor: AgentToolExecutor {
       cont.resume(returning: .deny)
     }
     store.cancelAgentRun()
+    cancelUIActions()
+  }
+
+  /// 진행 중인 화면 조작 중지 — 다음 동작을 보내지 않는다(PLAN_v0.25 §4.4).
+  func cancelUIActions() {
+    uiCancellation?.cancel()
   }
 }
 

@@ -426,6 +426,7 @@ struct ContentView: View {
                               undoMessage: store.agentUndoMessage(for: events),
                               onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
                               onAllowScope: { store.resolveAgentApproval(.allowScope) },
+                              onAllowApp: { store.resolveAgentApproval(.allowApp) },
                               onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
                               onDeny: { store.resolveAgentApproval(.deny) },
                               onUndo: {
