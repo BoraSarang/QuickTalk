@@ -2,10 +2,11 @@ import Foundation
 
 // [FEATURE] 화면 조작 안전 판정 — 순수 함수 (PLAN_v0.25 Phase 2)
 //
-// 세 겹의 문을 **모두** 통과해야 클릭·입력이 나간다.
+// 화면 제어는 **셸·파일과 승인 모델을 분리한다**(2026-10-31 단순화).
 //   ① 마스터 토글(도구 등록 자체를 막는다 — 호출부)
-//   ② 대상 앱 승인(대화별 7일, `UiAppGrant`)
-//   ③ 실행 단계 정책(매번 확인 / 항상 허용)
+//   ② 대상 앱 승인(대화별 7일, `UiAppGrant`) — 승인 뒤에는 동작마다 다시 묻지 않는다.
+// 전역 읽기/쓰기/실행 정책은 **셸·파일 도구 전용**이다. 화면 읽기(`ui_snapshot`)는
+// 마스터 토글만 보고, 화면 조작(`ui_action`)은 앱 승인만 본다.
 // 여기에 금지 앱·금지 키·보안 필드·실행 한도를 더한다.
 //
 // 이 파일은 AX·CGEvent 를 모른다 — 그래서 권한 없이 단위 테스트로 계약을 고정한다.
@@ -171,14 +172,14 @@ public enum UiGuard {
   ///   - appBundleID: 대상 앱 번들 ID
   ///   - actionsThisTurn: 이번 턴에 이미 실행한 조작 수
   ///   - hasAppGrant: 이 대화에서 대상 앱을 승인했는가(7일 유효)
-  ///   - policy: 실행 단계 자동 처리 정책
+  ///
+  /// 전역 실행 정책(`AgentAutoApprove`)은 받지 않는다 — 화면 제어는 앱 승인으로만 판정한다.
   public static func evaluate(spec: UiActionSpec,
                               target: UiActionTarget?,
                               appBundleID: String,
                               appName: String,
                               actionsThisTurn: Int,
-                              hasAppGrant: Bool,
-                              policy: AgentAutoApprove) -> UiGuardDecision {
+                              hasAppGrant: Bool) -> UiGuardDecision {
     // ① 한도 — 31번째 동작은 나가지 않는다.
     if actionsThisTurn >= maxActionsPerTurn {
       return .deny(Lf("한 번의 요청에서 화면 조작은 %d번까지 할 수 있습니다.", maxActionsPerTurn))
@@ -199,13 +200,9 @@ public enum UiGuard {
     if spec.kind == .type, let target, !textRoles.contains(target.role) {
       return .deny(Lf("%@ 요소에는 텍스트를 입력할 수 없습니다 — 입력란을 고르세요.", target.label))
     }
-    // ⑤ 앱 승인 — 없으면 카드에서 [이 앱 허용]을 받는다.
+    // ⑤ 앱 승인 — 없으면 카드에서 [이 앱 허용]을 받는다. 승인 뒤에는 묻지 않는다.
     if !hasAppGrant {
       return .ask(Lf("%@ 앱을 처음 조작합니다 — 이 대화에서 허용할지 확인해 주세요.", appName))
-    }
-    // ⑥ 실행 단계 정책 — 기본은 매번 확인.
-    if policy == .alwaysAsk {
-      return .ask(L("화면을 조작하려면 확인이 필요합니다."))
     }
     return .allow
   }
