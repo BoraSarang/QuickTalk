@@ -296,13 +296,14 @@ ui_action 도착
 - [x] 공통 AX 헬퍼 `AXAccess` 로 `AXWindowReader` 중복 제거
 - [x] QuickTalk 자신을 기본 대상에서 제외(다른 앱 창이 없으면 빈 결과)
 
-### Phase 2
+### Phase 2 — **구현 완료 2026-10-31 (테스트·빌드 통과, 배포·실측 대기)**
 
-- [ ] `UiGuard`(금지 앱·키·보안 필드·좌표·한도) + `UiActionSpec`
-- [ ] `UiAppGrant` + `Conversation.approvedUiApps` + 설정 목록
-- [ ] `UiControlService`(클릭·키·텍스트·스크롤·앱 실행) + 유휴 가드
-- [ ] `AgentExecutor+UI` 승인 카드 · [이 앱 허용] · "되돌릴 수 없음" 배지
-- [ ] 테스트 `UiGuardTests`·`UiActionSpecTests`·`UiAppGrantTests` · 실측 U2~U8
+- [x] `UiGuard`(금지 앱·키·보안 필드·좌표·한도) + `UiActionSpec`
+- [x] `UiAppGrant` + `Conversation.approvedUiApps` + 설정 목록
+- [x] `UiControlService`(클릭·키·텍스트·스크롤·앱 실행) + 유휴 가드
+- [x] `AgentExecutor+UI` 승인 카드 · [이 앱 허용] · "되돌릴 수 없음" 배지
+- [x] 테스트 `UiGuardTests`·`UiActionSpecTests`·`UiAppGrantTests` — **619/619**, 되돌려 실패 확인 완료
+- [ ] 실측 U2~U8 — **앱 재실행 후 사용자**(배포 후)
 
 ### Phase 3 (비목표, 필요해지면 별도 계획)
 

@@ -44,9 +44,9 @@ public enum SystemKnowledge {
     lines.append("- 창 연결(읽기 전용): \(settings.windowAttachmentEnabled ? "켜짐" : "꺼짐") — 창 하나의 글자·스크린샷을 이번 질문에 붙인다")
     lines.append("- 화면 캡처 도구(screenshot): 모델이 필요할 때 창/화면을 찍어 다음 판단에 쓴다(화면 기록 권한 필요)")
     if settings.uiControlEnabled {
-      lines.append("  · 컴퓨터 제어: 켜짐 — 다른 앱의 화면 요소를 읽을 수 있다(ui_snapshot, 손쉬운 사용 권한 필요). 클릭·입력은 아직 지원하지 않는다")
+      lines.append("  · 컴퓨터 제어: 켜짐 — 다른 앱의 화면 요소를 읽고(ui_snapshot) 승인된 앱을 클릭·입력(ui_action)할 수 있다(손쉬운 사용 권한 필요)")
     } else {
-      lines.append("  · 컴퓨터 제어: 꺼짐 — 화면 요소를 읽는 도구(ui_snapshot)를 쓸 수 없다")
+      lines.append("  · 컴퓨터 제어: 꺼짐 — 화면 요소 읽기·조작 도구(ui_snapshot, ui_action)를 쓸 수 없다")
     }
 
     // 웹 검색

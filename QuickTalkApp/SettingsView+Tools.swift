@@ -17,13 +17,40 @@ extension SettingsView {
                 description: L("대화에 실제 실행한 명령과 그 출력을 보여줍니다. 끄면 도구 이름·결과 한 줄만 남습니다."))
     }
 
-    // 컴퓨터 제어 — PLAN_v0.25. Phase 1은 **읽기 전용**이라 토글 이름도 "읽기"로 둔다.
-    // Phase 2에서 클릭·입력이 들어오면 토글 이름과 캡션을 함께 바꾼다(켜짐의 뜻이 달라지므로).
+    // 컴퓨터 제어 — PLAN_v0.25. Phase 2부터 **읽기 + 조작**이므로 토글 이름이 "화면 조작"이다.
     groupBox(L("컴퓨터 제어")) {
-      toggleRow(L("화면 요소 읽기 허용"), isOn: $store.settings.uiControlEnabled,
-                description: L("다른 앱의 버튼·입력란 이름을 읽어 무엇을 할 수 있는지 확인합니다. 지금은 읽기만 하며 클릭·입력은 하지 않습니다."))
-      caption(L("기본은 꺼짐입니다. 꺼져 있으면 모델이 이 도구를 아예 받지 않습니다. 읽으려면 손쉬운 사용 권한이 필요합니다."))
-      caption(L("읽기는 화면을 바꾸지 않습니다. 비밀번호 입력란의 값은 읽지 않습니다."))
+      toggleRow(L("화면 조작 허용"), isOn: $store.settings.uiControlEnabled,
+                description: L("켜면 모델이 다른 앱의 버튼을 클릭하고 글자를 입력할 수 있습니다. 좌표가 아니라 접근성 요소로만 조작하고, 앱마다 한 번 더 승인을 받습니다. 이 동작은 되돌릴 수 없습니다."))
+      caption(L("기본은 꺼짐입니다. 꺼져 있으면 모델이 이 도구를 아예 받지 않습니다. 읽고 조작하려면 손쉬운 사용 권한이 필요합니다."))
+      caption(L("비밀번호 입력란은 읽지도 쓰지도 않습니다. 터미널·비밀번호 관리자·시스템 설정·관리자 암호 창은 조작할 수 없습니다."))
+      if store.activeUiAppGrants.isEmpty {
+        caption(L("이 대화에서 승인한 앱이 없습니다. 승인 카드의 [이 앱 허용]으로 추가됩니다."))
+      } else {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(store.activeUiAppGrants) { grant in
+            HStack(spacing: 6) {
+              Image(systemName: "macwindow.badge.plus")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+              Text(grant.name)
+                .font(.system(size: 11))
+                .lineLimit(1)
+              Spacer()
+              Text(Lf("%@까지 유효", grant.expiresAt.formatted(date: .abbreviated, time: .omitted)))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+              Button(L("해제")) { store.removeUiAppGrant(bundleID: grant.bundleID) }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+            }
+          }
+        }
+      }
+      caption(L("승인한 앱은 이 대화에서 7일 동안 유지됩니다. 만료되거나 [해제]하면 다시 묻습니다."))
+      caption(Lf("조작할 수 없는 앱(고정): %@", UiGuard.deniedAppSummary))
+      caption(L("한 번의 요청에서 화면 조작은 30번까지, 동작 사이에는 150ms 간격을 둡니다. 사용자가 입력 중이면 실행하지 않습니다."))
     }
 
     groupBox(L("전역 권한")) {
@@ -236,7 +263,7 @@ extension SettingsView {
         Button(L("손쉬운 사용 설정 열기")) { WindowAttachmentService.openAccessibilitySettings() }
         Spacer()
       }
-      caption(L("화면 기록은 창 목록·스크린샷·퀵셸프 캡처에, 손쉬운 사용은 다른 앱 창의 글자를 읽고 컴퓨터 제어(화면 요소 읽기)에 씁니다. 허용 후에는 앱을 다시 실행해야 반영됩니다."))
+      caption(L("화면 기록은 창 목록·스크린샷·퀵셸프 캡처에, 손쉬운 사용은 다른 앱 창의 글자를 읽고 컴퓨터 제어(화면 요소 읽기·조작)에 씁니다. 허용 후에는 앱을 다시 실행해야 반영됩니다."))
       caption(L("이 두 권한은 macOS가 관리합니다 — 앱이 대신 켤 수 없고, 시스템 설정에서 직접 허용해야 합니다."))
     }
   }

@@ -137,12 +137,15 @@ public struct Conversation: Codable, Equatable {
   public var agentOverride: AgentOverride?
   /// 이 대화에서 승인한 쓰기 폴더(2026-10-29) — 7일 뒤 자동 만료. 구버전 nil.
   public var approvedWriteScopes: [WriteScopeGrant]?
+  /// 이 대화에서 승인한 화면 조작 앱(2026-10-31, PLAN_v0.25 Phase 2) — 7일 뒤 자동 만료. 구버전 nil.
+  public var approvedUiApps: [UiAppGrant]?
   public init(id: UUID = UUID(), title: String = Conversation.defaultTitle, titleEdited: Bool = false,
               turns: [Turn] = [], pinned: Bool = false, updatedAt: Date = Date(),
               summary: String? = nil, summaryThroughTurnID: UUID? = nil,
               compactPaused: Bool? = nil, commonMemoryDisabled: Bool? = nil,
               agentOverride: AgentOverride? = nil,
-              approvedWriteScopes: [WriteScopeGrant]? = nil) {
+              approvedWriteScopes: [WriteScopeGrant]? = nil,
+              approvedUiApps: [UiAppGrant]? = nil) {
     self.id = id; self.title = title; self.titleEdited = titleEdited
     self.turns = turns; self.pinned = pinned; self.updatedAt = updatedAt
     self.summary = summary; self.summaryThroughTurnID = summaryThroughTurnID
@@ -150,12 +153,13 @@ public struct Conversation: Codable, Equatable {
     self.commonMemoryDisabled = commonMemoryDisabled
     self.agentOverride = agentOverride
     self.approvedWriteScopes = approvedWriteScopes
+    self.approvedUiApps = approvedUiApps
   }
 
   private enum CodingKeys: String, CodingKey {
     case id, title, titleEdited, turns, pinned, updatedAt
     case summary, summaryThroughTurnID, compactPaused, commonMemoryDisabled
-    case agentOverride, approvedWriteScopes
+    case agentOverride, approvedWriteScopes, approvedUiApps
   }
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -172,6 +176,7 @@ public struct Conversation: Codable, Equatable {
     agentOverride = try c.decodeIfPresent(AgentOverride.self, forKey: .agentOverride)
     approvedWriteScopes = try c.decodeIfPresent([WriteScopeGrant].self,
                                                 forKey: .approvedWriteScopes)
+    approvedUiApps = try c.decodeIfPresent([UiAppGrant].self, forKey: .approvedUiApps)
   }
 
   /// 실제로 쓸 수 있는 요약 — 경계 턴이 사라졌으면(기록 편집 등) nil로 본다.
