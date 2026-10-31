@@ -104,6 +104,7 @@
 		C0FFEE00000000000000CA01 /* UiAppGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000CA11 /* UiAppGrant.swift */; };
 		C0FFEE00000000000000CB01 /* UiControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000CB11 /* UiControlService.swift */; };
 		C0FFEE00000000000000CC01 /* AgentExecutor+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000CC11 /* AgentExecutor+UI.swift */; };
+		C0FFEE00000000000000CD01 /* PanelToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE00000000000000CD11 /* PanelToggle.swift */; };
 		EB20E54DEE3DDAEF4B5E0ED7 /* AttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BAB723416C088EFEEE3C3E /* AttachmentPreview.swift */; };
 		F06A7D16B0027C4E173E3A35 /* ShelfPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B27D2AFFA346E1FB886FED /* ShelfPanel.swift */; };
 		F4BBBDC9664636EF6E07F955 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AEE95E9756FB6329F5C014 /* Store.swift */; };
@@ -183,6 +184,7 @@
 		C0FFEE00000000000000CA11 /* UiAppGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiAppGrant.swift; sourceTree = "<group>"; };
 		C0FFEE00000000000000CB11 /* UiControlService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiControlService.swift; sourceTree = "<group>"; };
 		C0FFEE00000000000000CC11 /* AgentExecutor+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentExecutor+UI.swift"; sourceTree = "<group>"; };
+		C0FFEE00000000000000CD11 /* PanelToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggle.swift; sourceTree = "<group>"; };
 		BA9BCCA747D217A179117D3A /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
 		BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTTS.swift; sourceTree = "<group>"; };
 		BC6269B30CB5BB47B58A08AF /* UndoStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoStack.swift; sourceTree = "<group>"; };
@@ -353,6 +355,7 @@
 				46AB59036E6CDC9C1D797893 /* WhisperService.swift */,
 				51CE7C204B4A2CBE4C190205 /* WindowLevelPolicy.swift */,
 				F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */,
+				C0FFEE00000000000000CD11 /* PanelToggle.swift */,
 				C0FFEE00000000000000A111 /* AgentOverride.swift */,
 				C0FFEE00000000000000A211 /* SystemKnowledge.swift */,
 				C0FFEE00000000000000A311 /* TerminalHandoff.swift */,
@@ -547,6 +550,7 @@
 				C0FFEE00000000000000CA01 /* UiAppGrant.swift in Sources */,
 				C0FFEE00000000000000CB01 /* UiControlService.swift in Sources */,
 				C0FFEE00000000000000CC01 /* AgentExecutor+UI.swift in Sources */,
+				C0FFEE00000000000000CD01 /* PanelToggle.swift in Sources */,
 				A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -8,7 +8,17 @@
 >
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, 최신 빌드는 **2026-10-31 21:50 배포**했다.
 
-### 2026-10-31 (2) 인계 — Phase 2 승인 단순화: 화면 제어를 전역 권한과 분리 (배포 대기)
+### 2026-10-31 (3) 인계 — ⌘Space 토글 수정: 보이는 창은 숨긴다 (배포 대기)
+
+- **계기**: 사용자 실측 — 대화 창을 띄운 뒤 다른 앱을 조작하고 ⌘Space 를 다시 누르면, 창이 **사라지지 않고 화면 중앙으로 이동**했다.
+- **원인**: `togglePanel` 이 "창이 보이지만 키 창이 아님"을 **"앞으로 가져오기"** 로 해석해 `showPanel` 을 호출했고, `showPanel` → `positionPanel` 이 중앙 모드에서 창을 **다시 배치**했다.
+- **수정(Core)**: `PanelToggle.decide(pillVisible:panelVisible:)` 신설 — **pill → 닫기**, **창(키 여부 무관) → 숨기기**, 둘 다 없음 → 열기. 순수 함수라 값으로 고정한다.
+- **수정(App)**: `togglePanel` 은 판정 결과의 부수 효과만 실행한다. 숨길 때 **위치·배치를 건드리지 않는다** — 다시 열면 마지막 자리에서 이어진다.
+- **Xcode**: 새 Core 파일 `PanelToggle.swift` 를 `project.pbxproj` 의 QuickTalkCore 그룹·Sources 단계에 등록(앱 타깃은 SwiftPM 이 아니라 명시 참조).
+- **검증**: `swift test` **621/621**(6 skip, 신규 3 — pill 우선 · 비키 창 숨김 · 없을 때 열기) · Debug/Release **BUILD SUCCEEDED** · **되돌려 실패 확인**(보이는 창 → show 로 되돌림 → 1건).
+- **미완**: 배포 후 사용자가 ⌘Space 두 번 눌러 **숨김/재표시** 확인.
+
+### 2026-10-31 (2) 인계 — Phase 2 승인 단순화: 화면 제어를 전역 권한과 분리 (배포 완료)
 
 - **계기**: 사용자 실측 — 한 요청에 승인 카드가 **5장**(open_app · snapshot · click · snapshot · type). 전역 `읽기`/`실행` 이 "매번 확인"이라 **앱 승인과 곱해졌고**, `ui_snapshot` 카드의 `[항상 허용]` 은 읽기 경로가 무시해 눌러도 계속 물었다.
 - **결정**: 화면 제어를 **셸·파일 권한 모델과 분리**한다(사용자 선택).
@@ -48,8 +58,8 @@
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
 | 현재 빌드 | **④ Phase 2 + 승인 단순화(2026-10-31 21:50)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `d47705e69e97…` · 직전 20:41 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 31638 은 이전 빌드) |
-| 테스트 | **618/618**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-31 기준) |
-| 마지막 완료 | **Phase 2 승인 단순화** — 화면 제어를 전역 권한과 분리 · `ui_snapshot` 무승인 · `ui_action` 앱당 1회(7일) · 카드 5장→1장 · 618/618 · **배포 대기** |
+| 테스트 | **621/621**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-31 기준) |
+| 마지막 완료 | **⌘Space 토글 수정** — 보이는 창은 키 여부와 무관하게 숨김 · `PanelToggle`(Core 순수) · 621/621 · **배포 대기** |
 | 이전 완료 | **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
 | 다음 작업 | **④ Phase 2 배포 후 실측 U2~U8** — 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작. **먼저** 앱 재실행 후 Phase 1 U1~U5 + ①②③ 실측 5건 |
 | 실측 대기 | **U2~U8(Phase 2)** + **U1~U5(Phase 1)** + v0.24 3건 + v0.23 3건 + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |

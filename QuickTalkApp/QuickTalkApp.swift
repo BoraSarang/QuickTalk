@@ -743,17 +743,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func togglePanel(fromShortcut: Bool) {
-    // pill이 떠 있으면 단축키를 다시 눌렀을 때 닫는다(Spotlight 토글).
-    if PointerPillController.shared.isVisible {
+    // 전역 단축키는 **토글**이다: 떠 있으면 닫고, 없을 때만 연다.
+    // 예전에는 "창이 보이지만 키 창이 아님"을 "앞으로 가져오기"로 처리해서, 다른 앱을 조작하다
+    // ⌘Space 를 다시 누르면 창이 사라지지 않고 중앙으로 다시 배치됐다(2026-10-31 사용자 실측).
+    // 판정은 PanelToggle(순수 함수)이 맡고, 여기서는 부수 효과만 실행한다.
+    switch PanelToggle.decide(pillVisible: PointerPillController.shared.isVisible,
+                              panelVisible: panel.isVisible) {
+    case .dismissPill:
       PointerPillController.shared.dismiss()
       return
-    }
-    if panel.isVisible {
-      // 기본 레벨(일반 창)에서는 다른 앱 뒤에 있을 수 있다 — 그때는 닫지 말고 앞으로 가져온다.
-      let frontmost = NSApp.isActive && panel.isKeyWindow
-      guard frontmost else { showPanel(tab: 0); return }
+    case .hidePanel:
+      // 위치·배치를 건드리지 않고 그대로 숨긴다 — 다시 열 때 마지막 자리에서 이어진다.
       panel.orderOut(nil)
       return
+    case .show:
+      break
     }
     // 단축키: 유지 시간(기본 10분) 안이면 마지막 대화를 이어서, 지났으면 새 대화.
     // 새 대화일 때는 빈 대화 창 대신 포인터 pill을 띄운다(T-21) — 창은 하나이고 표현만 다르다.
