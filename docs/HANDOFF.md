@@ -6,9 +6,9 @@
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 >
-> **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, 최신 빌드는 **2026-10-31 21:50 배포**했다.
+> **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, 최신 빌드는 **2026-10-31 22:09 배포**했다.
 
-### 2026-10-31 (3) 인계 — ⌘Space 토글 수정: 보이는 창은 숨긴다 (배포 대기)
+### 2026-10-31 (3) 인계 — ⌘Space 토글 수정: 보이는 창은 숨긴다 (배포 완료)
 
 - **계기**: 사용자 실측 — 대화 창을 띄운 뒤 다른 앱을 조작하고 ⌘Space 를 다시 누르면, 창이 **사라지지 않고 화면 중앙으로 이동**했다.
 - **원인**: `togglePanel` 이 "창이 보이지만 키 창이 아님"을 **"앞으로 가져오기"** 로 해석해 `showPanel` 을 호출했고, `showPanel` → `positionPanel` 이 중앙 모드에서 창을 **다시 배치**했다.
@@ -16,7 +16,9 @@
 - **수정(App)**: `togglePanel` 은 판정 결과의 부수 효과만 실행한다. 숨길 때 **위치·배치를 건드리지 않는다** — 다시 열면 마지막 자리에서 이어진다.
 - **Xcode**: 새 Core 파일 `PanelToggle.swift` 를 `project.pbxproj` 의 QuickTalkCore 그룹·Sources 단계에 등록(앱 타깃은 SwiftPM 이 아니라 명시 참조).
 - **검증**: `swift test` **621/621**(6 skip, 신규 3 — pill 우선 · 비키 창 숨김 · 없을 때 열기) · Debug/Release **BUILD SUCCEEDED** · **되돌려 실패 확인**(보이는 창 → show 로 되돌림 → 1건).
-- **미완**: 배포 후 사용자가 ⌘Space 두 번 눌러 **숨김/재표시** 확인.
+- **병합**: **PR #72 → squash merge `7802cfc`**(2026-10-31).
+- **배포**: 2026-10-31 22:09 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `ca715df81aa2cc051eb63b561b1822644b80b7c267c8ff0d3b2a5c4038ebf727` · 직전 21:50 빌드는 `.QuickTalk.old` · **앱 재실행 필요**(PID 38888 은 이전 빌드).
+- **미완**: 재실행 후 ⌘Space 두 번으로 **숨김/재표시** 확인.
 
 ### 2026-10-31 (2) 인계 — Phase 2 승인 단순화: 화면 제어를 전역 권한과 분리 (배포 완료)
 
@@ -57,15 +59,15 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **④ Phase 2 + 승인 단순화(2026-10-31 21:50)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `d47705e69e97…` · 직전 20:41 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 31638 은 이전 빌드) |
+| 현재 빌드 | **⌘Space 토글 수정(2026-10-31 22:09)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `ca715df81aa2…` · 직전 21:50 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 38888 은 이전 빌드) |
 | 테스트 | **621/621**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-31 기준) |
-| 마지막 완료 | **⌘Space 토글 수정** — 보이는 창은 키 여부와 무관하게 숨김 · `PanelToggle`(Core 순수) · 621/621 · **배포 대기** |
+| 마지막 완료 | **⌘Space 토글 수정** — 보이는 창은 키 여부와 무관하게 숨김 · `PanelToggle`(Core 순수) · 621/621 · **`7802cfc`(PR #72)** · 배포 2026-10-31 22:09 |
 | 이전 완료 | **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
 | 다음 작업 | **④ Phase 2 배포 후 실측 U2~U8** — 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작. **먼저** 앱 재실행 후 Phase 1 U1~U5 + ①②③ 실측 5건 |
 | 실측 대기 | **U2~U8(Phase 2)** + **U1~U5(Phase 1)** + v0.24 3건 + v0.23 3건 + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **이전 빌드**(PID 31638) — 재실행하면 승인 단순화 빌드 `d47705e69e97…` 로 뜬다 |
-| git | `main` = **`43a4c42`(PR #70 — 승인 단순화)** · 이전 `cf5728b`(#66 Phase 2) · `8bed1ef`(#63 Phase 1) · `0fda8a4`(#60) · `c6f04a2`(#58) · `5589105`(#55) · `main` 직접 push 금지 |
+| 실행 중 앱 | **이전 빌드**(PID 38888) — 재실행하면 ⌘Space 토글 수정 빌드 `ca715df81aa2…` 로 뜬다 |
+| git | `main` = **`7802cfc`(PR #72 — ⌘Space 토글)** · 이전 `43a4c42`(#70) · `cf5728b`(#66 Phase 2) · `8bed1ef`(#63 Phase 1) · `0fda8a4`(#60) · `c6f04a2`(#58) · `5589105`(#55) · `main` 직접 push 금지 |
 
 ### 다음 세션 시작점 (2026-10-29) — **④ 컴퓨터 제어 Phase 1 완료 · 배포 완료**
 
