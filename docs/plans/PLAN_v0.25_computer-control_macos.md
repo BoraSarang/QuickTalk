@@ -304,6 +304,7 @@ ui_action 도착
 - [x] `AgentExecutor+UI` 승인 카드 · [이 앱 허용] · "되돌릴 수 없음" 배지
 - [x] 테스트 `UiGuardTests`·`UiActionSpecTests`·`UiAppGrantTests` — **619/619**, 되돌려 실패 확인 완료
 - [ ] 실측 U2~U8 — **앱 재실행 후 사용자**(배포 후)
+- [x] 병합 **PR #66 → `cf5728b`**(2026-10-31) · **배포 대기**
 
 ### Phase 3 (비목표, 필요해지면 별도 계획)
 
