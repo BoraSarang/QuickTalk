@@ -6,15 +6,16 @@
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 >
-> **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, 최신 빌드는 **2026-10-31 22:09 배포**했다.
+> **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-02 14:35 배포**했다.
 
-### 2026-11-02 인계 — AI API User-Agent: `QuickTalk/<버전>` (구현·검증 완료, **미배포**)
+### 2026-11-02 인계 — AI API User-Agent: `QuickTalk/<버전>` (배포 완료)
 
 - **계기**: OpenAI 호환 서버 로그의 클라이언트 UA 가 `QuickTalk/1 CFNetwork/3896.200.61 Darwin/27.2.0` — URLSession 기본값이라 앱·CFNetwork·macOS 버전이 노출되고, 버전도 빌드 번호(`1`)였다.
 - **수정(Core)**: `QuickTalkUserAgent` (`Sources/QuickTalkCore/LLMProvider.swift`) — `QuickTalk/` + `CFBundleShortVersionString`(없으면 `1.0`), `apply(to:)` 가 요청 헤더를 덮어쓴다. 요청에 UA 가 있으면 CFNetwork 기본 UA 는 붙지 않는다.
 - **적용**: `URLRequest` 생성 **8곳 전부** — `OpenAIClient` 채팅(스트리밍 포함)·`/models`, `OllamaClient` 채팅(스트리밍·도구 포함)·`/api/tags`, `ExaSearch`·`ExaAnswer`.
 - **검증**: `swift test` **628/628**(6 skip, 신규 7 — `UserAgentTests` 형식·접미사 금지·헤더 교체·OpenAI/Ollama/Exa 빌더) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 로컬 HTTP 서버 실측: 기본 `swift-frontend (unknown version) CFNetwork/3896.200.61 Darwin/27.2.0` → 지정 `QuickTalk/1.0` (접미사 없음).
-- **미배포**: 사용자 맥 사용 중 — 앱 실행/교체하지 않았다. 배포 후 서버 로그에서 `QuickTalk/1.0` 확인 필요. 버전은 Info.plist `CFBundleShortVersionString` 을 따른다.
+- **병합/배포**: **PR #75 → squash merge `5a616c6`**(2026-11-02) · 14:35 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · 직전 2026-10-31 22:09 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 44477 은 이전 빌드).
+- **다음**: 앱 재실행 후 서버 로그에서 UA 가 `QuickTalk/1.0` 인지 확인. 버전은 Info.plist `CFBundleShortVersionString`(현재 `1.0`)을 따른다.
 
 ### 2026-10-31 (3) 인계 — ⌘Space 토글 수정: 보이는 창은 숨긴다 (배포 완료)
 
@@ -67,11 +68,11 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **⌘Space 토글 수정(2026-10-31 22:09)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `ca715df81aa2…` · 직전 21:50 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 38888 은 이전 빌드) |
-| 테스트 | **621/621**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-10-31 기준) |
-| 마지막 완료 | **⌘Space 토글 수정** — 보이는 창은 키 여부와 무관하게 숨김 · `PanelToggle`(Core 순수) · 621/621 · **`7802cfc`(PR #72)** · 배포 2026-10-31 22:09 |
-| 이전 완료 | **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
-| 다음 작업 | **④ Phase 2 배포 후 실측 U2~U8** — 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작. **먼저** 앱 재실행 후 Phase 1 U1~U5 + ①②③ 실측 5건 |
+| 현재 빌드 | **AI API User-Agent `QuickTalk/<버전>`(2026-11-02 14:35)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · 직전 10-31 22:09 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 44477 은 이전 빌드) |
+| 테스트 | **628/628**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-11-02 기준) |
+| 마지막 완료 | **AI API User-Agent `QuickTalk/<버전>`** — 기본 CFNetwork/OS 접미사 제거 · `URLRequest` 8곳 적용 · `UserAgentTests` 7 · 628/628 · **`5a616c6`(PR #75)** · 배포 2026-11-02 14:35 |
+| 이전 완료 | **⌘Space 토글 수정** — `PanelToggle`(Core 순수) · 621/621 · **`7802cfc`(PR #72)** · 2026-10-31 22:09 / **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
+| 다음 작업 | **① 앱 재실행 후 서버 로그 UA `QuickTalk/1.0` 확인** → ② **④ Phase 2 실측 U2~U8** — 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작. **먼저** 앱 재실행 후 Phase 1 U1~U5 + ①②③ 실측 5건 |
 | 실측 대기 | **U2~U8(Phase 2)** + **U1~U5(Phase 1)** + v0.24 3건 + v0.23 3건 + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
 | 실행 중 앱 | **이전 빌드**(PID 38888) — 재실행하면 ⌘Space 토글 수정 빌드 `ca715df81aa2…` 로 뜬다 |
