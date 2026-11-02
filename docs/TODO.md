@@ -1,7 +1,16 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-10-31 KST
+> 마지막 갱신: 2026-11-02 KST
+
+## 다음 (2026-11-02) — AI API User-Agent: `QuickTalk/<버전>` 한 줄로
+
+서버 로그의 클라이언트 UA 가 `QuickTalk/1 CFNetwork/3896.200.61 Darwin/27.2.0` (URLSession 기본값)으로 찍혔다 — 앱·CFNetwork·macOS 버전이 노출되고, 앱 버전도 빌드 번호(`1`)라 알아보기 어려웠다.
+
+- **수정**: Core `QuickTalkUserAgent` (`LLMProvider.swift`) — `QuickTalk/` + `CFBundleShortVersionString`(없으면 `1.0`). 요청에 UA 헤더가 있으면 CFNetwork 기본 접미사는 붙지 않는다(로컬 서버로 실측).
+- **적용**: `URLRequest` 를 만드는 **8곳 전부** — OpenAI 채팅(2)·모델 목록 · Ollama 채팅(2)·태그 목록 · Exa 검색·`/answer`.
+- **검증**: `swift test` **628/628**(6 skip, 신규 7 — `UserAgentTests`) · Debug/Release **BUILD SUCCEEDED** · 로컬 HTTP 서버 실측: 기본 `swift-frontend (unknown version) CFNetwork/3896.200.61 Darwin/27.2.0` → 지정 `QuickTalk/1.0` (접미사 없음).
+- **다음**: 배포 후 서버 로그에서 UA 가 `QuickTalk/1.0` 인지 확인. 버전은 Info.plist `CFBundleShortVersionString` 을 따른다.
 
 ## 다음 (2026-10-31 3차) — ⌘Space 토글 수정: 보이는 창은 숨긴다
 

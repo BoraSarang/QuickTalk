@@ -155,6 +155,31 @@ enum HTTPStream {
   }
 }
 
+// MARK: - 공통 User-Agent
+
+/// URLSession 기본 UA는 `QuickTalk/1 CFNetwork/3896.200.61 Darwin/27.2.0` 처럼
+/// 앱 이름·빌드 번호 뒤에 네트워크 스택·OS 정보를 덧붙인다. 서버 로그에서
+/// 우리 앱을 알아보기 쉽도록 **이름/버전 한 줄**만 보낸다.
+/// 요청에 헤더가 있으면 CFNetwork 기본 UA는 붙지 않는다.
+public enum QuickTalkUserAgent {
+  /// `QuickTalk/1.0` — 앱 번들에 버전이 없으면(테스트 러너 등) "1.0".
+  public static var value: String { format(version: appVersion) }
+
+  /// 순수 함수 — 단위 테스트로 형식을 고정한다.
+  public static func format(version: String) -> String {
+    "QuickTalk/\(version)"
+  }
+
+  static var appVersion: String {
+    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.0"
+  }
+
+  /// 요청 1건의 User-Agent를 덮어쓴다.
+  public static func apply(to request: inout URLRequest) {
+    request.setValue(value, forHTTPHeaderField: "User-Agent")
+  }
+}
+
 // OpenAI 호환: POST {baseURL}/chat/completions {model, messages, stream:false|true}
 public struct OpenAIClient: LLMClient {
   public var baseURL: URL
@@ -186,12 +211,14 @@ public struct OpenAIClient: LLMClient {
     return messages
   }
 
-  private func makeRequest(prompt: String, history: [Turn],
-                           attachments: [OutgoingAttachment], stream: Bool) throws -> URLRequest {
+  /// 요청 형식 검증용 — 단위 테스트가 헤더·본문을 직접 확인한다(`@testable`).
+  func makeRequest(prompt: String, history: [Turn],
+                   attachments: [OutgoingAttachment], stream: Bool) throws -> URLRequest {
     var req = URLRequest(url: baseURL.appendingPathComponent("chat/completions"))
     req.httpMethod = "POST"
     req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    QuickTalkUserAgent.apply(to: &req)
     let msgs = Self.buildMessages(prompt: prompt, history: history, attachments: attachments)
     req.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "messages": msgs, "stream": stream])
     return req
@@ -429,6 +456,7 @@ public struct OpenAIClient: LLMClient {
     req.httpMethod = "POST"
     req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    QuickTalkUserAgent.apply(to: &req)
     var body: [String: Any] = ["model": model, "messages": messages, "stream": stream]
     if let tools, !tools.isEmpty {
       body["tools"] = tools
@@ -442,6 +470,7 @@ public struct OpenAIClient: LLMClient {
   public static func listModels(baseURL: URL, apiKey: String) async throws -> [String] {
     var req = URLRequest(url: baseURL.appendingPathComponent("models"))
     req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    QuickTalkUserAgent.apply(to: &req)
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw QuickTalkError.networkUnavailable() }
     let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -476,11 +505,13 @@ public struct OllamaClient: LLMClient {
     return messages
   }
 
-  private func makeRequest(prompt: String, history: [Turn],
-                           attachments: [OutgoingAttachment], stream: Bool) throws -> URLRequest {
+  /// 요청 형식 검증용 — 단위 테스트가 헤더·본문을 직접 확인한다(`@testable`).
+  func makeRequest(prompt: String, history: [Turn],
+                   attachments: [OutgoingAttachment], stream: Bool) throws -> URLRequest {
     var req = URLRequest(url: host.appendingPathComponent("api/chat"))
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    QuickTalkUserAgent.apply(to: &req)
     let msgs = Self.buildMessages(prompt: prompt, history: history, attachments: attachments)
     req.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "messages": msgs, "stream": stream])
     // 스트리밍은 첫 데이터가 올 때까지의 유휴 시간이 이 값이다 — 프롬프트 처리를 기다린다.
@@ -548,6 +579,7 @@ public struct OllamaClient: LLMClient {
     var req = URLRequest(url: host.appendingPathComponent("api/chat"))
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    QuickTalkUserAgent.apply(to: &req)
     req.timeoutInterval = Self.requestTimeout
     req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -619,6 +651,7 @@ public struct OllamaClient: LLMClient {
   public static func listModels(host: URL) async throws -> [String] {
     var req = URLRequest(url: host.appendingPathComponent("api/tags"))
     req.httpMethod = "GET"
+    QuickTalkUserAgent.apply(to: &req)
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw QuickTalkError.networkUnavailable() }
     let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]

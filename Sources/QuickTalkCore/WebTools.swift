@@ -299,6 +299,7 @@ public enum ExaAnswer {
     request.httpMethod = "POST"
     request.timeoutInterval = 30
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    QuickTalkUserAgent.apply(to: &request)
     request.httpBody = body(query: query)
     return request
   }
