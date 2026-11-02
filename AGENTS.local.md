@@ -19,6 +19,7 @@
 ## 4. 프로젝트 특화 예외 규칙
 - 분석 대상 `/System/Applications/Siri AI.app` (bundle `com.apple.campo`)는 읽기 전용으로만 취급. 복사·수정·재배포 금지, 동작 관찰 + 리소스 인벤토리만 수행
 - QuickTalk는 Siri AI 복제가 아니라 대화·응답 UX 호환 구현을 목표로 함
+- **배포 시 `~/Applications/.QuickTalk.old*` 백업 번들을 만들지 않는다** — 같은 bundle id 복제본이 시스템 설정 › 개인정보 보호 및 보안 권한 목록에 중복 항목으로 남는다(2026-11-02 사용자 요청). 교체는 기존 번들을 바로 지우고 새 번들을 넣는다.
 
 ## 5. 디자인 토큰 (custom 프로필일 때)
 - 색/폰트/간격 등은 docs/DESIGN.md에 정의, 여기서는 프로필만 확정
