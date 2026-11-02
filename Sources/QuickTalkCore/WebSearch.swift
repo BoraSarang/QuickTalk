@@ -229,6 +229,7 @@ public enum ExaSearch {
     request.httpMethod = "POST"
     request.timeoutInterval = 20
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    QuickTalkUserAgent.apply(to: &request)
     request.httpBody = body(query: query, count: count,
                             freshness: freshness, maxCharacters: maxCharacters, now: now)
     return request
