@@ -14,7 +14,8 @@
 - **수정(Core)**: `QuickTalkUserAgent` (`Sources/QuickTalkCore/LLMProvider.swift`) — `QuickTalk/` + `CFBundleShortVersionString`(없으면 `1.0`), `apply(to:)` 가 요청 헤더를 덮어쓴다. 요청에 UA 가 있으면 CFNetwork 기본 UA 는 붙지 않는다.
 - **적용**: `URLRequest` 생성 **8곳 전부** — `OpenAIClient` 채팅(스트리밍 포함)·`/models`, `OllamaClient` 채팅(스트리밍·도구 포함)·`/api/tags`, `ExaSearch`·`ExaAnswer`.
 - **검증**: `swift test` **628/628**(6 skip, 신규 7 — `UserAgentTests` 형식·접미사 금지·헤더 교체·OpenAI/Ollama/Exa 빌더) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 로컬 HTTP 서버 실측: 기본 `swift-frontend (unknown version) CFNetwork/3896.200.61 Darwin/27.2.0` → 지정 `QuickTalk/1.0` (접미사 없음).
-- **병합/배포**: **PR #75 → squash merge `5a616c6`**(2026-11-02) · 14:35 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · 직전 2026-10-31 22:09 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 44477 은 이전 빌드).
+- **병합/배포**: **PR #75 → squash merge `5a616c6`**(2026-11-02) · 14:35 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · **앱 재실행 필요**(PID 44477 은 이전 빌드).
+- **백업 금지**: 기존 `.QuickTalk.old`·`.QuickTalk.old-505f7b84` 는 **삭제**(같은 bundleId 복제본이 권한 목록에 중복으로 남음 — 사용자 요청). 이후 배포는 백업 번들을 만들지 않고 바로 교체한다.
 - **다음**: 앱 재실행 후 서버 로그에서 UA 가 `QuickTalk/1.0` 인지 확인. 버전은 Info.plist `CFBundleShortVersionString`(현재 `1.0`)을 따른다.
 
 ### 2026-10-31 (3) 인계 — ⌘Space 토글 수정: 보이는 창은 숨긴다 (배포 완료)
@@ -68,7 +69,7 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **AI API User-Agent `QuickTalk/<버전>`(2026-11-02 14:35)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · 직전 10-31 22:09 빌드는 `~/Applications/.QuickTalk.old` · **앱 재실행 필요**(PID 44477 은 이전 빌드) |
+| 현재 빌드 | **AI API User-Agent `QuickTalk/<버전>`(2026-11-02 14:35)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · **백업 번들 없음**(`.QuickTalk.old*` 삭제 — 권한 목록 중복 방지) · **앱 재실행 필요**(PID 44477 은 이전 빌드) |
 | 테스트 | **628/628**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-11-02 기준) |
 | 마지막 완료 | **AI API User-Agent `QuickTalk/<버전>`** — 기본 CFNetwork/OS 접미사 제거 · `URLRequest` 8곳 적용 · `UserAgentTests` 7 · 628/628 · **`5a616c6`(PR #75)** · 배포 2026-11-02 14:35 |
 | 이전 완료 | **⌘Space 토글 수정** — `PanelToggle`(Core 순수) · 621/621 · **`7802cfc`(PR #72)** · 2026-10-31 22:09 / **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
@@ -1374,16 +1375,16 @@ xcodebuild -project QuickTalk.xcodeproj -scheme QuickTalk -configuration Debug \
   -destination 'platform=macOS' -derivedDataPath build build
 
 # 4) 배포 (실행 중 앱은 건드리지 않는다 — 새 빌드는 재실행 때 적용)
+#    ※ .QuickTalk.old 같은 백업 번들을 만들지 않는다 — 같은 bundleId 복제본이
+#      시스템 설정 › 개인정보 보호 및 보안 권한 목록에 중복으로 남는다.
 rm -rf ~/Applications/.QuickTalk.new
 ditto build/Build/Products/Debug/QuickTalk.app ~/Applications/.QuickTalk.new
-rm -rf ~/Applications/.QuickTalk.old
-if [ -d ~/Applications/QuickTalk.app ]; then mv ~/Applications/QuickTalk.app ~/Applications/.QuickTalk.old; fi
+rm -rf ~/Applications/QuickTalk.app
 mv ~/Applications/.QuickTalk.new ~/Applications/QuickTalk.app
-rm -rf ~/Applications/.QuickTalk.old
 codesign --verify --strict ~/Applications/QuickTalk.app
 ```
 
-- 서명: **Apple Development 수동 서명** (`DEVELOPMENT_TEAM: 6GPJQ7BQC9`). ad-hoc으로 바꾸면 TCC(화면 기록·마이크·음성) 권한이 매번 풀린다.
+- **백업 금지**: 배포할 때 이전 번들을 `~/Applications/.QuickTalk.old` 등으로 **남기지 않는다**. 같은 bundle id 복제본은 손쉬운 사용·화면 기록 권한 목록에 중복 항목으로 남는다(2026-11-02 사용자 요청).
 - `swift test`의 6 skip은 정상: `QT_LIVE` 4 + `QT_LIVE_STREAM` 2.
 - QA 하네스: `--tool-test=<질문>`, `--answer-test=<질문>`, `--demo-global-memory`.
   실측 로그는 건수·지연만 남기고 검색어·본문·키는 남기지 않는다.
