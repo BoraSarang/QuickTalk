@@ -1,6 +1,7 @@
 # v0.26 비서·예약 작업·리포트·알림 — 사용자 실측 체크리스트 (2026-11-03)
 
-> 대상: `feat/macos-assistant-persona` (1~5단계) · 설계: `docs/plans/PLAN_v0.26_assistant-persona_macos.md`
+> 대상: `main` = `0f891a1` (PR #80 `732ea6e` + 문서 #81) · 설계: `docs/plans/PLAN_v0.26_assistant-persona_macos.md`
+> 배포본: 2026-11-03 19:26 · SHA-256 `b0a73f42a7a371cbdbb3fbb272d6cc44fa443fbb3f073e256eeeab722425be16`
 > 결과는 각 항목의 `결과:` 칸에 적는다. 실패하면 **화면에 보인 문구 그대로** 남긴다.
 > 앱이 실행 중일 때만 예약 작업이 돈다. 알림은 앱이 켜져 있을 때만 온다(Phase 1 한계).
 
