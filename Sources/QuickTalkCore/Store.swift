@@ -165,6 +165,12 @@ public final class ConversationStore {
     conversation.updatedAt = Date()
   }
 
+  /// 이 대화의 비서를 바꾼다(v0.26) — nil 은 기본(비서 없음).
+  public func setPersonaID(_ id: UUID?) {
+    conversation.personaID = id
+    conversation.updatedAt = Date()
+  }
+
   /// 이 대화에서만 공통 메모리 주입을 끄거나 켠다.
   public func setCommonMemoryDisabled(_ disabled: Bool) {
     conversation.commonMemoryDisabled = disabled ? true : nil

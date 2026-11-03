@@ -115,6 +115,15 @@ public enum SlashCommands {
       // 설정·도움말은 도구 없이도 된다(앱 지식은 지시문에 실린다).
       requiresTools: false),
     SlashCommand(
+      id: "tasks",
+      name: L("할일"),
+      aliases: ["할일", "tasks", "schedule", "예약"],
+      summary: L("예약 작업 목록 열기 — 추가·수정·지금 실행"),
+      template: "",
+      systemImage: "calendar.badge.clock",
+      // 목록은 앱이 직접 보여 준다(모델 도구 아님) — 도구가 꺼져 있어도 열린다.
+      requiresTools: false),
+    SlashCommand(
       id: "help",
       name: L("도움말"),
       aliases: ["도움말", "help", "commands"],

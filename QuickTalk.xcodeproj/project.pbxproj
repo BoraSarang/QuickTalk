@@ -51,6 +51,12 @@
 		AA00000000000000000000B3 /* ReportWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000A3 /* ReportWriter.swift */; };
 		AA00000000000000000000B4 /* ScheduledRunRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000A4 /* ScheduledRunRunner.swift */; };
 		AA00000000000000000000B5 /* SchedulerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000A5 /* SchedulerService.swift */; };
+		AA00000000000000000000C1 /* ScheduleProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D1 /* ScheduleProposal.swift */; };
+		AA00000000000000000000C2 /* ScheduleConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* ScheduleConfirmation.swift */; };
+		AA00000000000000000000C3 /* TaskListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D3 /* TaskListSheet.swift */; };
+		AA00000000000000000000C4 /* PersonaChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D4 /* PersonaChip.swift */; };
+		AA00000000000000000000C5 /* ScheduleProposalCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D5 /* ScheduleProposalCard.swift */; };
+		AA00000000000000000000C6 /* AgentExecutor+Schedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D6 /* AgentExecutor+Schedule.swift */; };
 		1D07770E6DFEFDD99FFE6A57 /* ScheduleRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C840E9E0092D45EC00F96289 /* ScheduleRule.swift */; };
 		23BF4CA1DC2A8AD30EBE8B23 /* ScheduledTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24924944DFC0DB14834F7C0 /* ScheduledTask.swift */; };
 		27D428660E04263FE824409B /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D77524CE47F74E842624D4 /* ScheduleStore.swift */; };
@@ -143,6 +149,12 @@
 		AA00000000000000000000A3 /* ReportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWriter.swift; sourceTree = "<group>"; };
 		AA00000000000000000000A4 /* ScheduledRunRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledRunRunner.swift; sourceTree = "<group>"; };
 		AA00000000000000000000A5 /* SchedulerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulerService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000D1 /* ScheduleProposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleProposal.swift"; sourceTree = "<group>"; };
+		AA00000000000000000000D2 /* ScheduleConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleConfirmation.swift"; sourceTree = "<group>"; };
+		AA00000000000000000000D3 /* TaskListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskListSheet.swift"; sourceTree = "<group>"; };
+		AA00000000000000000000D4 /* PersonaChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PersonaChip.swift"; sourceTree = "<group>"; };
+		AA00000000000000000000D5 /* ScheduleProposalCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleProposalCard.swift"; sourceTree = "<group>"; };
+		AA00000000000000000000D6 /* AgentExecutor+Schedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentExecutor+Schedule.swift"; sourceTree = "<group>"; };
 		C840E9E0092D45EC00F96289 /* ScheduleRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleRule.swift; sourceTree = "<group>"; };
 		F24924944DFC0DB14834F7C0 /* ScheduledTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTask.swift; sourceTree = "<group>"; };
 		01D77524CE47F74E842624D4 /* ScheduleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleStore.swift; sourceTree = "<group>"; };
@@ -293,6 +305,11 @@
 				AA00000000000000000000A3 /* ReportWriter.swift */,
 				AA00000000000000000000A4 /* ScheduledRunRunner.swift */,
 				AA00000000000000000000A5 /* SchedulerService.swift */,
+				AA00000000000000000000D2 /* ScheduleConfirmation.swift */,
+				AA00000000000000000000D3 /* TaskListSheet.swift */,
+				AA00000000000000000000D4 /* PersonaChip.swift */,
+				AA00000000000000000000D5 /* ScheduleProposalCard.swift */,
+				AA00000000000000000000D6 /* AgentExecutor+Schedule.swift */,
 				72BCC68AF259264132DF4A74 /* SettingsView+Voice.swift */,
 				DA84ABEFD1876BF8ED75C710 /* SettingsView+WebSearch.swift */,
 				727D6C34B22D436052197628 /* ShelfModel.swift */,
@@ -369,6 +386,7 @@
 				F24924944DFC0DB14834F7C0 /* ScheduledTask.swift */,
 				01D77524CE47F74E842624D4 /* ScheduleStore.swift */,
 				AA00000000000000000000A1 /* ReportDocument.swift */,
+				AA00000000000000000000D1 /* ScheduleProposal.swift */,
 				18F0C670FDE6AF2A0F611E90 /* Shortcut.swift */,
 				ADB22DE1D96B2C98BECA63D0 /* ShortcutEntry.swift */,
 				B2A02B9140976F463DA5AB0D /* SpeechCatalog.swift */,
@@ -534,6 +552,12 @@
 				AA00000000000000000000B3 /* ReportWriter.swift in Sources */,
 				AA00000000000000000000B4 /* ScheduledRunRunner.swift in Sources */,
 				AA00000000000000000000B5 /* SchedulerService.swift in Sources */,
+				AA00000000000000000000C1 /* ScheduleProposal.swift in Sources */,
+				AA00000000000000000000C2 /* ScheduleConfirmation.swift in Sources */,
+				AA00000000000000000000C3 /* TaskListSheet.swift in Sources */,
+				AA00000000000000000000C4 /* PersonaChip.swift in Sources */,
+				AA00000000000000000000C5 /* ScheduleProposalCard.swift in Sources */,
+				AA00000000000000000000C6 /* AgentExecutor+Schedule.swift in Sources */,
 				27D428660E04263FE824409B /* ScheduleStore.swift in Sources */,
 				F660BB9F67412ED01863EDD2 /* SettingsView+AI.swift in Sources */,
 				F50845130EA63F4522C409A8 /* SettingsView+Archive.swift in Sources */,

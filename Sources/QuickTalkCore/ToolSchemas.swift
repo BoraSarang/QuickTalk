@@ -190,12 +190,52 @@ public enum AgentToolCatalog {
       "required": ["query"]
     ])
 
+  /// 예약 작업 등록 — **모델이 직접 등록하지 못한다**. 확인 카드를 거쳐 사용자가 승인해야 한다.
+  /// 삭제 도구는 만들지 않는다(삭제는 `/할일` UI 에서만 — PLAN §7).
+  public static let scheduleTask = AgentTool(
+    name: "schedule_task",
+    description: """
+      Propose a scheduled assistant task (daily, weekly, or once). This does NOT register \
+      anything immediately: the app shows a confirmation card with the title, time and full \
+      instruction, and the user decides. Never claim a task is registered unless the tool \
+      result says so. There is no tool to delete or edit schedules — the user does that in \
+      the task list.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "title": ["type": "string",
+                  "description": "Short task name in the user's language (max 60 chars)."],
+        "instruction": ["type": "string",
+                        "description": "The full instruction to run each time. Be specific: what to check, what to include in the report."],
+        "rule": [
+          "type": "object",
+          "properties": [
+            "kind": ["type": "string", "enum": ["daily", "weekly", "once"],
+                     "description": "Repeat kind."],
+            "hour": ["type": "integer", "description": "0–23 (daily/weekly)."],
+            "minute": ["type": "integer", "description": "0–59 (daily/weekly)."],
+            "weekday": ["type": "integer",
+                        "description": "1=Sunday … 7=Saturday (weekly only)."],
+            "date": ["type": "string",
+                     "description": "Future local date, e.g. 2026-11-05 09:00 (once only)."]
+          ],
+          "required": ["kind"]
+        ],
+        "persona": ["type": "string",
+                    "description": "Assistant name to run this task. Omit for the default (no assistant)."]
+      ],
+      "required": ["title", "instruction", "rule"]
+    ])
+
   /// 지금 넘길 도구 목록 — 웹 검색이 준비되어 있을 때만 `web_search` 를 더한다.
   public static func available(includingWebSearch: Bool,
-                               includingUI: Bool = false) -> [AgentTool] {
+                               includingUI: Bool = false,
+                               includingSchedule: Bool = false) -> [AgentTool] {
     var tools = all
     if includingWebSearch { tools.append(webSearch) }
     if includingUI { tools.append(uiSnapshot); tools.append(uiAction) }
+    if includingSchedule { tools.append(scheduleTask) }
     return tools
   }
 
@@ -205,23 +245,27 @@ public enum AgentToolCatalog {
   /// (권한 판정은 `AgentExecutor`·`PolicyEngine` 이 따로 한다 — 이중 게이트).
   public static func available(for tools: PersonaTools,
                                includingWebSearch: Bool,
-                               includingUI: Bool = false) -> [AgentTool] {
+                               includingUI: Bool = false,
+                               includingSchedule: Bool = false) -> [AgentTool] {
     let wanted = Set(tools.toolNames)
     var out = all.filter { wanted.contains($0.name) }
     if tools.web && includingWebSearch { out.append(webSearch) }
     if tools.ui && includingUI { out += [uiSnapshot, uiAction] }
+    if includingSchedule { out.append(scheduleTask) }
     return out
   }
 
   /// 예약 실행용 — 비서가 없으면 **현재와 같은** 목록을 돌려준다.
   public static func available(for persona: Persona?,
                                includingWebSearch: Bool,
-                               includingUI: Bool = false) -> [AgentTool] {
+                               includingUI: Bool = false,
+                               includingSchedule: Bool = false) -> [AgentTool] {
     guard let persona else {
-      return available(includingWebSearch: includingWebSearch, includingUI: includingUI)
+      return available(includingWebSearch: includingWebSearch, includingUI: includingUI,
+                       includingSchedule: includingSchedule)
     }
     return available(for: persona.tools, includingWebSearch: includingWebSearch,
-                     includingUI: includingUI)
+                     includingUI: includingUI, includingSchedule: includingSchedule)
   }
 
   /// 이름으로 도구를 찾는다.

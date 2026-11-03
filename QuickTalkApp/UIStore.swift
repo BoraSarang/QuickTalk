@@ -206,6 +206,73 @@ final class UIStore: ObservableObject {
     if let scheduledRun { return scheduledRun.events.contains { $0.id == id } }
     return agentEvents.contains { $0.id == id }
   }
+
+  // MARK: - 일정 제안 확인 카드 (v0.26 4단계)
+
+  /// `/할일` 시트 표시 — 슬래시 명령과 헤더가 함께 쓴다.
+  @Published var showTaskList = false
+  /// 모델이 제안한 예약 작업 — 사용자가 [등록]을 눌러야 실제로 저장된다.
+  @Published var pendingSchedule: ScheduleConfirmation?
+  private var scheduleContinuation: CheckedContinuation<Bool, Never>?
+  private var scheduleTimer: Timer?
+
+  /// 확인 카드를 띄우고 사용자의 결정을 기다린다(10분 뒤 자동 취소).
+  /// 예약 실행 중에는 절대 등록하지 않는다(사람이 없는 자리에서 일정이 늘어나면 위험).
+  @MainActor
+  func requestScheduleConfirmation(_ proposal: ScheduleProposal) async -> Bool {
+    guard scheduledRun == nil, !agentSelfTestMode else { return false }
+    let duplicate = schedulerService?.tasks.contains {
+      $0.title == proposal.title && $0.rule == proposal.rule
+    } ?? false
+    return await withCheckedContinuation { cont in
+      scheduleContinuation = cont
+      pendingSchedule = ScheduleConfirmation(conversationID: conversation.id,
+                                             turnID: agentTurnID,
+                                             proposal: proposal,
+                                             isDuplicate: duplicate)
+      scheduleTimer?.invalidate()
+      scheduleTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
+        Task { @MainActor in self.resolveScheduleProposal(accept: false) }
+      }
+    }
+  }
+
+  /// 카드의 [등록]/[취소]. 등록하면 `SchedulerService` 가 다음 실행 시각을 채워 저장한다.
+  @MainActor
+  func resolveScheduleProposal(accept: Bool) {
+    scheduleTimer?.invalidate()
+    scheduleTimer = nil
+    let pending = pendingSchedule
+    pendingSchedule = nil
+    var registered = false
+    if accept, let pending {
+      registered = register(pending)
+    }
+    guard let cont = scheduleContinuation else { return }
+    scheduleContinuation = nil
+    cont.resume(returning: registered)
+  }
+
+  /// 같은 제목·규칙이 있으면 **덮어쓴다**(중복 일정 방지). 없으면 새로 만든다.
+  @MainActor
+  private func register(_ pending: ScheduleConfirmation) -> Bool {
+    guard let service = schedulerService else { return false }
+    let p = pending.proposal
+    if let existing = service.tasks.first(where: { $0.title == p.title && $0.rule == p.rule }) {
+      var task = existing
+      task.instruction = p.instruction
+      task.personaID = p.personaID
+      task.enabled = true
+      task.nextFireAt = nil
+      service.upsert(task)
+      NSLog("[QuickTalk] 예약 작업 수정 — %@", task.title)
+    } else {
+      let task = service.upsert(ScheduledTask(personaID: p.personaID, title: p.title,
+                                              instruction: p.instruction, rule: p.rule))
+      NSLog("[QuickTalk] 예약 작업 등록 — %@ (%@)", task.title, task.rule.humanDescription())
+    }
+    return true
+  }
   /// 공통 메모리 — 모든 대화에 적용되는 사용자 작성 사실(PLAN_v0.16).
   @Published var memoryEntries: [GlobalMemoryEntry] = [] {
     didSet { saveMemory() }
@@ -990,9 +1057,23 @@ final class UIStore: ObservableObject {
     stopSpeaking()
     syncArchive()
     core.reset()
+    // 새 대화의 기본 비서 — 설정 › 비서의 `defaultPersonaID`(없으면 기본).
+    if let id = settings.defaultPersonaID, settings.persona(id) != nil {
+      core.setPersonaID(id)
+    }
     conversation = core.conversation
     draft = ""; attached.removeAll()
     compactMessage = nil
+  }
+
+  /// 이 대화의 비서를 바꾼다 — 목록 맨 위는 `기본(비서 없음)`.
+  func selectPersona(_ id: UUID?) {
+    guard conversation.personaID != id else { return }
+    core.setPersonaID(id)
+    conversation = core.conversation
+    syncArchive()
+    NSLog("[QuickTalk] 대화 비서 선택 — %@",
+          settings.persona(id)?.name ?? "기본")
   }
   // MARK: - 질문 되돌리기·다시 응답 (T-72)
 
@@ -1396,7 +1477,11 @@ final class UIStore: ObservableObject {
                                 budget: ws.globalMemoryBudgetTokens)
           : .empty
         let conversationPrefix = Self.memoryPromptPrefix(self.conversation)
-        let memoryPrefix = globalMemory.text + conversationPrefix
+        // 비서 — 대화마다 고른 성격·말투를 **프롬프트 앞**에 붙인다.
+        // 도구가 꺼진 일반 클라이언트에도 적용되도록 시스템 프롬프트가 아니라 여기에 둔다.
+        let personaHeader = self.settings.persona(self.conversation.personaID)
+          .map { PersonaPrompt.header($0) + "\n\n" } ?? ""
+        let memoryPrefix = personaHeader + globalMemory.text + conversationPrefix
         if !globalMemory.isEmpty {
           NSLog("[QuickTalk] 공통 메모리 %d개 주입 (약 %d토큰)",
                 globalMemory.included.count, globalMemory.tokens)
@@ -1615,8 +1700,10 @@ final class UIStore: ObservableObject {
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
             // 컴퓨터 제어(ui_snapshot)는 마스터 토글이 켜져 있을 때만 목록에 넣는다.
             let agentTools = AgentToolCatalog.available(
+              for: settings.persona(conversation.personaID),
               includingWebSearch: searchToolReady && p.type != .appleFM,
-              includingUI: settings.uiControlEnabled && p.type != .appleFM)
+              includingUI: settings.uiControlEnabled && p.type != .appleFM,
+              includingSchedule: true)
             do {
               reply = try await self.runAgentTurn(client: agentClient, prompt: modelPrompt,
                                                   history: finalHistory, turnID: aid,

@@ -69,6 +69,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "web_search": return await runWebSearch(call)
     case "ui_snapshot": return await runUiSnapshot(call)
     case "ui_action": return await runUiAction(call)
+    case "schedule_task": return await proposeSchedule(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
