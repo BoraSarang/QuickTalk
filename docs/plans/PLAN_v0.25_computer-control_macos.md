@@ -1,6 +1,6 @@
 # PLAN v0.25 — 컴퓨터 제어 (macOS)
 
-> 작성: 2026-10-29 · 상태: **Phase 1 구현 완료(2026-10-29) · Phase 2 계획**
+> 작성: 2026-10-29 · 상태: **Phase 1·2 구현·배포 완료 · 2026-11-03 실측 전부 정상**
 > 상위 문서: `docs/HANDOFF.md`(단일 출처) · `docs/CHANGELOG.md` · `docs/plans/PLAN_v0.18_agent-runtime_macos.md` · `docs/plans/PLAN_v0.20-0.22_execution_macos.md`
 > 선행 결정: `PLAN_v0.20-0.22 §7` — "창 제어(computer use)는 넣지 않았다". 이 문서는 그 결정을 **어떤 조건이면 뒤집어도 되는지**를 정하고, 그 조건을 코드로 고정한다.
 
@@ -294,18 +294,18 @@ ui_action 도착
 - [x] `ui_snapshot` 도구 + `AgentToolPermission`(읽기) + 카드·감사
 - [x] 설정: `컴퓨터 제어` 그룹 — Phase 1은 **읽기 전용**이므로 토글 이름도 `화면 요소 읽기 허용`
 - [x] 테스트 `UiSnapshotTests` 16건 · `AgentTests.testUiSnapshotToolIsOptIn` · 렌더 한/영
-- [ ] 실측 U1·U4(읽기 쪽) — **앱 재실행 후 사용자**
+- [x] 실측 U1~U5 — **2026-11-03 사용자 확인: 전부 정상**
 - [x] 공통 AX 헬퍼 `AXAccess` 로 `AXWindowReader` 중복 제거
 - [x] QuickTalk 자신을 기본 대상에서 제외(다른 앱 창이 없으면 빈 결과)
 
-### Phase 2 — **구현 완료 2026-10-31 (테스트·빌드 통과, 배포·실측 대기)**
+### Phase 2 — **구현·배포·실측 완료 (2026-11-03 실측 전부 정상)**
 
 - [x] `UiGuard`(금지 앱·키·보안 필드·좌표·한도) + `UiActionSpec`
 - [x] `UiAppGrant` + `Conversation.approvedUiApps` + 설정 목록
 - [x] `UiControlService`(클릭·키·텍스트·스크롤·앱 실행) + 유휴 가드
 - [x] `AgentExecutor+UI` 승인 카드 · [이 앱 허용] · "되돌릴 수 없음" 배지
 - [x] 테스트 `UiGuardTests`·`UiActionSpecTests`·`UiAppGrantTests` — **619/619**, 되돌려 실패 확인 완료
-- [ ] 실측 U2~U8 — **앱 재실행 후 사용자**(배포 후)
+- [x] 실측 U2~U8 — **2026-11-03 사용자 확인: 전부 정상**
 - [x] 병합 **PR #66 → `cf5728b`**(2026-10-31) · 배포 2026-10-31 20:41(SHA `4d3e8e2b…`)
 
 ### Phase 3 (비목표, 필요해지면 별도 계획)
