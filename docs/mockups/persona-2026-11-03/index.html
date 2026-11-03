@@ -82,8 +82,7 @@
   .dock .row{display:flex;justify-content:flex-end;align-items:center;gap:8px}
   .circle{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:12px;color:var(--dim)}
 
-  /* popover */
-  .pop{position:relative;margin-top:-8px;width:330px;border-radius:16px;background:#1C1C20;
+  /* popover */  .pop{position:relative;margin-top:-8px;width:330px;border-radius:16px;background:#1C1C20;
     border:1px solid var(--line2);box-shadow:0 18px 40px rgba(0,0,0,.6);padding:8px}
   .pop .prow{display:flex;align-items:center;gap:10px;padding:9px 9px;border-radius:11px;cursor:pointer}
   .pop .prow:hover{background:rgba(255,255,255,.05)}
@@ -227,11 +226,12 @@
         </div>
       </div>
       <div class="note"><b>핵심:</b> 대화 구조는 그대로. 비서가 쓰는 결과는 <b>요약 카드 1장</b>(성공/실패 · 핵심 3줄 · 파일 경로 · 열기 버튼)으로만 남는다. 본문은 파일에 있다.</div>
+      <div class="note"><b>비서는 선택 사항:</b> 비서를 하나도 안 만들면 헤더 칩이 <b>없고</b> 지금과 완전히 동일하다. 만들면 칩이 생기고 목록 맨 위가 <b>기본(비서 없음)</b> — 고르지 않으면 지금과 같은 대화다.</div>
     </div>
 
     <!-- 2. persona picker -->
     <div class="item">
-      <div class="cap"><b>②</b> 비서 선택 — 칩을 누르면 목록이 열린다 (호출 방식)</div>
+      <div class="cap"><b>②</b> 비서 선택 — 칩을 누르면 목록. 맨 위 <b>기본(비서 없음)</b>이 현재 동작</div>
       <div class="win chat">
         <div class="hdr">
           <div class="persona-chip" style="border-color:rgba(122,92,255,.45)">
@@ -246,9 +246,13 @@
         <div style="padding:0 16px 16px">
           <div class="pop">
             <div class="prow sel">
+              <div class="ava" style="background:rgba(255,255,255,.06);border-color:var(--line)">—</div>
+              <div><div class="nm">기본</div><div class="rl">비서 없이 — 지금과 같은 대화</div></div>
+              <div class="ck">✓</div>
+            </div>
+            <div class="prow">
               <div class="ava">🦾</div>
               <div><div class="nm">돌쇠</div><div class="rl">리포트 · 문서 정리 · 매일 09:00</div></div>
-              <div class="ck">✓</div>
             </div>
             <div class="prow">
               <div class="ava">🛒</div>

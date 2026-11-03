@@ -98,7 +98,7 @@ public enum ScheduleRule: Codable, Equatable {
 ```swift
 public struct ScheduledTask: Codable, Identifiable, Equatable {
   public var id: UUID
-  public var personaID: UUID
+  public var personaID: UUID?        // nil = 기본(비서 없음)
   public var title: String            // "OpenCode V2 데스크톱 리포트"
   public var instruction: String      // 실제 지시문(그때 만든 리포트 내용 포함 가능)
   public var rule: ScheduleRule
@@ -176,7 +176,9 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
 
 ### 8.3 채팅
 
-- 입력독 위(또는 헤더)에 **페르소나 선택 칩** — 비서가 2명 이상일 때만 표시. 선택은 대화별로 저장(`Conversation.personaID`).
+- 입력독 위(또는 헤더)에 **페르소나 선택 칩** — **비서가 1명 이상일 때만** 표시. 목록 맨 위는 **`기본`(페르소나 없음) = 현재 동작**.
+- 대화별 저장은 `Conversation.personaID: UUID?` — **nil = 기본**. 기존 대화는 nil 이므로 마이그레이션 없음.
+- 새 대화 기본값은 `기본`(설정 `defaultPersonaID` 로 바꿀 수 있지만 기본값은 nil).
 - 비서 전용 대화는 제목에 `🦾 돌쇠` 처럼 표시(자동 생성, 핀 처리).
 
 ### 8.4 알림
@@ -295,6 +297,8 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
 - 이 골격은 **강제하지 않는다** — 사용자가 지시문에서 형식을 바꾸면 그쪽이 우선한다.
 
 ## 13. 결정 (2026-11-03 사용자 확정)
+
+0. **비서는 선택 사항** — 비서가 없으면 지금과 **완전히 동일**하게 동작한다. `Conversation.personaID = nil` 이 기본이고 기존 대화는 마이그레이션이 필요 없다. 비서 UI(칩)는 비서를 1명 이상 만들었을 때만 나타나며, 목록 맨 위는 `기본`. 예약 작업도 `기본`을 허용한다.
 
 1. **페르소나 여러 명** — 이름·말투·담당 일을 다르게, 일정도 페르소나별 분리.
 2. **결과물**: 지정 폴더 **Markdown 파일** + 대화에는 **성공/실패 · 핵심 요약 · 파일 경로**만.
