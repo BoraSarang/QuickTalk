@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>QuickTalk v0.26 — 비서·예약·리포트 목업</title>
+<style>
+  :root{
+    --bg:#0D0D0F; --panel:#121214; --elev:#17171A; --card:#1E1E22;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --text:#EDEDF0; --dim:#9A9AA3; --faint:#6E6E78;
+    --accent:#7A5CFF; --accent-dim:rgba(122,92,255,.16);
+    --ok:#3ECF8E; --warn:#F2A33C; --err:#FF6B6B; --info:#5AA9FF;
+    --user:#2A2A2E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:48px 32px 80px}
+  h1{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:36px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:28px 24px}
+  .item{display:flex;flex-direction:column;gap:10px}
+  .cap{font-size:12px;color:var(--faint);letter-spacing:.02em}
+  .cap b{color:var(--dim);font-weight:600}
+
+  /* window chrome */
+  .win{background:var(--panel);border:1px solid var(--line);border-radius:20px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.04) inset}
+  .win.chat{height:700px;display:flex;flex-direction:column}
+  .win.wide{height:640px;display:flex}
+  .win.sheet{height:620px;display:flex;flex-direction:column}
+
+  /* ---- chat ---- */
+  .hdr{display:flex;align-items:center;gap:10px;padding:14px 16px 12px}
+  .persona-chip{display:flex;align-items:center;gap:8px;padding:5px 9px 5px 6px;border-radius:12px;
+    background:var(--card);border:1px solid var(--line);cursor:pointer}
+  .persona-chip:hover{border-color:var(--line2)}
+  .ava{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-size:13px;
+    background:linear-gradient(160deg,#3A2F6B,#241E45);border:1px solid rgba(122,92,255,.35)}
+  .persona-chip .nm{font-size:13px;font-weight:650;letter-spacing:-.01em}
+  .persona-chip .cv{color:var(--faint);font-size:10px;margin-left:1px}
+  .hdr .title{font-size:12.5px;color:var(--dim);margin-left:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hdr .spacer{flex:1}
+  .tools{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:13px}
+  .tools .sep{width:1px;height:14px;background:var(--line)}
+  .kbd{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:2px 5px}
+
+  .msgs{flex:1;overflow:hidden;padding:8px 16px 0;display:flex;flex-direction:column;gap:14px}
+  .bubble{max-width:82%;align-self:flex-end;background:var(--user);padding:10px 13px;border-radius:16px 16px 5px 16px;
+    font-size:13.5px;line-height:1.45}
+  .ai{align-self:flex-start;max-width:92%;font-size:13.5px;line-height:1.55}
+  .ai .who{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:11px;color:var(--faint)}
+  .ai p{margin:0 0 8px}
+  .muted{color:var(--dim)}
+
+  /* result card */
+  .rescard{border:1px solid var(--line);background:var(--elev);border-radius:14px;padding:12px 13px;margin-top:2px}
+  .rescard .top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .badge{font-size:10.5px;font-weight:650;padding:2.5px 7px;border-radius:999px;letter-spacing:.01em}
+  .badge.ok{color:#0C1F16;background:var(--ok)}
+  .badge.warn{color:#2A1B07;background:var(--warn)}
+  .badge.err{color:#2A0B0B;background:var(--err)}
+  .badge.info{color:#07203A;background:var(--info)}
+  .badge.ghost{color:var(--dim);background:rgba(255,255,255,.06);border:1px solid var(--line)}
+  .rescard .rt{font-size:13px;font-weight:640}
+  .rescard ul{margin:0;padding-left:16px;color:var(--dim);font-size:12.5px;line-height:1.6}
+  .filechip{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:10px;
+    background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:12px;color:var(--dim)}
+  .filechip .fn{color:var(--text);font-weight:560}
+  .filechip .path{color:var(--faint);font-size:11px;margin-left:auto}
+  .mini{display:flex;gap:8px;margin-top:10px}
+  .btn{font-size:12px;font-weight:600;padding:6px 11px;border-radius:9px;border:1px solid var(--line2);
+    background:rgba(255,255,255,.05);color:var(--text);cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#fff}
+  .btn.ghost{background:transparent;color:var(--dim)}
+  .btn.danger{color:var(--err);border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.08)}
+
+  .dock{margin:10px 14px 14px;border:1px solid var(--line);border-radius:20px;background:var(--elev);
+    padding:12px 12px 10px;min-height:86px;display:flex;flex-direction:column;justify-content:space-between}
+  .dock .ph{font-size:13px;color:var(--faint);padding:4px 4px}
+  .dock .row{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  .circle{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-size:12px;color:var(--dim)}
+
+  /* popover */  .pop{position:relative;margin-top:-8px;width:330px;border-radius:16px;background:#1C1C20;
+    border:1px solid var(--line2);box-shadow:0 18px 40px rgba(0,0,0,.6);padding:8px}
+  .pop .prow{display:flex;align-items:center;gap:10px;padding:9px 9px;border-radius:11px;cursor:pointer}
+  .pop .prow:hover{background:rgba(255,255,255,.05)}
+  .pop .prow.sel{background:var(--accent-dim);border:1px solid rgba(122,92,255,.3)}
+  .pop .nm{font-size:13px;font-weight:640}
+  .pop .rl{font-size:11px;color:var(--faint);margin-top:1px}
+  .pop .ck{margin-left:auto;color:var(--accent);font-size:12px}
+  .pop .add{display:flex;align-items:center;gap:8px;margin-top:4px;padding:9px;border-radius:11px;
+    color:var(--dim);font-size:12.5px;border-top:1px solid var(--line)}
+
+  /* list sheet */
+  .sheet-hdr{display:flex;align-items:center;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+  .sheet-hdr h2{font-size:15px;margin:0;font-weight:680;letter-spacing:-.01em}
+  .sheet-hdr .cnt{font-size:11.5px;color:var(--faint)}
+  .sheet-hdr .spacer{flex:1}
+  .sheet-body{flex:1;overflow:hidden;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  .task{border:1px solid var(--line);background:var(--elev);border-radius:14px;padding:11px 12px}
+  .task .l1{display:flex;align-items:center;gap:8px}
+  .task .t{font-size:13px;font-weight:640;letter-spacing:-.01em}
+  .task .when{font-size:11.5px;color:var(--dim);margin-top:5px;display:flex;gap:8px;align-items:center}
+  .task .last{font-size:11px;color:var(--faint);margin-top:3px}
+  .task .acts{display:flex;gap:6px;margin-top:9px}
+  .task .acts .btn{padding:4.5px 9px;font-size:11.5px}
+  .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.err{background:var(--err)} .dot.off{background:var(--faint)}
+  .empty{border:1px dashed var(--line);border-radius:14px;padding:26px;text-align:center;color:var(--faint);font-size:12.5px}
+
+  /* approval / form */
+  .card{border:1px solid var(--line);background:var(--elev);border-radius:14px;padding:14px}
+  .card .h{font-size:12.5px;font-weight:660;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .kv{display:grid;grid-template-columns:84px 1fr;gap:8px 10px;font-size:12.5px}
+  .kv .k{color:var(--faint)}
+  .kv .v{color:var(--text)}
+  .field{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:9px;padding:8px 10px;
+    font-size:12.5px;color:var(--text);line-height:1.5}
+  .field.area{min-height:84px;color:var(--dim)}
+  .lbl{font-size:11px;color:var(--faint);margin:12px 0 6px;letter-spacing:.02em}
+  .seg{display:inline-flex;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg span{font-size:11.5px;padding:4px 10px;border-radius:7px;color:var(--dim)}
+  .seg span.on{background:var(--accent);color:#fff;font-weight:620}
+  .foot{margin-top:auto;padding:12px 16px 16px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line)}
+
+  /* settings */
+  .side{width:196px;border-right:1px solid var(--line);padding:12px 8px;font-size:12.5px;flex:none}
+  .side .grp{color:var(--faint);font-size:10.5px;padding:10px 10px 5px;letter-spacing:.04em}
+  .side .srow{display:flex;align-items:center;gap:8px;padding:6.5px 10px;border-radius:8px;color:var(--dim)}
+  .side .srow.on{background:rgba(122,92,255,.16);color:var(--text);font-weight:600}
+  .side .srow .ic{width:14px;text-align:center;font-size:12px;opacity:.8}
+  .content{flex:1;overflow:hidden;padding:20px 22px}
+  .content h3{font-size:15px;margin:0 0 4px;font-weight:690;letter-spacing:-.01em}
+  .content .lead{color:var(--faint);font-size:11.5px;margin-bottom:16px}
+  .setrow{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+  .setrow .txt{flex:1}
+  .setrow .tt{font-size:13px;font-weight:580}
+  .setrow .dd{color:var(--faint);font-size:11.5px;margin-top:3px;line-height:1.5}
+  .toggle{width:38px;height:22px;border-radius:99px;background:var(--accent);position:relative;flex:none}
+  .toggle::after{content:"";position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff}
+  .toggle.off{background:rgba(255,255,255,.14)}
+  .toggle.off::after{left:2px;right:auto}
+  .pill{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:rgba(255,255,255,.04)}
+
+  /* notifications */
+  .desk{background:linear-gradient(180deg,#1B1D2A,#101118 60%,#0B0C11);height:320px;border-radius:20px;
+    border:1px solid var(--line);padding:22px;display:flex;flex-direction:column;gap:10px;justify-content:flex-start}
+  .notif{display:flex;gap:10px;padding:11px 12px;border-radius:14px;background:rgba(38,38,44,.92);
+    border:1px solid rgba(255,255,255,.1);box-shadow:0 12px 28px rgba(0,0,0,.5);max-width:380px;backdrop-filter:blur(12px)}
+  .notif .icon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;
+    background:linear-gradient(160deg,#3A2F6B,#241E45);border:1px solid rgba(122,92,255,.35);flex:none}
+  .notif .nb{font-size:12.5px;font-weight:650;display:flex;align-items:center;gap:6px}
+  .notif .nb .app{font-size:10.5px;color:var(--faint);font-weight:500}
+  .notif .nt{font-size:11.5px;color:var(--dim);margin-top:2px;line-height:1.45}
+  .notif .time{font-size:10px;color:var(--faint);margin-left:auto;align-self:flex-start}
+  .stack{display:flex;flex-direction:column;gap:12px}
+
+  /* annotations */
+  .note{font-size:11.5px;color:var(--faint);line-height:1.65;background:rgba(255,255,255,.03);
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .note b{color:var(--dim)}
+  .tag{display:inline-block;font-size:10px;color:var(--accent);border:1px solid rgba(122,92,255,.35);
+    background:var(--accent-dim);border-radius:6px;padding:1px 5px;margin-right:4px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>QuickTalk v0.26 — 비서 · 예약 · 리포트</h1>
+  <div class="sub">목업 7장 · 실제 토큰(#121214 / #7A5CFF / radius 20 / 유저 버블 #2A2A2E) 기준 · 한글 UI</div>
+
+  <div class="grid">
+
+    <!-- 1. chat -->
+    <div class="item">
+      <div class="cap"><b>①</b> 대화 — 지금과 같은 화면. 헤더 왼쪽에 <b>비서 칩</b>만 추가된다</div>
+      <div class="win chat">
+        <div class="hdr">
+          <div class="persona-chip">
+            <div class="ava">🦾</div>
+            <div>
+              <div class="nm">돌쇠</div>
+            </div>
+            <div class="cv">⌄</div>
+          </div>
+          <div class="title">아침 리포트</div>
+          <div class="spacer"></div>
+          <div class="tools">
+            <span class="kbd">⌘Space</span><span>◉</span><span>🌐</span><span>▢</span>
+            <span class="sep"></span><span>▤</span><span>⚙︎</span>
+          </div>
+        </div>
+        <div class="msgs">
+          <div class="bubble">오늘 아침 리포트 만들어줘</div>
+          <div class="ai">
+            <div class="who">🦾 돌쇠 · 방금</div>
+            <p>했습니다. 문서에서 <b>오픈소스 LLM 3건</b>이 새로 올라왔고, 지난주 대비 <b>가격 인하 1건</b>이 있습니다.</p>
+            <div class="rescard">
+              <div class="top">
+                <span class="badge ok">성공</span>
+                <span class="rt">아침 테크 리포트</span>
+                <span class="badge ghost" style="margin-left:auto">09:00 예약</span>
+              </div>
+              <ul>
+                <li>OpenCode V2 데스크톱 — 무료 LLM 모델 4종 추가</li>
+                <li>Exa 검색 응답 지연 38% 개선 (10:20 갱신)</li>
+                <li>다음 실행: 내일 09:00</li>
+              </ul>
+              <div class="filechip">
+                <span>📄</span>
+                <span class="fn">2026-11-04-아침-테크-리포트.md</span>
+                <span class="path">~/Documents/Reports</span>
+              </div>
+              <div class="mini">
+                <button class="btn primary">파일 열기</button>
+                <button class="btn">Finder에서 보기</button>
+                <button class="btn ghost">다시 실행</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="ph">무엇이든 물어보세요</div>
+          <div class="row"><div class="circle">🎙</div><div class="circle">↑</div></div>
+        </div>
+      </div>
+      <div class="note"><b>핵심:</b> 대화 구조는 그대로. 비서가 쓰는 결과는 <b>요약 카드 1장</b>(성공/실패 · 핵심 3줄 · 파일 경로 · 열기 버튼)으로만 남는다. 본문은 파일에 있다.</div>
+      <div class="note"><b>비서는 선택 사항:</b> 비서를 하나도 안 만들면 헤더 칩이 <b>없고</b> 지금과 완전히 동일하다. 만들면 칩이 생기고 목록 맨 위가 <b>기본(비서 없음)</b> — 고르지 않으면 지금과 같은 대화다.</div>
+    </div>
+
+    <!-- 2. persona picker -->
+    <div class="item">
+      <div class="cap"><b>②</b> 비서 선택 — 칩을 누르면 목록. 맨 위 <b>기본(비서 없음)</b>이 현재 동작</div>
+      <div class="win chat">
+        <div class="hdr">
+          <div class="persona-chip" style="border-color:rgba(122,92,255,.45)">
+            <div class="ava">🦾</div>
+            <div><div class="nm">돌쇠</div></div>
+            <div class="cv">⌄</div>
+          </div>
+          <div class="title">아침 리포트</div>
+          <div class="spacer"></div>
+          <div class="tools"><span class="kbd">⌘Space</span><span>◉</span><span>🌐</span><span>▢</span></div>
+        </div>
+        <div style="padding:0 16px 16px">
+          <div class="pop">
+            <div class="prow sel">
+              <div class="ava" style="background:rgba(255,255,255,.06);border-color:var(--line)">—</div>
+              <div><div class="nm">기본</div><div class="rl">비서 없이 — 지금과 같은 대화</div></div>
+              <div class="ck">✓</div>
+            </div>
+            <div class="prow">
+              <div class="ava">🦾</div>
+              <div><div class="nm">돌쇠</div><div class="rl">리포트 · 문서 정리 · 매일 09:00</div></div>
+            </div>
+            <div class="prow">
+              <div class="ava">🛒</div>
+              <div><div class="nm">졸쇠</div><div class="rl">테크 상품 10선 · 매일 08:00</div></div>
+            </div>
+            <div class="prow">
+              <div class="ava">📚</div>
+              <div><div class="nm">책벌레</div><div class="rl">책 요약 · 읽은 것 기억</div></div>
+            </div>
+            <div class="add">＋ 새 비서 만들기</div>
+          </div>
+        </div>
+        <div class="msgs" style="justify-content:flex-end">
+          <div class="ai"><p class="muted">비서를 바꾸면 <b>그 대화</b>의 말투·모델·도구가 따라 바뀝니다. 다른 비서는 새 대화에서 부르세요.</p></div>
+        </div>
+        <div class="dock">
+          <div class="ph">무엇이든 물어보세요</div>
+          <div class="row"><div class="circle">🎙</div><div class="circle">↑</div></div>
+        </div>
+      </div>
+      <div class="note"><b>호출 2가지:</b> ① 헤더 칩에서 선택(그 대화에 고정) ② <span class="tag">Phase 2</span> 대화에서 <b>/돌쇠</b> 처럼 이름으로 부르면 그 비서와 새 대화가 열린다.</div>
+    </div>
+
+    <!-- 3. /할일 -->
+    <div class="item">
+      <div class="cap"><b>③</b> <b>/할일</b> — 예약 목록 · 지금 실행 · 일시 중지 · 삭제</div>
+      <div class="win sheet">
+        <div class="sheet-hdr">
+          <h2>할일</h2>
+          <span class="cnt">3개 · 다음 09:00</span>
+          <div class="spacer"></div>
+          <button class="btn primary">＋ 새 일정</button>
+        </div>
+        <div class="sheet-body">
+          <div class="task">
+            <div class="l1"><div class="ava" style="width:20px;height:20px;font-size:11px">🦾</div>
+              <span class="t">아침 테크 리포트</span>
+              <span class="badge ghost" style="margin-left:auto">매일</span></div>
+            <div class="when"><span class="dot ok"></span> 다음 11-04 09:00 <span style="color:var(--faint)">·</span> 마지막 성공 11-03 09:00</div>
+            <div class="last">📄 2026-11-03-아침-테크-리포트.md · 12초</div>
+            <div class="acts">
+              <button class="btn">지금 실행</button>
+              <button class="btn ghost">일시 중지</button>
+              <button class="btn ghost">편집</button>
+              <button class="btn danger" style="margin-left:auto">삭제</button>
+            </div>
+          </div>
+
+          <div class="task">
+            <div class="l1"><div class="ava" style="width:20px;height:20px;font-size:11px">🛒</div>
+              <span class="t">알리 · 아마존 테크 10선</span>
+              <span class="badge ghost" style="margin-left:auto">매일</span></div>
+            <div class="when"><span class="dot warn"></span> 승인 대기 — '파일 쓰기' <span style="color:var(--faint)">·</span> 09:00부터</div>
+            <div class="last">알림을 눌러 승인하면 이어서 실행합니다.</div>
+            <div class="acts">
+              <button class="btn primary">승인하고 계속</button>
+              <button class="btn ghost">이번만 건너뛰기</button>
+            </div>
+          </div>
+
+          <div class="task" style="opacity:.62">
+            <div class="l1"><div class="ava" style="width:20px;height:20px;font-size:11px">📚</div>
+              <span class="t">주말 독서 요약</span>
+              <span class="badge ghost" style="margin-left:auto">매주 토</span></div>
+            <div class="when"><span class="dot off"></span> 일시 중지됨</div>
+            <div class="acts">
+              <button class="btn">다시 켜기</button>
+              <button class="btn ghost">편집</button>
+              <button class="btn danger" style="margin-left:auto">삭제</button>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><button class="btn ghost">닫기</button></div>
+      </div>
+      <div class="note"><b>상태 4종</b>이 한 줄로 보인다: 정상(초록) · 승인 대기(주황) · 실패(빨강) · 일시 중지(회색). 삭제는 확인 시트를 거치고, <b>파일은 남긴다</b>.</div>
+    </div>
+
+    <!-- 4. schedule_task approval -->
+    <div class="item">
+      <div class="cap"><b>④</b> 대화에서 일정 추가 — 모델이 도구를 부르면 <b>확인 카드</b></div>
+      <div class="win chat">
+        <div class="hdr">
+          <div class="persona-chip"><div class="ava">🦾</div><div><div class="nm">돌쇠</div></div><div class="cv">⌄</div></div>
+          <div class="title">새 대화</div>
+          <div class="spacer"></div>
+          <div class="tools"><span class="kbd">⌘Space</span><span>◉</span><span>🌐</span></div>
+        </div>
+        <div class="msgs">
+          <div class="bubble">이 리포트 좋다. 매일 아침 10시에 이대로 만들어줘</div>
+          <div class="ai">
+            <div class="who">🦾 돌쇠 · 방금</div>
+            <p class="muted">이렇게 등록할까요? 확인해 주세요.</p>
+            <div class="rescard" style="border-color:rgba(122,92,255,.35)">
+              <div class="top">
+                <span class="badge info">일정 만들기</span>
+                <span class="rt">아침 테크 리포트</span>
+                <span class="badge ghost" style="margin-left:auto">매일 반복</span>
+              </div>
+              <div class="kv">
+                <div class="k">시각</div><div class="v">매일 오전 10:00 <span class="muted">(다음: 11-04 10:00)</span></div>
+                <div class="k">비서</div><div class="v">돌쇠</div>
+                <div class="k">사용 도구</div><div class="v">웹 검색 · 파일 읽기/쓰기</div>
+                <div class="k">저장 위치</div><div class="v">~/Documents/Reports</div>
+              </div>
+              <div style="margin-top:10px;padding:9px 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line)">
+                <div style="font-size:10.5px;color:var(--faint);margin-bottom:4px">지시문 (그대로 저장)</div>
+                <div style="font-size:12px;color:var(--dim);line-height:1.5">어제 만든 리포트와 같은 형식으로, 오픈소스 LLM 관련 새 소식 5건을 조사해 요약하라. 출처 링크 포함.</div>
+              </div>
+              <div class="mini">
+                <button class="btn ghost">거부</button>
+                <button class="btn">수정</button>
+                <button class="btn primary" style="margin-left:auto">이대로 등록</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dock"><div class="ph">무엇이든 물어보세요</div><div class="row"><div class="circle">🎙</div><div class="circle">↑</div></div></div>
+      </div>
+      <div class="note"><b>안전:</b> 일정 생성은 쓰기 단계 — 확인 없이 등록되지 않는다. <b>삭제 도구는 모델에게 주지 않는다</b>(실수 방지). 같은 제목·시각이면 "이미 있습니다 — 수정할까요?"로 바뀐다.</div>
+    </div>
+
+    <!-- 5. settings -->
+    <div class="item">
+      <div class="cap"><b>⑤</b> 설정 › 비서 — 페르소나 · 리포트 폴더 · 알림</div>
+      <div class="win wide">
+        <div class="side">
+          <div class="grp">앱</div>
+          <div class="srow"><span class="ic">⚙︎</span> 일반</div>
+          <div class="srow"><span class="ic">💬</span> 대화</div>
+          <div class="srow"><span class="ic">⌘</span> 단축키</div>
+          <div class="grp">기능</div>
+          <div class="srow"><span class="ic">✦</span> AI</div>
+          <div class="srow"><span class="ic">🔍</span> 검색</div>
+          <div class="srow"><span class="ic">🛠</span> 도구·권한</div>
+          <div class="srow on"><span class="ic">🦾</span> 비서</div>
+          <div class="srow"><span class="ic">🔊</span> 음성</div>
+          <div class="srow"><span class="ic">🗂</span> 퀵셸프</div>
+          <div class="grp">기타</div>
+          <div class="srow"><span class="ic">ⓘ</span> 정보</div>
+        </div>
+        <div class="content">
+          <h3>비서</h3>
+          <div class="lead">이름·말투·도구가 다른 비서를 여러 명 둘 수 있습니다. 예약 작업은 비서별로 분리됩니다.</div>
+
+          <div class="task" style="margin-bottom:10px">
+            <div class="l1"><div class="ava" style="width:22px;height:22px;font-size:12px">🦾</div>
+              <span class="t">돌쇠</span>
+              <span class="badge ghost">예약 2개</span>
+              <button class="btn ghost" style="margin-left:auto;font-size:11.5px">편집</button></div>
+            <div class="last" style="margin-top:4px">리포트 · 문서 정리 · 차분한 존댓말</div>
+          </div>
+          <div class="task" style="margin-bottom:10px">
+            <div class="l1"><div class="ava" style="width:22px;height:22px;font-size:12px">🛒</div>
+              <span class="t">졸쇠</span>
+              <span class="badge ghost">예약 1개</span>
+              <button class="btn ghost" style="margin-left:auto;font-size:11.5px">편집</button></div>
+            <div class="last" style="margin-top:4px">쇼핑 리서치 · 짧고 딱딱하게</div>
+          </div>
+          <div class="task" style="border-style:dashed;background:transparent;text-align:center;color:var(--dim);font-size:12.5px">＋ 새 비서</div>
+
+          <div style="margin-top:18px">
+            <div class="setrow">
+              <div class="txt"><div class="tt">기본 리포트 폴더</div>
+                <div class="dd">~/Documents/Reports — Finder에서 바로 열립니다.</div></div>
+              <span class="pill">변경…</span>
+            </div>
+            <div class="setrow">
+              <div class="txt"><div class="tt">완료 알림</div>
+                <div class="dd">예약 작업이 끝나면 배너와 소리로 알립니다.</div></div>
+              <div class="toggle"></div>
+            </div>
+            <div class="setrow">
+              <div class="txt"><div class="tt">승인 대기 알림</div>
+                <div class="dd">승인이 필요한 순간에만 따로 알립니다(항상 승인 원칙).</div></div>
+              <div class="toggle"></div>
+            </div>
+            <div class="setrow">
+              <div class="txt"><div class="tt">앱이 꺼져 있을 때</div>
+                <div class="dd">다시 열면 최근 24시간 안에 놓친 작업 1회를 실행합니다.</div></div>
+              <span class="pill">따라잡기</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>탭 추가:</b> 기능 묶음에 <b>비서</b> 하나. 일정 목록은 `/할일`과 같은 뷰를 공유하므로 여기서는 페르소나와 기본값만 관리한다(중복 구현 금지).</div>
+    </div>
+
+    <!-- 6. notifications -->
+    <div class="item">
+      <div class="cap"><b>⑥</b> 알림 — 완료 / 승인 대기 (배너 + 소리)</div>
+      <div class="stack">
+        <div class="desk">
+          <div class="notif">
+            <div class="icon">🦾</div>
+            <div>
+              <div class="nb">돌쇠 <span class="app">QuickTalk</span></div>
+              <div class="nt">아침 테크 리포트 완료 — 새 소식 3건 · <b>파일 열기</b></div>
+            </div>
+            <div class="time">지금</div>
+          </div>
+          <div class="notif" style="border-color:rgba(242,163,60,.35)">
+            <div class="icon" style="background:linear-gradient(160deg,#4A3418,#2A1E0E);border-color:rgba(242,163,60,.4)">🛒</div>
+            <div>
+              <div class="nb">졸쇠 · 승인 대기 <span class="app">QuickTalk</span></div>
+              <div class="nt">'파일 쓰기' 권한이 필요합니다 — 눌러서 확인하면 이어서 실행합니다.</div>
+            </div>
+            <div class="time">09:00</div>
+          </div>
+        </div>
+        <div class="note"><b>알림에서 바로 승인하지 않는다</b> — 오탭 위험. 배너는 "열기"만 하고, 승인은 앱의 카드에서 한다. 10분 지나면 "승인 대기 만료" 알림으로 바뀐다.</div>
+      </div>
+    </div>
+
+    <!-- 7. new schedule form -->
+    <div class="item">
+      <div class="cap"><b>⑦</b> 새 일정 — 비서 · 지시문 · 반복 · 저장 위치</div>
+      <div class="win sheet">
+        <div class="sheet-hdr"><h2>새 일정</h2><div class="spacer"></div><span class="badge ghost">초안</span></div>
+        <div class="sheet-body" style="overflow:auto">
+          <div class="card">
+            <div class="h">비서</div>
+            <div style="display:flex;gap:8px">
+              <span class="pill" style="border-color:rgba(122,92,255,.45);background:var(--accent-dim);color:var(--text)">🦾 돌쇠</span>
+              <span class="pill">🛒 졸쇠</span>
+              <span class="pill">📚 책벌레</span>
+            </div>
+          </div>
+
+          <div class="lbl">제목</div>
+          <div class="field">아침 테크 리포트</div>
+
+          <div class="lbl">지시문 — 이 문장이 매번 그대로 실행됩니다</div>
+          <div class="field area">어제 리포트와 같은 형식으로 오픈소스 LLM 새 소식 5건을 조사해 요약하라.<br>출처 링크를 각 항목 끝에 붙이고, 3줄 요약을 맨 위에 둔다.</div>
+
+          <div class="lbl">반복</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="seg"><span class="on">매일</span><span>매주</span><span>한 번</span></div>
+            <div class="field" style="width:92px;text-align:center">오전 10:00</div>
+          </div>
+
+          <div class="lbl">리포트 폴더</div>
+          <div class="field" style="display:flex;align-items:center;gap:8px">
+            <span>📁 ~/Documents/Reports</span>
+            <span class="pill" style="margin-left:auto">변경…</span>
+          </div>
+
+          <div class="lbl">권한</div>
+          <div class="field" style="color:var(--dim)">항상 승인 — 실행 중 권한이 필요하면 멈추고 알림을 보냅니다.</div>
+        </div>
+        <div class="foot">
+          <button class="btn ghost">취소</button>
+          <button class="btn">지금 미리 실행</button>
+          <button class="btn primary">저장</button>
+        </div>
+      </div>
+      <div class="note"><b>미리 실행</b>이 핵심: 저장 전에 한 번 돌려 결과물을 보고 고칠 수 있다. 지시문은 대화에서 만든 경우 <b>직전 턴 내용</b>이 자동으로 채워진다.</div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:38px" class="note">
+    <b>아직 정하지 않은 것</b> — ① 알림 소리 종류·방해 금지 시간대 ② 비서들이 <b>공통 메모리</b>를 공유할지 ③ 리포트에 출처 링크를 자동으로 붙일지.
+    목업에서 방향이 정해지면 `docs/plans/PLAN_v0.26_assistant-persona_macos.md` §14 에 확정해 넣겠습니다.
+  </div>
+</div>
+</body>
+</html>
