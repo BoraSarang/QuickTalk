@@ -189,6 +189,14 @@ final class SchedulerService {
     tasks[current] = updated
     save()
     onRunFinished?(updated, outcome.run)
+    store.onScheduledRunFinished?(ScheduledRunNotice(
+      taskID: updated.id,
+      conversationID: updated.conversationID,
+      personaName: store.settings.persona(updated.personaID)?.name,
+      title: updated.title,
+      status: outcome.run.status,
+      fileName: outcome.run.filePath.map { ($0 as NSString).lastPathComponent },
+      reason: outcome.run.failureReason))
   }
 
   // MARK: - 정리

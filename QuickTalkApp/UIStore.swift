@@ -150,6 +150,10 @@ final class UIStore: ObservableObject {
   var onScheduledApproval: ((ScheduledApproval) -> Void)?
   var onScheduledRunFinished: ((ScheduledRunNotice) -> Void)?
 
+  /// 알림 서비스·권한 상태 (5단계) — AppDelegate 가 만든다.
+  var notifications: NotificationService?
+  @Published var notificationPermission: NotificationPermission = .unknown
+
   /// 예약 실행의 승인을 기다린다 — 10분이 지나면 거부로 끝난다.
   /// 알림에서는 승인할 수 없다(오탭 방지) — 사용자가 대화를 열어 카드에서 눌러야 한다.
   @MainActor
@@ -1297,6 +1301,20 @@ final class UIStore: ObservableObject {
       searchFocus = nil
     }
     startAutoCompact(convID: c.id)
+  }
+
+  /// 알림 클릭 — 대화 ID로 연다(5단계 딥링크). 보관함에 없으면 디스크에서 다시 읽는다.
+  @discardableResult
+  func openConversation(id: UUID) -> Bool {
+    if let c = archive.first(where: { $0.id == id }) {
+      openConversation(c)
+      return true
+    }
+    let list = PersistenceService.load(keepDays: settings.keepDays)
+    guard let c = list.first(where: { $0.id == id }) else { return false }
+    archive = list
+    openConversation(c)
+    return true
   }
 
   // MARK: - 음성 (엔진별 분기)

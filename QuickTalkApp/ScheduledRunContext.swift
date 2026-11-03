@@ -62,7 +62,7 @@ struct ScheduledApproval: Equatable {
 /// 예약 실행 1회가 끝났을 때 알림 계층에 넘기는 요약.
 struct ScheduledRunNotice: Equatable {
   let taskID: UUID
-  let conversationID: UUID
+  let conversationID: UUID?
   let personaName: String?
   let title: String
   let status: RunStatus

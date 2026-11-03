@@ -241,7 +241,59 @@ struct AssistantSettingsSection: View {
         }
         .padding(.vertical, 2)
       }
+      if store.settings.notificationsEnabled {
+        notificationPermissionRow
+      }
     }
+    .onChange(of: store.settings.notificationsEnabled) { _, on in
+      guard on else { return }
+      Task { await store.notifications?.requestAuthorizationIfNeeded() }
+    }
+  }
+
+  /// 알림 권한 안내 — 거부돼도 예약 실행은 계속되고, 알림만 오지 않는다(PLAN S8).
+  @ViewBuilder private var notificationPermissionRow: some View {
+    switch store.notificationPermission {
+    case .denied:
+      permissionHint(
+        icon: "exclamationmark.triangle.fill", tint: .orange,
+        text: L("알림이 시스템 설정에서 꺼져 있습니다. 예약 작업은 계속 실행되지만 알림은 오지 않습니다."))
+    case .unknown:
+      permissionHint(
+        icon: "bell.badge", tint: .accentColor,
+        text: L("예약 작업이 끝나거나 승인이 필요할 때 알림을 받으려면 권한이 필요합니다."),
+        action: L("알림 허용")) {
+          Task { await store.notifications?.requestAuthorizationIfNeeded() }
+        }
+    case .allowed:
+      HStack(spacing: 6) {
+        Image(systemName: "checkmark.circle.fill")
+          .font(.caption).foregroundColor(.green)
+        Text(L("알림 권한이 허용되어 있습니다."))
+          .font(.caption).foregroundColor(.secondary)
+        Spacer()
+        Button(L("시스템 설정 열기")) { store.notifications?.openSystemSettings() }
+          .controlSize(.small)
+      }
+      .padding(.top, 2)
+    }
+  }
+
+  private func permissionHint(icon: String, tint: Color, text: String,
+                              action: String? = nil,
+                              run: @escaping () -> Void = {}) -> some View {
+    HStack(alignment: .top, spacing: 6) {
+      Image(systemName: icon).font(.caption).foregroundColor(tint)
+      Text(text)
+        .font(.caption).foregroundColor(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Spacer(minLength: 8)
+      Button(action ?? L("시스템 설정 열기")) {
+        if action == nil { store.notifications?.openSystemSettings() } else { run() }
+      }
+      .controlSize(.small)
+    }
+    .padding(.top, 2)
   }
 
   /// 자정 기준 분(minute)을 시각 선택기로 — 22:00~08:00 처럼 자정을 넘겨도 된다.

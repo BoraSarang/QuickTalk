@@ -1421,5 +1421,15 @@ extension L10n {
     "그런 비서가 없습니다: %@": "No such assistant: %@",
     "예약 작업 목록 열기 — 추가·수정·지금 실행": "Open the task list — add, edit, run now",
 
+    "열기": "Open",
+    "리포트: %@": "Report: %@",
+    "대화를 열어 승인하거나 거부하세요.": "Open the chat to approve or deny.",
+    "10분 안에 승인하지 않아 취소되었습니다. 다시 실행하세요.": "Canceled because it was not approved within 10 minutes. Run it again.",
+    "%@ — 승인 대기 만료": "%@ — Approval expired",
+    "알림이 시스템 설정에서 꺼져 있습니다. 예약 작업은 계속 실행되지만 알림은 오지 않습니다.": "Notifications are turned off in System Settings. Scheduled tasks still run, but no alerts arrive.",
+    "예약 작업이 끝나거나 승인이 필요할 때 알림을 받으려면 권한이 필요합니다.": "Allow notifications to hear when a scheduled task finishes or needs approval.",
+    "알림 허용": "Allow notifications",
+    "알림 권한이 허용되어 있습니다.": "Notification permission is allowed.",
+
   ]
 }
