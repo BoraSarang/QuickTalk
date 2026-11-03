@@ -9,7 +9,7 @@ import SwiftUI
 //   · 도구·권한 = 컴퓨터 접근 권한·규칙·기록
 // 탭이 9개라 낱개로 늘어놓으면 찾기 어려워 사이드바를 3묶음으로 나눈다.
 enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
-  case general, conversation, shortcut, ai, search, tools, voice, shelf, about
+  case general, conversation, shortcut, ai, search, tools, assistant, voice, shelf, about
 
   var id: String { rawValue }
 
@@ -21,6 +21,7 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
     case .ai: return "AI"
     case .search: return L("검색")
     case .tools: return L("도구·권한")
+    case .assistant: return L("비서")
     case .voice: return L("음성")
     case .shelf: return L("퀵셸프")
     case .about: return L("정보")
@@ -35,6 +36,7 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
     case .ai: return "brain"
     case .search: return "globe"
     case .tools: return "hammer"
+    case .assistant: return "person.2"
     case .voice: return "mic"
     case .shelf: return "sidebar.right"
     case .about: return "info.circle"
@@ -68,6 +70,10 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
       return (L("도우미가 컴퓨터를 확인·실행할 때의 권한과 기록입니다."),
               L("읽기·쓰기·실행을 어디까지 허용할지 정할 때."),
               L("전역 권한을 먼저 정하고, 예외만 항상 허용 규칙에 추가하세요. 위험한 명령은 규칙 테스터로 미리 확인합니다."))
+    case .assistant:
+      return (L("성격·말투가 다른 비서를 만들고, 예약 작업의 기본값을 정합니다."),
+              L("매일 같은 일을 시키거나, 비서마다 말투를 다르게 할 때."),
+              L("비서를 만들지 않으면 지금과 똑같이 동작합니다. 예약 작업은 /할일 에서 추가·삭제합니다."))
     case .voice:
       return (L("음성 입력(받아쓰기)과 답변 읽어주기 엔진을 정합니다."),
               L("마이크로 질문하거나 답변을 소리로 들을 때."),
@@ -223,7 +229,7 @@ struct SettingsView: View {
   private var sidebarGroups: [SettingsSidebarGroup] {
     [
       SettingsSidebarGroup(title: L("앱"), tabs: [.general, .conversation, .shortcut]),
-      SettingsSidebarGroup(title: L("기능"), tabs: [.ai, .search, .tools, .voice, .shelf]),
+      SettingsSidebarGroup(title: L("기능"), tabs: [.ai, .search, .tools, .assistant, .voice, .shelf]),
       SettingsSidebarGroup(title: L("기타"), tabs: [.about]),
     ]
   }
@@ -267,6 +273,7 @@ struct SettingsView: View {
         case .ai: aiSection
         case .search: webSearchSection
         case .tools: toolsSection
+        case .assistant: AssistantSettingsSection()
         case .voice: voiceSection
         case .shelf: shelfSection
         case .about: aboutSection

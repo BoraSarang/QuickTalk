@@ -49,8 +49,8 @@ extension AgentExecutor {
       recordUiEvent(call: call, title: title, command: audit ?? "", state: .denied,
                     output: text, level: level, risk: risk)
       if let audit {
-        AgentAudit.record(command: audit, level: level, risk: risk,
-                          decision: "deny", exitCode: nil, elapsedMs: 0)
+        recordAudit(command: audit, level: level, risk: risk,
+              decision: "deny", exitCode: nil, elapsedMs: 0)
       }
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
@@ -164,7 +164,7 @@ extension AgentExecutor {
 
     // ③~⑤ 판정 — 금지 앱·키·보안 필드·한도·앱 승인.
     // 전역 읽기/쓰기/실행 정책은 보지 않는다 — 화면 제어는 앱 승인(7일)으로만 판정한다.
-    let hasGrant = store.conversation.hasActiveUiAppGrant(bundleID: app.bundleID)
+    let hasGrant = store.hasUiAppGrant(bundleID: app.bundleID)
     let decision = UiGuard.evaluate(spec: spec, target: target,
                                     appBundleID: app.bundleID, appName: app.name,
                                     actionsThisTurn: uiActionsThisTurn,
@@ -332,8 +332,8 @@ extension AgentExecutor {
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
     recordUiEvent(call: call, title: title, command: display, state: .done,
                   output: doneText, elapsed: elapsed, level: level, risk: risk)
-    AgentAudit.record(command: audit, level: level, risk: risk,
-                      decision: "allow", exitCode: 0, elapsedMs: elapsed)
+    recordAudit(command: audit, level: level, risk: risk,
+          decision: "allow", exitCode: 0, elapsedMs: elapsed)
     NSLog("[QuickTalk] 화면 조작 실행 — %@ · %d/%d",
           spec.kind.rawValue, uiActionsThisTurn, UiGuard.maxActionsPerTurn)
 
@@ -390,7 +390,7 @@ extension AgentExecutor {
                              state: AgentEvent.State, output: String,
                              elapsed: Int = 0,
                              level: AgentPermissionLevel, risk: AgentRiskLevel) {
-    if store.agentEvents.contains(where: { $0.id == call.id }) {
+    if store.hasAgentEvent(id: call.id) {
       store.updateAgentEvent(id: call.id) {
         $0.state = state
         $0.output = output

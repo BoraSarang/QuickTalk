@@ -73,25 +73,41 @@ final class UIStore: ObservableObject {
       .filter { $0.isActive() }
       .sorted { $0.expiresAt < $1.expiresAt }
   }
-  /// 이번 대화에서 지금 유효한 승인 쓰기 폴더
-  var approvedWriteScopes: [String] { activeWriteScopeGrants.map(\.path) }
+  /// 이번 대화에서 지금 유효한 승인 쓰기 폴더.
+  /// ★ 예약 실행 중에는 그 실행의 범위를 쓴다(현재 대화를 건드리지 않는다).
+  var approvedWriteScopes: [String] {
+    scheduledRun?.writeScopes ?? activeWriteScopeGrants.map(\.path)
+  }
   /// 승인된 화면 조작 앱 — 대화별 7일(PLAN_v0.25 Phase 2).
   var activeUiAppGrants: [UiAppGrant] {
     (conversation.approvedUiApps ?? [])
       .filter { $0.isActive() }
       .sorted { $0.expiresAt < $1.expiresAt }
   }
+  /// 지금 유효한 화면 조작 승인 — 예약 실행이면 그 실행의 승인.
+  var activeUiGrants: [UiAppGrant] {
+    scheduledRun?.uiGrants.filter { $0.isActive() } ?? activeUiAppGrants
+  }
   /// 실제 적용 정책 — 전역 설정 위에 **이 대화의 오버라이드**를 얹는다(v0.22).
   /// 치명적 차단·상승 권한 제한은 전역 값 그대로다.
+  /// 예약 실행은 대화 오버라이드를 쓰지 않는다(사용자가 그 자리에 없으므로 전역 정책만).
   var effectiveAgentPolicy: AgentPolicy {
-    (conversation.agentOverride ?? AgentOverride()).merged(into: settings.agentPolicy)
+    if let scheduledRun { return scheduledRun.policy }
+    return (conversation.agentOverride ?? AgentOverride()).merged(into: settings.agentPolicy)
   }
   /// 실행 카드(eventID)별 되돌리기 스냅샷 — 이번 실행에서 만든 것만 카드에 보인다
   @Published var agentUndoEntries: [String: UndoEntry] = [:]
   /// 되돌리기 결과 안내(카드 아래 한 줄)
   @Published var agentUndoMessages: [String: String] = [:]
   /// 진행 중인 셸 실행의 중지 손잡이(v0.20) — 카드 [중단] 버튼이 쓴다.
-  var agentRunHandle: SandboxCancellation?
+  /// 예약 실행 중이면 그 실행의 손잡이로 갈라진다.
+  var agentRunHandle: SandboxCancellation? {
+    get { scheduledRun?.runHandle ?? currentRunHandle }
+    set {
+      if let scheduledRun { scheduledRun.runHandle = newValue } else { currentRunHandle = newValue }
+    }
+  }
+  private var currentRunHandle: SandboxCancellation?
   /// 터미널 인계 결과 안내(실패 사유 등) — 카드 아래 한 줄.
   @Published var agentHandoffNotice: String?
   /// 실행 기록을 턴에 저장한다 — 대화 기록(history.json)에 함께 남아 다음에 다시 보인다.
@@ -112,7 +128,155 @@ final class UIStore: ObservableObject {
   var agentDecisionCache: [String: (needed: Bool, at: Date)] = [:]
   let agentDecisionTTL: TimeInterval = 600
   /// QA 헤드리스 모드 — 승인이 필요한 명령을 자동으로 거부한다(대면 창이 없으므로).
-  var agentSelfTestMode = false
+  var agentSelfTestMode: Bool {
+    get { scheduledRun?.selfTestMode ?? uiAgentSelfTestMode }
+    set {
+      if let scheduledRun { scheduledRun.selfTestMode = newValue } else { uiAgentSelfTestMode = newValue }
+    }
+  }
+  private var uiAgentSelfTestMode = false
+
+  // MARK: - 예약 실행 (v0.26)
+
+  /// 예약 작업 스케줄러 — `AppDelegate` 가 만들고 넣어 준다(설정·`/할일` 시트·알림이 함께 쓴다).
+  var schedulerService: SchedulerService?
+  /// 지금 돌고 있는 예약 실행 — 도구 카드·승인·쓰기 범위를 **현재 대화와 분리**한다.
+  var scheduledRun: ScheduledRunContext?
+  /// 예약 실행의 승인 대기 — 그 대화를 열었을 때만 카드에 버튼이 뜬다.
+  @Published var scheduledApproval: ScheduledApproval?
+  /// 승인 대기 만료 타이머(10분).
+  private var scheduledApprovalTimer: Timer?
+  /// 승인 대기·실행 종료를 알림 계층에 넘기는 훅(5단계 NotificationService 가 연결).
+  var onScheduledApproval: ((ScheduledApproval) -> Void)?
+  var onScheduledRunFinished: ((ScheduledRunNotice) -> Void)?
+
+  /// 알림 서비스·권한 상태 (5단계) — AppDelegate 가 만든다.
+  var notifications: NotificationService?
+  @Published var notificationPermission: NotificationPermission = .unknown
+
+  /// 예약 실행의 승인을 기다린다 — 10분이 지나면 거부로 끝난다.
+  /// 알림에서는 승인할 수 없다(오탭 방지) — 사용자가 대화를 열어 카드에서 눌러야 한다.
+  @MainActor
+  func requestScheduledApproval(_ request: AgentApprovalRequest) async -> AgentApprovalChoice {
+    guard let ctx = scheduledRun else { return .deny }
+    // QA 헤드리스 — 무한 대기 방지.
+    if ctx.selfTestMode { return .deny }
+    return await withCheckedContinuation { cont in
+      ctx.approval = request
+      ctx.approvalContinuation = cont
+      ctx.approvalTimedOut = false
+      scheduledApproval = ScheduledApproval(taskID: ctx.taskID,
+                                            conversationID: ctx.conversation.id,
+                                            turnID: ctx.turnID,
+                                            personaName: settings.persona(scheduledRunPersonaID)?.name,
+                                            request: request)
+      onScheduledApproval?(scheduledApproval!)
+      scheduledApprovalTimer?.invalidate()
+      scheduledApprovalTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
+        Task { @MainActor in
+          guard let ctx = self.scheduledRun, ctx.approvalContinuation != nil else { return }
+          ctx.approvalTimedOut = true
+          self.resolveScheduledApproval(.deny)
+        }
+      }
+    }
+  }
+
+  /// 사용자가 카드에서 승인/거부를 눌렀다.
+  @MainActor
+  func resolveScheduledApproval(_ choice: AgentApprovalChoice) {
+    scheduledApprovalTimer?.invalidate()
+    scheduledApprovalTimer = nil
+    scheduledApproval = nil
+    guard let ctx = scheduledRun, let cont = ctx.approvalContinuation else { return }
+    ctx.approvalContinuation = nil
+    ctx.approval = nil
+    cont.resume(returning: choice)
+  }
+
+  /// 승인 대기 중인 예약 실행의 비서 ID — 러너가 실행 전에 넣어 둔다(알림 문구용).
+  var scheduledRunPersonaID: UUID?
+
+  /// 이 앱(화면 조작)이 지금 유효하게 승인됐는가 — 예약 실행이면 그 대화의 승인.
+  func hasUiAppGrant(bundleID: String) -> Bool {
+    if let scheduledRun {
+      return scheduledRun.uiGrants.contains { $0.bundleID == bundleID && $0.isActive() }
+    }
+    return conversation.hasActiveUiAppGrant(bundleID: bundleID)
+  }
+
+  /// 이 실행 카드가 이미 있는가 — 예약 실행이면 그 컨텍스트를 본다.
+  func hasAgentEvent(id: String) -> Bool {
+    if let scheduledRun { return scheduledRun.events.contains { $0.id == id } }
+    return agentEvents.contains { $0.id == id }
+  }
+
+  // MARK: - 일정 제안 확인 카드 (v0.26 4단계)
+
+  /// `/할일` 시트 표시 — 슬래시 명령과 헤더가 함께 쓴다.
+  @Published var showTaskList = false
+  /// 모델이 제안한 예약 작업 — 사용자가 [등록]을 눌러야 실제로 저장된다.
+  @Published var pendingSchedule: ScheduleConfirmation?
+  private var scheduleContinuation: CheckedContinuation<Bool, Never>?
+  private var scheduleTimer: Timer?
+
+  /// 확인 카드를 띄우고 사용자의 결정을 기다린다(10분 뒤 자동 취소).
+  /// 예약 실행 중에는 절대 등록하지 않는다(사람이 없는 자리에서 일정이 늘어나면 위험).
+  @MainActor
+  func requestScheduleConfirmation(_ proposal: ScheduleProposal) async -> Bool {
+    guard scheduledRun == nil, !agentSelfTestMode else { return false }
+    let duplicate = schedulerService?.tasks.contains {
+      $0.title == proposal.title && $0.rule == proposal.rule
+    } ?? false
+    return await withCheckedContinuation { cont in
+      scheduleContinuation = cont
+      pendingSchedule = ScheduleConfirmation(conversationID: conversation.id,
+                                             turnID: agentTurnID,
+                                             proposal: proposal,
+                                             isDuplicate: duplicate)
+      scheduleTimer?.invalidate()
+      scheduleTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
+        Task { @MainActor in self.resolveScheduleProposal(accept: false) }
+      }
+    }
+  }
+
+  /// 카드의 [등록]/[취소]. 등록하면 `SchedulerService` 가 다음 실행 시각을 채워 저장한다.
+  @MainActor
+  func resolveScheduleProposal(accept: Bool) {
+    scheduleTimer?.invalidate()
+    scheduleTimer = nil
+    let pending = pendingSchedule
+    pendingSchedule = nil
+    var registered = false
+    if accept, let pending {
+      registered = register(pending)
+    }
+    guard let cont = scheduleContinuation else { return }
+    scheduleContinuation = nil
+    cont.resume(returning: registered)
+  }
+
+  /// 같은 제목·규칙이 있으면 **덮어쓴다**(중복 일정 방지). 없으면 새로 만든다.
+  @MainActor
+  private func register(_ pending: ScheduleConfirmation) -> Bool {
+    guard let service = schedulerService else { return false }
+    let p = pending.proposal
+    if let existing = service.tasks.first(where: { $0.title == p.title && $0.rule == p.rule }) {
+      var task = existing
+      task.instruction = p.instruction
+      task.personaID = p.personaID
+      task.enabled = true
+      task.nextFireAt = nil
+      service.upsert(task)
+      NSLog("[QuickTalk] 예약 작업 수정 — %@", task.title)
+    } else {
+      let task = service.upsert(ScheduledTask(personaID: p.personaID, title: p.title,
+                                              instruction: p.instruction, rule: p.rule))
+      NSLog("[QuickTalk] 예약 작업 등록 — %@ (%@)", task.title, task.rule.humanDescription())
+    }
+    return true
+  }
   /// 공통 메모리 — 모든 대화에 적용되는 사용자 작성 사실(PLAN_v0.16).
   @Published var memoryEntries: [GlobalMemoryEntry] = [] {
     didSet { saveMemory() }
@@ -897,9 +1061,23 @@ final class UIStore: ObservableObject {
     stopSpeaking()
     syncArchive()
     core.reset()
+    // 새 대화의 기본 비서 — 설정 › 비서의 `defaultPersonaID`(없으면 기본).
+    if let id = settings.defaultPersonaID, settings.persona(id) != nil {
+      core.setPersonaID(id)
+    }
     conversation = core.conversation
     draft = ""; attached.removeAll()
     compactMessage = nil
+  }
+
+  /// 이 대화의 비서를 바꾼다 — 목록 맨 위는 `기본(비서 없음)`.
+  func selectPersona(_ id: UUID?) {
+    guard conversation.personaID != id else { return }
+    core.setPersonaID(id)
+    conversation = core.conversation
+    syncArchive()
+    NSLog("[QuickTalk] 대화 비서 선택 — %@",
+          settings.persona(id)?.name ?? "기본")
   }
   // MARK: - 질문 되돌리기·다시 응답 (T-72)
 
@@ -1014,6 +1192,21 @@ final class UIStore: ObservableObject {
     }
   }
 
+  /// 예약 실행 대화를 보관함에 반영한다(v0.26).
+  ///
+  /// 사용자가 그 대화를 **열어 놓았으면** 화면도 함께 갱신한다(승인 카드가 실시간으로 보이게).
+  /// 열려 있지 않으면 보관함 목록만 갱신한다 — 현재 대화는 건드리지 않는다.
+  func applyScheduledConversation(_ c: Conversation) {
+    archive.removeAll { $0.id == c.id }
+    if !c.turns.isEmpty || c.pinned { archive.insert(c, at: 0) }
+    archive = ConversationHistory.ordered(archive)
+    try? PersistenceService.save(archive)
+    if conversation.id == c.id {
+      core.open(c)
+      conversation = core.conversation
+    }
+  }
+
   /// 대화별 권한 오버라이드 변경(v0.22) — 코어에 반영하고 즉시 저장한다.
   func setAgentOverride(_ update: (inout AgentOverride) -> Void) {
     var override = conversation.agentOverride ?? AgentOverride()
@@ -1045,6 +1238,15 @@ final class UIStore: ObservableObject {
 
   /// [이 앱 허용] — 이 대화에서 그 앱을 7일 동안 다시 묻지 않는다.
   func approveUiApp(bundleID: String, name: String) {
+    if let ctx = scheduledRun {
+      let grants = UiAppGrant.approve(bundleID: bundleID, name: name,
+                                      into: ctx.conversation.approvedUiApps ?? [])
+      ctx.session.setUiAppGrants(grants)
+      ctx.uiGrants = ctx.conversation.approvedUiApps ?? []
+      applyScheduledConversation(ctx.conversation)
+      NSLog("[QuickTalk] 예약 실행 화면 조작 앱 승인 — %d개 앱", ctx.uiGrants.count)
+      return
+    }
     let grants = UiAppGrant.approve(bundleID: bundleID, name: name,
                                     into: conversation.approvedUiApps ?? [])
     setUiAppGrants(grants)
@@ -1099,6 +1301,20 @@ final class UIStore: ObservableObject {
       searchFocus = nil
     }
     startAutoCompact(convID: c.id)
+  }
+
+  /// 알림 클릭 — 대화 ID로 연다(5단계 딥링크). 보관함에 없으면 디스크에서 다시 읽는다.
+  @discardableResult
+  func openConversation(id: UUID) -> Bool {
+    if let c = archive.first(where: { $0.id == id }) {
+      openConversation(c)
+      return true
+    }
+    let list = PersistenceService.load(keepDays: settings.keepDays)
+    guard let c = list.first(where: { $0.id == id }) else { return false }
+    archive = list
+    openConversation(c)
+    return true
   }
 
   // MARK: - 음성 (엔진별 분기)
@@ -1279,7 +1495,11 @@ final class UIStore: ObservableObject {
                                 budget: ws.globalMemoryBudgetTokens)
           : .empty
         let conversationPrefix = Self.memoryPromptPrefix(self.conversation)
-        let memoryPrefix = globalMemory.text + conversationPrefix
+        // 비서 — 대화마다 고른 성격·말투를 **프롬프트 앞**에 붙인다.
+        // 도구가 꺼진 일반 클라이언트에도 적용되도록 시스템 프롬프트가 아니라 여기에 둔다.
+        let personaHeader = self.settings.persona(self.conversation.personaID)
+          .map { PersonaPrompt.header($0) + "\n\n" } ?? ""
+        let memoryPrefix = personaHeader + globalMemory.text + conversationPrefix
         if !globalMemory.isEmpty {
           NSLog("[QuickTalk] 공통 메모리 %d개 주입 (약 %d토큰)",
                 globalMemory.included.count, globalMemory.tokens)
@@ -1498,8 +1718,10 @@ final class UIStore: ObservableObject {
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
             // 컴퓨터 제어(ui_snapshot)는 마스터 토글이 켜져 있을 때만 목록에 넣는다.
             let agentTools = AgentToolCatalog.available(
+              for: settings.persona(conversation.personaID),
               includingWebSearch: searchToolReady && p.type != .appleFM,
-              includingUI: settings.uiControlEnabled && p.type != .appleFM)
+              includingUI: settings.uiControlEnabled && p.type != .appleFM,
+              includingSchedule: true)
             do {
               reply = try await self.runAgentTurn(client: agentClient, prompt: modelPrompt,
                                                   history: finalHistory, turnID: aid,

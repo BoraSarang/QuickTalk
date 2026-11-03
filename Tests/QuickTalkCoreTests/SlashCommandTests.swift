@@ -75,8 +75,9 @@ final class SlashCommandTests: XCTestCase {
   /// 도우미 도구를 끄면 도구가 필요한 명령은 팔레트에서 사라진다(2026-10-27).
   func testToolCommandsHiddenWhenToolsDisabled() {
     withLanguage(.korean) {
+      // `/할일` 은 모델 도구가 아니라 앱이 직접 시트를 여는 명령이라 도구가 꺼져 있어도 남는다.
       let off = Set(SlashCommands.available(agentToolsEnabled: false).map(\.id))
-      XCTAssertEqual(off, ["settings", "help"])
+      XCTAssertEqual(off, ["settings", "help", "tasks"])
       XCTAssertTrue(SlashCommands.matches("/디스크", toolsEnabled: false).isEmpty)
       XCTAssertEqual(SlashCommands.matches("/도움말", toolsEnabled: false).first?.id, "help")
       XCTAssertEqual(SlashCommands.available(agentToolsEnabled: true).count,
@@ -126,7 +127,12 @@ final class SlashCommandTests: XCTestCase {
     XCTAssertEqual(Set(names).count, names.count, "같은 언어에서 명령 이름은 고유해야 한다")
     for command in SlashCommands.all {
       XCTAssertFalse(command.summary.isEmpty, "\(command.id): 설명이 필요하다")
-      XCTAssertFalse(command.template.isEmpty, "\(command.id): 채울 문장이 필요하다")
+      // `/할일` 은 문장을 채우지 않고 시트를 연다 — 템플릿이 비어 있는 유일한 명령이다.
+      if command.id == "tasks" {
+        XCTAssertTrue(command.template.isEmpty, "tasks: 시트 명령은 템플릿을 쓰지 않는다")
+      } else {
+        XCTAssertFalse(command.template.isEmpty, "\(command.id): 채울 문장이 필요하다")
+      }
       XCTAssertTrue(command.token.hasPrefix("/"))
       // 템플릿이 슬래시로 시작하면 전송 시 팔레트가 다시 뜬다 — 일반 문장이어야 한다.
       XCTAssertFalse(command.template.hasPrefix("/"), "\(command.id): 템플릿은 일반 문장")

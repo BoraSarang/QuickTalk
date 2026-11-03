@@ -57,9 +57,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var appearanceOverride: AppAppearance?
   /// QA 렌더 하네스 전용 — `--lang=`/`--theme=` 오버라이드를 해제해 **실제 설정 경로**(sink)를 태운다.
   func clearLaunchLanguageOverride() { languageOverride = nil }
+  /// 예약 작업 스케줄러 (v0.26) — 앱이 실행 중일 때만 동작한다.
+  private var scheduler: SchedulerService?
+  /// 예약 작업 알림 (v0.26 5단계).
+  private var notifications: NotificationService?
 
   /// 앱 종료 — 잠금을 명시적으로 푼다(OS 가 어차피 풀지만, 즉시 재실행이 막히지 않게).
   func applicationWillTerminate(_ notification: Notification) {
+    scheduler?.stop()
+    scheduler?.save()
     SingleInstance.release()
   }
 
@@ -83,6 +89,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ShelfController.shared.start(store: store, chatWindowProvider: { [weak self] in self?.panel })
     PointerPillController.shared.start(store: store, onOutcome: { [weak self] in self?.handlePill($0) })
     applyShortcuts(store.settings, force: true)
+    // 예약 작업 스케줄러 — 앱이 실행 중일 때만. 꺼져 있으면 다음 설정 변경에서 시작한다.
+    // 알림 — 권한은 첫 알림 직전에 묻고, 거부되면 설정 › 비서에 안내를 띄운다.
+    let notifications = NotificationService(store: store)
+    self.notifications = notifications
+    store.notifications = notifications
+    notifications.onOpenConversation = { [weak self] id in
+      self?.openScheduledConversation(id)
+    }
+    store.onScheduledApproval = { [weak notifications] approval in
+      notifications?.notifyApproval(approval)
+    }
+    store.onScheduledRunFinished = { [weak notifications] notice in
+      notifications?.notifyRunFinished(notice)
+    }
+    let scheduler = SchedulerService(store: store)
+    self.scheduler = scheduler
+    store.schedulerService = scheduler
+    scheduler.start()
     NSLog("[QuickTalk] launched, LSUIElement=%@, shortcut=%@",
           Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? String ?? "?",
           store.settings.globalShortcut)
@@ -332,6 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.applyPointerTracking(s)
         self?.applyShortcuts(s)
         self?.applyPanelLevel()
+        Task { @MainActor in self?.scheduler?.applySettings() }
       }
       .store(in: &cancellables)
   }
@@ -797,9 +822,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  /// 알림 클릭 — 예약 실행 대화를 열고(승인 카드가 있으면 그 자리에서) 패널을 앞으로.
+  private func openScheduledConversation(_ id: UUID) {
+    guard store.openConversation(id: id) else {
+      NSLog("[QuickTalk] 알림 딥링크 — 대화를 찾지 못했습니다")
+      return
+    }
+    showPanel(tab: 0)
+  }
+
   /// QuickShelf 사용 결과를 확인할 수 있게 대화 창을 앞으로 (이미 보이면 위치·탭만 맞춘다)
-  private func showChatFromShelf() {
-    guard let panel else { return }
+  private func showChatFromShelf() {    guard let panel else { return }
     if panel.isVisible {
       // 뒤에 있을 수 있으니 앞으로 올린 뒤 탭만 맞춘다
       activateApp()

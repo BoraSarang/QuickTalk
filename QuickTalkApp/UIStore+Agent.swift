@@ -14,8 +14,17 @@ extension UIStore {
   // MARK: - 실행 카드
 
   /// 실행 1건을 카드에 붙인다 — **턴에도 저장**한다(대화 기록에 함께 남아 다음에 다시 보인다)
+  /// 예약 실행 중이면 **그 실행의 대화**에만 붙는다(현재 대화 오염 금지).
   @MainActor
   func appendAgentEvent(_ event: AgentEvent) {
+    if let ctx = scheduledRun {
+      ctx.events.append(event)
+      if let turnID = ctx.turnID {
+        ctx.session.appendAgentEvent(event, to: turnID)
+        ctx.session.touch()
+      }
+      return
+    }
     agentEvents.append(event)
     if let turnID = agentTurnID {
       appendAgentEventToTurn(event, turnID: turnID)
@@ -25,6 +34,15 @@ extension UIStore {
   /// 카드 한 건을 고친다(상태·출력·경과시간).
   @MainActor
   func updateAgentEvent(id: String, _ mutate: (inout AgentEvent) -> Void) {
+    if let ctx = scheduledRun {
+      if let index = ctx.events.firstIndex(where: { $0.id == id }) {
+        mutate(&ctx.events[index])
+      }
+      if let turnID = ctx.turnID {
+        ctx.session.updateAgentEvent(id: id, in: turnID, mutate)
+      }
+      return
+    }
     guard let idx = agentEvents.firstIndex(where: { $0.id == id }) else { return }
     mutate(&agentEvents[idx])
     if let turnID = agentTurnID {
@@ -45,9 +63,18 @@ extension UIStore {
 
   /// "이 폴더 허용" — 이번 대화에서 그 폴더의 쓰기는 다시 묻지 않는다(v0.19).
   /// 승인은 대화 기록과 함께 저장되고 7일 뒤 만료되며, 다시 승인하면 기간이 갱신된다(2026-10-29).
+  /// 예약 실행 중이면 **그 실행의 대화**에 저장한다.
   @MainActor
   func approveWriteScopes(_ scopes: [String]) {
     guard !scopes.isEmpty else { return }
+    if let ctx = scheduledRun {
+      let grants = WriteScopeGrant.approve(scopes, into: ctx.conversation.approvedWriteScopes ?? [])
+      ctx.session.setWriteScopeGrants(grants)
+      ctx.writeScopes = (ctx.conversation.approvedWriteScopes ?? []).map(\.path)
+      dumpScheduledConversation(ctx)
+      NSLog("[QuickTalk] 예약 실행 쓰기 폴더 승인 — %d개 범위", ctx.writeScopes.count)
+      return
+    }
     let grants = WriteScopeGrant.approve(scopes, into: conversation.approvedWriteScopes ?? [])
     setWriteScopeGrants(grants)
     NSLog("[QuickTalk] 쓰기 폴더 승인 — %d개 범위", approvedWriteScopes.count)
@@ -56,6 +83,11 @@ extension UIStore {
   /// 진행 중인 셸 실행 중지(v0.20) — 카드 [중단] 버튼·응답 중지가 함께 쓴다.
   @MainActor
   func cancelAgentRun() {
+    // 예약 실행 — 대기 중인 승인을 거부로 깨우고, 다음 도구 호출부터 멈춘다.
+    if let ctx = scheduledRun {
+      ctx.cancelled = true
+      if scheduledApproval != nil { resolveScheduledApproval(.deny) }
+    }
     // 화면 조작은 셸 프로세스가 없으므로 실행기의 손잡이를 따로 취소한다(PLAN_v0.25 §4.4).
     agentExecutor?.cancelUIActions()
     guard let handle = agentRunHandle else { return }
@@ -66,7 +98,10 @@ extension UIStore {
   /// 시스템 영역 쓰기·상승 권한 명령을 터미널로 넘긴다(v0.20) — 앱은 실행하지 않는다.
   @MainActor
   func handoffToTerminal(_ command: String) {
-    agentHandoffNotice = TerminalHandoffService.open(command: command)
+    let notice = TerminalHandoffService.open(command: command)
+    // 예약 실행 중에는 현재 대화의 카드에 안내를 끼워 넣지 않는다.
+    guard scheduledRun == nil else { return }
+    agentHandoffNotice = notice
   }
 
   /// Shortcuts/AppIntent가 채운 질문을 입력창에 넣는다 — 기본은 **자동 전송하지 않는다**.
@@ -139,9 +174,20 @@ extension UIStore {
   }
 
   /// 사용자가 카드의 버튼을 눌렀다.
+  /// 예약 실행의 승인 대기 중이면 그 실행으로 보낸다(현재 대화의 실행기는 없다).
   @MainActor
   func resolveAgentApproval(_ choice: AgentApprovalChoice) {
+    if scheduledRun != nil, scheduledApproval != nil {
+      resolveScheduledApproval(choice)
+      return
+    }
     agentExecutor?.resolveApproval(choice)
+  }
+
+  /// 예약 실행 대화를 보관함에 반영한다 — 진행 중에도 사용자가 열어 볼 수 있게.
+  @MainActor
+  func dumpScheduledConversation(_ ctx: ScheduledRunContext) {
+    applyScheduledConversation(ctx.conversation)
   }
 
   // MARK: - 클라이언트
@@ -150,13 +196,22 @@ extension UIStore {
   /// 온디바이스(Apple FM)는 **짧은 지시문**을 쓴다 — 작은 모델은 긴 지시문을 따라가지 못한다.
   func makeAgentClient(provider: LLMProviderConfig,
                        executor: any AgentToolExecutor) -> AgentClient? {
-    let instructions: String
+    makeAgentClient(provider: provider, executor: executor, persona: nil)
+  }
+
+  /// 비서 프롬프트를 얹은 클라이언트(v0.26) — `persona == nil` 이면 기존과 **완전히 동일**하다.
+  func makeAgentClient(provider: LLMProviderConfig,
+                       executor: any AgentToolExecutor,
+                       persona: Persona?) -> AgentClient? {
+    let base: String
     switch provider.type {
     case .appleFM:
-      instructions = AgentInstructions.compactText
+      base = AgentInstructions.compactText
     case .ollama, .openAICompatible:
-      instructions = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings)
+      base = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings)
     }
+    // 전역 안전 규칙은 지우지 않고 **앞에 정체성만** 붙인다(`PersonaPrompt`).
+    let instructions = PersonaPrompt.compose(persona, base: base)
     switch provider.type {
     case .appleFM:
       if #available(macOS 26.0, *) {

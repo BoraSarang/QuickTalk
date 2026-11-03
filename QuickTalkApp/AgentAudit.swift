@@ -44,8 +44,9 @@ enum AgentAudit {
                      risk: AgentRiskLevel,
                      decision: String,
                      exitCode: Int32?,
-                     elapsedMs: Int) {
-    let entry: [String: Any] = [
+                     elapsedMs: Int,
+                     note: String? = nil) {
+    var entry: [String: Any] = [
       "at": ISO8601DateFormatter().string(from: Date()),
       "cmd": mask(command),
       "level": level.rawValue,
@@ -54,6 +55,7 @@ enum AgentAudit {
       "exit": exitCode ?? -1,
       "ms": elapsedMs
     ]
+    if let note, !note.isEmpty { entry["task"] = note }
     guard let data = try? JSONSerialization.data(withJSONObject: entry),
           let line = String(data: data, encoding: .utf8) else { return }
     let url = logURL

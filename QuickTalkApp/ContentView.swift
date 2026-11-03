@@ -204,6 +204,9 @@ struct ContentView: View {
     .sheet(isPresented: $showWindowPicker) {
       WindowPickerSheet(store: store)
     }
+    .sheet(isPresented: $store.showTaskList) {
+      TaskListSheet().environmentObject(store)
+    }
     .onAppear { tab = initialTab }
     // 상대 시간("5분 전")은 시간이 흐르면 낡는다 — 1분마다 다시 계산해 표기를 최신으로 유지한다.
     .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { nowTick = $0 }
@@ -307,6 +310,10 @@ struct ContentView: View {
       if tab == 0 && store.conversation.pinned {
         Image(systemName: "bookmark.fill").font(.system(size: 10)).foregroundColor(.purple)
           .help(L("만료 없이 보관 중인 대화입니다"))
+      }
+      // 비서 칩 — 비서를 1명 이상 만들었을 때만(없으면 지금과 완전히 동일한 화면).
+      if tab == 0 && !store.settings.personas.isEmpty {
+        PersonaChip()
       }
       Spacer()
       // 읽어주기 중이면 **어느 탭에서든** 멈출 수 있게 헤더에 중지 버튼
@@ -417,10 +424,18 @@ struct ContentView: View {
                   // ★ 도구 실행 카드는 **답변보다 위**에 둔다 — 명령이 먼저 돌고 그 결과로 답하기 때문.
                   //   답변 아래에 두면 "명령 → 응답" 순서와 화면 순서가 반대가 된다(2026-10-22 사용자 지적).
                   //   (웹 검색 출처는 참고 자료라 아래에 두는 것이 자연스럽다 — 그대로 둔다)
+                  // 모델의 일정 제안 — 등록/취소를 이 자리에서 결정한다.
+                  if t.role == .assistant,
+                     let pending = store.pendingSchedule,
+                     pending.turnID == t.id,
+                     pending.conversationID == store.conversation.id {
+                    ScheduleProposalCard(pending: pending)
+                      .padding(.bottom, 2)
+                  }
                   if t.role == .assistant,
                      let events = t.agentEvents, !events.isEmpty {
                     AgentCard(events: events,
-                              approval: t.id == store.agentTurnID ? store.agentApproval : nil,
+                              approval: approvalRequest(for: t),
                               showExecution: store.settings.agentShowExecution,
                               undoEntry: store.agentUndoEntry(for: events),
                               undoMessage: store.agentUndoMessage(for: events),
@@ -595,6 +610,19 @@ struct ContentView: View {
           guard request != nil else { return }
           scrollToBottom(proxy, animated: false)
           // 긴 명령이 여러 줄로 감기면 카드 높이가 한 프레임 늦게 확정된다 — 한 번 더 맞춘다.
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            scrollToBottom(proxy, animated: false)
+          }
+        }
+        // 일정 제안 카드가 뜨면 그 턴까지 스크롤한다.
+        .onChange(of: store.pendingSchedule) { _, pending in
+          guard pending != nil, pending?.conversationID == store.conversation.id else { return }
+          scrollToBottom(proxy, animated: false)
+        }
+        // 예약 실행이 승인을 기다리면 그 대화의 카드 끝까지 따라간다.
+        .onChange(of: store.scheduledApproval) { _, pending in
+          guard pending != nil, pending?.conversationID == store.conversation.id else { return }
+          scrollToBottom(proxy, animated: false)
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             scrollToBottom(proxy, animated: false)
           }
@@ -947,6 +975,14 @@ struct ContentView: View {
     }
   }
 
+  /// 승인 카드에 넘길 요청 — 현재 턴의 실행이거나 **예약 실행의 승인 대기**.
+  /// 예약 실행은 그 대화를 열었을 때만 카드가 뜬다(다른 대화에 끼어들지 않는다).
+  private func approvalRequest(for turn: Turn) -> AgentApprovalRequest? {
+    if turn.id == store.agentTurnID { return store.agentApproval }
+    if let pending = store.scheduledApproval, pending.turnID == turn.id { return pending.request }
+    return nil
+  }
+
   /// 응답 대기 표시 — 자체 점 애니메이션(네이티브 인디케이터 대신) + 경과·모델 라벨
   /// 검색 중에는 점 대신 🌐와 "웹에서 찾는 중…"을 보여 준다.
   private var replyingBubble: some View {
@@ -1090,8 +1126,14 @@ struct ContentView: View {
       VStack(alignment: .leading, spacing: 0) {
         ForEach(matches) { command in
           Button {
-            store.draft = command.template
-            store.composerFocusToken = UUID()
+            if command.id == "tasks" {
+              // `/할일` 은 문장을 채우지 않고 **목록 시트**를 연다(PLAN §8.2 예외).
+              store.draft = ""
+              store.showTaskList = true
+            } else {
+              store.draft = command.template
+              store.composerFocusToken = UUID()
+            }
           } label: {
             HStack(spacing: 7) {
               Image(systemName: command.systemImage)

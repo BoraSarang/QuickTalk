@@ -153,6 +153,26 @@ public struct QuickTalkSettings: Codable, Equatable {
   /// 셸 실행 제한 시간(초, v0.20) — 10~600 범위로 자른다.
   public var agentTimeoutSeconds: Int = 60
 
+  // 비서·예약 (PLAN_v0.26) — **비어 있으면 지금과 완전히 동일**하게 동작한다.
+  /// 사용자가 만든 비서 목록. 0명이면 채팅에 비서 UI가 나타나지 않는다.
+  public var personas: [Persona] = []
+  /// 새 대화의 기본 비서 — nil = 기본(비서 없음).
+  public var defaultPersonaID: UUID?
+  /// 리포트 파일을 저장할 기본 폴더(`~` 허용, 없으면 만든다).
+  public var defaultReportFolder: String = "~/Documents/Reports"
+  /// 예약 실행 사용 여부(기본 켜짐). 꺼도 저장된 일정은 남는다.
+  public var schedulerEnabled: Bool = true
+  /// 예약 완료·실패 배너 알림.
+  public var notificationsEnabled: Bool = true
+  /// 승인 대기 알림 — 실행이 멈춘 순간에만 따로 알린다.
+  public var notifyOnApproval: Bool = true
+  /// 야간 무음 사용 여부(기본 켜짐).
+  public var quietHoursEnabled: Bool = true
+  /// 무음 시작(자정 기준 분). 기본 22:00.
+  public var quietHoursFromMinute: Int = 22 * 60
+  /// 무음 끝(자정 기준 분). 기본 08:00.
+  public var quietHoursToMinute: Int = 8 * 60
+
   /// 검색이 켜져 있는가(공급자 선택 기준)
   public var webSearchEnabled: Bool { webSearchProvider != .none }
 
@@ -199,6 +219,35 @@ public struct QuickTalkSettings: Codable, Equatable {
     providers.first { $0.id == activeProviderID && $0.enabled } ?? providers.first { $0.enabled }
   }
 
+  // MARK: - 비서·예약 (v0.26)
+
+  /// ID 로 비서를 찾는다. nil·없는 ID 면 nil(기본).
+  public func persona(_ id: UUID?) -> Persona? {
+    guard let id else { return nil }
+    return personas.first { $0.id == id }
+  }
+
+  /// 새 대화에 적용할 비서 — 기본값은 nil(비서 없음).
+  public var defaultPersona: Persona? { persona(defaultPersonaID) }
+
+  /// 리포트 폴더의 실제 경로. 비어 있으면 기본값으로 돌아간다.
+  public var reportFolderPath: String {
+    let raw = defaultReportFolder.trimmingCharacters(in: .whitespacesAndNewlines)
+    let value = raw.isEmpty ? "~/Documents/Reports" : raw
+    return (value as NSString).expandingTildeInPath
+  }
+
+  /// 지금이 야간 무음 시간인가 — 자정을 넘는 구간(22:00~08:00)도 처리한다.
+  public func isQuietHours(at date: Date = Date(), calendar: Calendar = .current) -> Bool {
+    guard quietHoursEnabled else { return false }
+    let from = ((quietHoursFromMinute % 1440) + 1440) % 1440
+    let to = ((quietHoursToMinute % 1440) + 1440) % 1440
+    guard from != to else { return false }
+    let c = calendar.dateComponents([.hour, .minute], from: date)
+    let now = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    return from < to ? (now >= from && now < to) : (now >= from || now < to)
+  }
+
   public func provider(_ id: String) -> LLMProviderConfig? { providers.first { $0.id == id } }
 
   /// 예비 프로바이더 — 주 모델과 다르고, 사용 중이며, 존재할 때만.
@@ -234,6 +283,9 @@ public struct QuickTalkSettings: Codable, Equatable {
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
     case agentToolsEnabled, agentPolicy, agentShowExecution, uiControlEnabled
     case agentStreamOutput, agentTimeoutSeconds
+    case personas, defaultPersonaID, defaultReportFolder, schedulerEnabled
+    case notificationsEnabled, notifyOnApproval, quietHoursEnabled
+    case quietHoursFromMinute, quietHoursToMinute
     // 구버전 전용 (디코딩 승계용 — 인코딩에는 기록하지 않는다)
     case llmProvider, openAIBaseURL, openAIModel, ollamaHost, ollamaModel, apiKeyAccount
   }
@@ -311,6 +363,20 @@ public struct QuickTalkSettings: Codable, Equatable {
       agentPolicy = AgentPolicy()
     }
 
+    // v0.26 — 키가 없는 기존 설정은 "비서 없음"으로 읽는다(동작 변화 없음).
+    personas = (try c.decodeIfPresent([Persona].self, forKey: .personas) ?? []).map { $0.normalized() }
+    defaultPersonaID = try c.decodeIfPresent(UUID.self, forKey: .defaultPersonaID)
+    defaultReportFolder = try c.decodeIfPresent(String.self, forKey: .defaultReportFolder)
+      ?? "~/Documents/Reports"
+    schedulerEnabled = try c.decodeIfPresent(Bool.self, forKey: .schedulerEnabled) ?? true
+    notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
+    notifyOnApproval = try c.decodeIfPresent(Bool.self, forKey: .notifyOnApproval) ?? true
+    quietHoursEnabled = try c.decodeIfPresent(Bool.self, forKey: .quietHoursEnabled) ?? true
+    quietHoursFromMinute = min(1439, max(0, try c.decodeIfPresent(Int.self,
+      forKey: .quietHoursFromMinute) ?? 22 * 60))
+    quietHoursToMinute = min(1439, max(0, try c.decodeIfPresent(Int.self,
+      forKey: .quietHoursToMinute) ?? 8 * 60))
+
     if let stored = try c.decodeIfPresent([LLMProviderConfig].self, forKey: .providers), !stored.isEmpty {
       providers = stored
       activeProviderID = try c.decodeIfPresent(String.self, forKey: .activeProviderID)
@@ -382,6 +448,15 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(agentStreamOutput, forKey: .agentStreamOutput)
     try c.encode(agentTimeoutSeconds, forKey: .agentTimeoutSeconds)
     try c.encode(agentPolicy, forKey: .agentPolicy)
+    try c.encode(personas, forKey: .personas)
+    try c.encodeIfPresent(defaultPersonaID, forKey: .defaultPersonaID)
+    try c.encode(defaultReportFolder, forKey: .defaultReportFolder)
+    try c.encode(schedulerEnabled, forKey: .schedulerEnabled)
+    try c.encode(notificationsEnabled, forKey: .notificationsEnabled)
+    try c.encode(notifyOnApproval, forKey: .notifyOnApproval)
+    try c.encode(quietHoursEnabled, forKey: .quietHoursEnabled)
+    try c.encode(quietHoursFromMinute, forKey: .quietHoursFromMinute)
+    try c.encode(quietHoursToMinute, forKey: .quietHoursToMinute)
   }
 
   /// 구버전 단일 프로바이더 설정값을 기본 3종 목록으로 승계한다.

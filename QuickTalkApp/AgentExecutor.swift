@@ -45,9 +45,21 @@ final class AgentExecutor: AgentToolExecutor {
     self.store = store
   }
 
+  /// 감사 기록 — 예약 실행이면 `task:<id>` 태그를 붙인다(PLAN_v0.26 §6).
+  func recordAudit(command: String, level: AgentPermissionLevel, risk: AgentRiskLevel,
+                     decision: String, exitCode: Int32?, elapsedMs: Int) {
+    let note = store.scheduledRun.map { "task:\($0.taskID.uuidString.prefix(8))" }
+    AgentAudit.record(command: command, level: level, risk: risk, decision: decision,
+                      exitCode: exitCode, elapsedMs: elapsedMs, note: note)
+  }
+
   // MARK: - 진입점
 
   func execute(_ call: AgentToolCall, tools: [AgentTool]) async -> AgentToolOutcome {
+    // 예약 실행에서 사용자가 [중단]을 누르면 다음 도구부터 실행하지 않는다.
+    if store.scheduledRun?.cancelled == true {
+      return AgentToolOutcome(output: L("사용자가 중단했습니다."), denied: true)
+    }
     switch call.name {
     case "shell": return await runShell(call)
     case "read_file": return await readFile(call)
@@ -57,6 +69,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "web_search": return await runWebSearch(call)
     case "ui_snapshot": return await runUiSnapshot(call)
     case "ui_action": return await runUiAction(call)
+    case "schedule_task": return await proposeSchedule(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
@@ -91,8 +104,8 @@ final class AgentExecutor: AgentToolExecutor {
                                         command: command, level: .execute,
                                         risk: risk, state: .denied, output: reason,
                                         terminalCommand: handoff))
-      AgentAudit.record(command: command, level: .execute, risk: risk,
-                        decision: "deny", exitCode: nil, elapsedMs: 0)
+      recordAudit(command: command, level: .execute, risk: risk,
+            decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: reason, denied: true, level: .execute, risk: risk,
                               terminalCommand: handoff)
 
@@ -104,8 +117,8 @@ final class AgentExecutor: AgentToolExecutor {
       if choice == .deny {
         let text = L("사용자가 실행을 거부했습니다. 다른 방법을 제안하세요.")
         store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
-        AgentAudit.record(command: command, level: request.level, risk: risk,
-                          decision: "deny", exitCode: nil, elapsedMs: 0)
+        recordAudit(command: command, level: request.level, risk: risk,
+              decision: "deny", exitCode: nil, elapsedMs: 0)
         return AgentToolOutcome(output: text, denied: true, level: request.level, risk: risk)
       }
       if choice == .alwaysAllow {
@@ -175,8 +188,8 @@ final class AgentExecutor: AgentToolExecutor {
           $0.output = note
           $0.terminalCommand = command
         }
-        AgentAudit.record(command: command, level: capability.level, risk: risk,
-                          decision: "deny", exitCode: nil, elapsedMs: 0)
+        recordAudit(command: command, level: capability.level, risk: risk,
+              decision: "deny", exitCode: nil, elapsedMs: 0)
         return AgentToolOutcome(output: note, denied: true, level: capability.level,
                                 risk: risk, terminalCommand: command)
       }
@@ -284,9 +297,9 @@ final class AgentExecutor: AgentToolExecutor {
     if let undo {
       store.registerAgentUndo(undo, eventID: call.id)
     }
-    AgentAudit.record(command: command, level: level, risk: risk,
-                      decision: denied ? "deny" : "allow",
-                      exitCode: result.exitCode, elapsedMs: elapsed)
+    recordAudit(command: command, level: level, risk: risk,
+          decision: denied ? "deny" : "allow",
+          exitCode: result.exitCode, elapsedMs: elapsed)
     return AgentToolOutcome(output: output, denied: denied,
                              level: level, risk: risk)
   }
@@ -322,7 +335,7 @@ final class AgentExecutor: AgentToolExecutor {
   /// `updateAgentEvent` 는 첫 장만 고치므로 **첫 카드가 "실행 중"으로 굳고** 결과 카드가
   /// 따로 생긴다. 같은 id 가 이미 있으면 그 카드의 상태·출력만 바꾼다(2026-10-27).
   private func upsertAgentEvent(_ event: AgentEvent) {
-    guard store.agentEvents.contains(where: { $0.id == event.id }) else {
+    guard store.hasAgentEvent(id: event.id) else {
       store.appendAgentEvent(event)
       return
     }
@@ -446,8 +459,8 @@ final class AgentExecutor: AgentToolExecutor {
       if await requestApproval(request) == .deny {
         let text = L("사용자가 화면 캡처를 거부했습니다.")
         store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
-        AgentAudit.record(command: command, level: level, risk: risk,
-                          decision: "deny", exitCode: nil, elapsedMs: 0)
+        recordAudit(command: command, level: level, risk: risk,
+              decision: "deny", exitCode: nil, elapsedMs: 0)
         return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
       }
     }
@@ -460,15 +473,15 @@ final class AgentExecutor: AgentToolExecutor {
       let text = Lf("스크린샷을 찍었습니다(%@). 다음 스텝에서 이 이미지를 볼 수 있습니다.",
                     url.lastPathComponent)
       store.updateAgentEvent(id: call.id) { $0.state = .done; $0.output = text }
-      AgentAudit.record(command: "screenshot \(target)", level: level, risk: risk,
-                        decision: "allow", exitCode: 0, elapsedMs: 0)
+      recordAudit(command: "screenshot \(target)", level: level, risk: risk,
+            decision: "allow", exitCode: 0, elapsedMs: 0)
       return AgentToolOutcome(output: text, level: level, risk: risk, imageURL: url)
     } catch {
       let message = (error as? WindowAttachError)?.message
         ?? L("스크린샷을 찍지 못했습니다.")
       store.updateAgentEvent(id: call.id) { $0.state = .failed; $0.output = message }
-      AgentAudit.record(command: "screenshot \(target)", level: level, risk: risk,
-                        decision: "deny", exitCode: nil, elapsedMs: 0)
+      recordAudit(command: "screenshot \(target)", level: level, risk: risk,
+            decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: message, denied: true, level: level, risk: risk)
     }
   }
@@ -493,8 +506,8 @@ final class AgentExecutor: AgentToolExecutor {
                                   title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
                                   command: command, level: level, risk: risk,
                                   state: .denied, output: text))
-      AgentAudit.record(command: command, level: level, risk: risk,
-                        decision: "deny", exitCode: nil, elapsedMs: 0)
+      recordAudit(command: command, level: level, risk: risk,
+            decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
 
@@ -514,16 +527,16 @@ final class AgentExecutor: AgentToolExecutor {
         event.state = .done
         event.output = Lf("요소 %d개를 읽었습니다.", tree.snapshot.count)
       }
-      AgentAudit.record(command: command, level: level, risk: risk,
-                        decision: "allow", exitCode: 0, elapsedMs: 0)
+      recordAudit(command: command, level: level, risk: risk,
+            decision: "allow", exitCode: 0, elapsedMs: 0)
       NSLog("[QuickTalk] 화면 요소 %d개 읽음 (앱=%@)", tree.snapshot.count, tree.snapshot.appName)
       return AgentToolOutcome(output: text, level: level, risk: risk)
 
     case .failure(let error):
       let text = error.message
       store.updateAgentEvent(id: call.id) { $0.state = .failed; $0.output = text }
-      AgentAudit.record(command: command, level: level, risk: risk,
-                        decision: "deny", exitCode: nil, elapsedMs: 0)
+      recordAudit(command: command, level: level, risk: risk,
+            decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
   }
@@ -593,9 +606,13 @@ final class AgentExecutor: AgentToolExecutor {
   // MARK: - 승인 대기
 
   /// 사용자 응답을 기다린다(카드에서 누르면 이어진다).
+  /// 예약 실행이면 그 실행 전용 승인 흐름(10분 만료·알림)으로 간다.
   func requestApproval(_ request: AgentApprovalRequest) async -> AgentApprovalChoice {
     // QA 헤드리스 — 대면 창이 없으므로 승인은 거부로 처리한다(무한 대기 방지).
     if store.agentSelfTestMode { return .deny }
+    if store.scheduledRun != nil {
+      return await store.requestScheduledApproval(request)
+    }
     return await withCheckedContinuation { cont in
       self.continuation = cont
       self.store.agentApproval = request
@@ -612,6 +629,12 @@ final class AgentExecutor: AgentToolExecutor {
 
   /// 응답 중지 — 승인 대기 중이면 거부로 깨우고, 실행 중이면 프로세스를 멈춘다.
   func cancelPending() {
+    if store.scheduledRun != nil {
+      store.resolveScheduledApproval(.deny)
+      store.cancelAgentRun()
+      cancelUIActions()
+      return
+    }
     if let cont = continuation {
       continuation = nil
       store.agentApproval = nil
