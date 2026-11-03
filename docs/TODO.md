@@ -1,7 +1,19 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-02 KST
+> 마지막 갱신: 2026-11-03 KST
+
+## 검증 (2026-11-03) — 실측 백로그 마감: **전부 정상, 버그 없음**
+
+배포본(`~/Applications/QuickTalk.app`, 11-02 14:35 · 실행 중 PID 80576)으로 사용자가 실측했다.
+
+- **UA**: 서버 로그 클라이언트 UA **`QuickTalk/1.0`** (CFNetwork·Darwin 접미사 없음).
+- **④ 컴퓨터 제어 Phase 2 U2~U8**: 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작 — **전부 기대대로**.
+- **④ 컴퓨터 제어 Phase 1 U1~U5**: 도구 미등록(꺼짐) · 요소 읽기(켜짐) · 권한 안내 · 비밀번호 값 비노출 · 읽기 정책 승인/거부 — **전부 기대대로**.
+- **그 밖의 백로그**: v0.24 3건 · v0.23 3건 · v0.20–0.22 29항목 · 승인 폴더 기억 · Shortcuts 자동 전송 · Exa `/answer` — **정상**.
+- **기록**: `docs/qa/ui-action-2026-10-31/CHECKLIST.md`(U2~U8 체크·결과) · `docs/qa/ui-snapshot-2026-10-29/README.md`(U1~U5 결과 절) · `PLAN_v0.25` §11 체크박스 · `HANDOFF` §0.
+- **한계(정직)**: 항목별 화면 캡처·정확한 문구는 남기지 않았다 — "전부 정상"이라는 사용자 확인만 기록한다.
+- **다음**: 실측 대기가 비었으므로 개선·신규 기능 후보에서 선택. 결함이 다시 나오면 재현부터.
 
 ## 다음 (2026-11-02) — AI API User-Agent: `QuickTalk/<버전>` 한 줄로
 
@@ -10,7 +22,7 @@
 - **수정**: Core `QuickTalkUserAgent` (`LLMProvider.swift`) — `QuickTalk/` + `CFBundleShortVersionString`(없으면 `1.0`). 요청에 UA 헤더가 있으면 CFNetwork 기본 접미사는 붙지 않는다(로컬 서버로 실측).
 - **적용**: `URLRequest` 를 만드는 **8곳 전부** — OpenAI 채팅(2)·모델 목록 · Ollama 채팅(2)·태그 목록 · Exa 검색·`/answer`.
 - **검증**: `swift test` **628/628**(6 skip, 신규 7 — `UserAgentTests`) · Debug/Release **BUILD SUCCEEDED** · 로컬 HTTP 서버 실측: 기본 `swift-frontend (unknown version) CFNetwork/3896.200.61 Darwin/27.2.0` → 지정 `QuickTalk/1.0` (접미사 없음).
-- **다음**: 배포 후 서버 로그에서 UA 가 `QuickTalk/1.0` 인지 확인. 버전은 Info.plist `CFBundleShortVersionString` 을 따른다.
+- **다음**: 배포 후 서버 로그에서 UA 가 `QuickTalk/1.0` 인지 확인. 버전은 Info.plist `CFBundleShortVersionString` 을 따른다. → **✅ 2026-11-03 확인: `QuickTalk/1.0`**
 - **병합/배포**: **PR #75 → squash merge `5a616c6`** · 2026-11-02 14:35 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · **백업 번들 없음**(`.QuickTalk.old*` 삭제 — 권한 목록 중복 방지) · **앱 재실행 필요**(PID 44477 은 이전 빌드).
 
 ## 다음 (2026-10-31 3차) — ⌘Space 토글 수정: 보이는 창은 숨긴다
@@ -34,7 +46,7 @@
 - **설정**: 컴퓨터 제어 캡션에 "전역 권한과 별개" 명시(한/영 1키).
 - **검증**: `swift test` **618/618**(6 skip) · Debug/Release BUILD SUCCEEDED · **되돌려 실패 확인**(승인 뒤 ask → 3건).
 - **병합/배포**: **PR #70 → squash merge `43a4c42`** · 2026-10-31 21:50 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `d47705e6…` · 직전 20:41 빌드는 `.QuickTalk.old` · **앱 재실행 필요**(PID 31638 은 이전 빌드).
-- **다음**: 재실행 후 U2~U8 재확인 — "TextEdit에 입력" 1회에 카드가 **앱당 1장**인지.
+- **다음**: 재실행 후 U2~U8 재확인 — "TextEdit에 입력" 1회에 카드가 **앱당 1장**인지. → **✅ 2026-11-03 정상**
 
 ## 다음 (2026-10-31) — ④ 컴퓨터 제어: **Phase 2 구현 완료 · 테스트/빌드 통과 · 배포 대기**
 
@@ -47,7 +59,7 @@
 - **UI**: `[거부] [이 앱 허용] [한 번 허용]` · **“되돌릴 수 없음” 배지** · UI 동작에 “항상 허용” 없음 · 설정 › 도구·권한 › “화면 조작 허용” + 승인 앱 목록(만료일·[해제]).
 - **검증**: `swift test` **619/619**(6 skip, 신규 44) · Debug/Release BUILD SUCCEEDED · **되돌려 실패 확인**(항상 허용 → 7 · 금지 키 제거 → 10 · 좌표 거부 제거 → 1).
 - **병합**: **PR #66 → squash merge `cf5728b`** · **배포**: 2026-10-31 20:41 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `4d3e8e2b…` · **앱 재실행 필요**(PID 6058 은 이전 빌드).
-- **실측 대기(앱 재실행 후)**: U2 승인 카드/거부 · U3 7일 기억·만료일 · U4 비밀번호 거부 · U5 터미널 금지 · U6 입력 중 거부 · U7 [중단] · U8 31번째 동작. **U1·U4(읽기)도 대기**.
+- **실측 대기(앱 재실행 후)**: U2 승인 카드/거부 · U3 7일 기억·만료일 · U4 비밀번호 거부 · U5 터미널 금지 · U6 입력 중 거부 · U7 [중단] · U8 31번째 동작. **U1·U4(읽기)도 대기**. → **✅ 2026-11-03 전부 정상**
 
 ## 이전 (2026-10-29) — ④ 컴퓨터 제어: **Phase 1 완료·배포, Phase 2 대기**
 
@@ -55,7 +67,7 @@
 
 - **Phase 1(완료)**: `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · 설정 › 컴퓨터 제어.
 - **결정(확정)**: 앱별 승인 **7일 만료** · 터미널 계열 **금지 유지** · **Phase 1 먼저 배포**.
-- **실측 대기**: U1 도구 미등록(꺼짐) · U2 요소 읽기(켜짐) · U3 권한 안내 · U4 비밀번호 값 비노출 · U5 읽기 정책 승인/거부.
+- **실측 대기**: U1 도구 미등록(꺼짐) · U2 요소 읽기(켜짐) · U3 권한 안내 · U4 비밀번호 값 비노출 · U5 읽기 정책 승인/거부. → **✅ 2026-11-03 전부 정상**
 - **Phase 2(다음)**: `UiGuard`(금지 앱·보안 필드·금지 키·좌표 거부·턴당 30동작) · `UiAppGrant`(7일) · `UiControlService`(클릭·키·텍스트·스크롤·앱 전환) · 유휴 가드 · [이 앱 허용] 카드 · "되돌릴 수 없음" 배지.
 
 

@@ -1,12 +1,22 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-02 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-03 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 >
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-02 14:35 배포**했다.
+
+### 2026-11-03 인계 — 실측 마감: UA · 컴퓨터 제어 Phase 1·2 · 기타 백로그 **전부 정상**
+
+- **무엇**: 사용자가 배포본으로 ① UA `QuickTalk/1.0` ② ④ Phase 2 U2~U8 ③ ④ Phase 1 U1~U5 ④ 그 밖의 백로그(v0.24 3건 · v0.23 3건 · v0.20–0.22 29항목 · 승인 폴더 · Shortcuts · Exa `/answer`)를 실측 → **버그 없음**.
+- **기록**: `docs/qa/ui-action-2026-10-31/CHECKLIST.md`(U2~U8 체크·U4 준비 체크) · `docs/qa/ui-snapshot-2026-10-29/README.md`(U1~U5 결과 절) · `PLAN_v0.25` §11 체크박스(Phase 1·2 실측 완료).
+- **정정**: 이전 인계의 "**앱 재실행 필요**(PID 44477)" 는 **해소** — 실행 중 앱은 배포(14:35) 이후인 **11-02 18:00 기동(PID 80576)**, 배포 바이너리 SHA-256 `b0d8ad2031e3…` 와 일치.
+- **세션 검증**: `swift test` **628/628**(6 skip) 재확인 · `git status` clean · `main = 0aa9308`.
+- **한계(정직)**: 항목별 화면 캡처·정확한 문구는 남기지 않았다 — 사용자가 범위 전체를 "전부 정상"으로 확인한 기록만 있다.
+- **다음**: 실측 대기 항목이 **비었으므로** 새 작업은 개선·신규 기능 후보에서 고른다. 실제 결함이 다시 나오면 **재현 → 원인 → 되돌려 실패 확인** 순서를 지킨다.
+- **병합**: **PR #78**(문서)
 
 ### 2026-11-02 인계 — AI API User-Agent: `QuickTalk/<버전>` (배포 완료)
 
@@ -69,15 +79,15 @@
 |---|---|
 | 앱 | QuickTalk macOS, SwiftUI + AppKit, `com.borasarang.QuickTalk`, LSUIElement, 샌드박스 없음 |
 | design_profile | **custom** — 네이티브 alert/Picker/NSPopUpButton 금지(전면 설정의 기존 `pickerRow`만 예외) |
-| 현재 빌드 | **AI API User-Agent `QuickTalk/<버전>`(2026-11-02 14:35)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · **백업 번들 없음**(`.QuickTalk.old*` 삭제 — 권한 목록 중복 방지) · **앱 재실행 필요**(PID 44477 은 이전 빌드) |
-| 테스트 | **628/628**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-11-02 기준) |
-| 마지막 완료 | **AI API User-Agent `QuickTalk/<버전>`** — 기본 CFNetwork/OS 접미사 제거 · `URLRequest` 8곳 적용 · `UserAgentTests` 7 · 628/628 · **`5a616c6`(PR #75)** · 배포 2026-11-02 14:35 |
-| 이전 완료 | **⌘Space 토글 수정** — `PanelToggle`(Core 순수) · 621/621 · **`7802cfc`(PR #72)** · 2026-10-31 22:09 / **컴퓨터 제어 Phase 1(④)** — `ui_snapshot` 읽기 전용 · `UiSnapshot`/`UiElementPath` 순수 계산 · `AccessibilityService`(6초 예산) · 마스터 토글 기본 OFF · 비밀번호 값 비노출 · **`8bed1ef`(PR #63)** · 576/576 · 배포 2026-10-29 19:59 / **Shortcuts 자동 전송(③)** — `ShortcutAutoSend` 옵트인 · **`0fda8a4`** · 559/559 |
-| 다음 작업 | **① 앱 재실행 후 서버 로그 UA `QuickTalk/1.0` 확인** → ② **④ Phase 2 실측 U2~U8** — 승인 카드/거부 · 7일 기억·만료일 · 비밀번호 거부 · 터미널 금지 · 입력 중 거부 · [중단] · 31번째 동작. **먼저** 앱 재실행 후 Phase 1 U1~U5 + ①②③ 실측 5건 |
-| 실측 대기 | **U2~U8(Phase 2)** + **U1~U5(Phase 1)** + v0.24 3건 + v0.23 3건 + v0.20–v0.22 29항목 + N22·N24~N28·N30 7건 + T-21 30건 + QA 미체크 52건 |
+| 현재 빌드 | **AI API User-Agent `QuickTalk/<버전>`(2026-11-02 14:35)** `~/Applications/QuickTalk.app` · `codesign --verify --strict --deep` OK · SHA-256 `b0d8ad2031e3…` · **백업 번들 없음**(`.QuickTalk.old*` 삭제 — 권한 목록 중복 방지) · **실행 중 앱이 이 빌드**(PID 80576, 11-02 18:00 기동 — 재실행 불필요) |
+| 테스트 | **628/628**, 6 skip = `QT_LIVE` 4 + `QT_LIVE_STREAM` 2 (2026-11-03 재확인) |
+| 마지막 완료 | **실측 마감(2026-11-03)** — UA `QuickTalk/1.0` · ④ Phase 2 U2~U8 · ④ Phase 1 U1~U5 · v0.24/v0.23/v0.20–0.22·승인 폴더·Shortcuts·Exa `/answer` **전부 정상, 버그 없음** |
+| 이전 완료 | **AI API User-Agent `QuickTalk/<버전>`**(`5a616c6`, PR #75, 11-02 14:35) · **⌘Space 토글**(`7802cfc`) · **Phase 2 `ui_action`**(`cf5728b`) · **Phase 1 `ui_snapshot`**(`8bed1ef`) · **Shortcuts 자동 전송**(`0fda8a4`) · **승인 폴더 7일 기억**(`5589105`) |
+| 다음 작업 | 실측 대기 **없음** — 새 작업은 개선·신규 기능 후보에서 선택. 결함 재발 시 **재현 → 원인 → 되돌려 실패 확인** 순 |
+| 실측 대기 | **없음 (2026-11-03 사용자 확인: 전부 정상)** — 항목별 캡처·문구는 남기지 않음 |
 | 운용 방침 | **주 = 원격 OpenAI 호환, 예비 = Local Apple FM.** 로컬 Ollama는 보조(한계 수용). 설정 › AI에서 활성을 원격으로 되돌려 둔다 |
-| 실행 중 앱 | **이전 빌드**(PID 38888) — 재실행하면 ⌘Space 토글 수정 빌드 `ca715df81aa2…` 로 뜬다 |
-| git | `main` = **`7802cfc`(PR #72 — ⌘Space 토글)** · 이전 `43a4c42`(#70) · `cf5728b`(#66 Phase 2) · `8bed1ef`(#63 Phase 1) · `0fda8a4`(#60) · `c6f04a2`(#58) · `5589105`(#55) · `main` 직접 push 금지 |
+| 실행 중 앱 | **최신 배포본**(PID 80576, 11-02 18:00 기동) — UA `QuickTalk/1.0` 빌드 |
+| git | `main` = **`0aa9308`(PR #77 — 배포 백업 금지)** · 이전 `5a616c6`(#75 UA) · `7802cfc`(#72) · `43a4c42`(#70) · `cf5728b`(#66) · `8bed1ef`(#63) · `main` 직접 push 금지 |
 
 ### 다음 세션 시작점 (2026-10-29) — **④ 컴퓨터 제어 Phase 1 완료 · 배포 완료**
 
