@@ -12,7 +12,8 @@
 - **구현 순서(커밋)**: ① `28b7d26` Core 모델·규칙 → ② `46c947f` 저장·설정 › 비서 → ③ `857c040` 실행 엔진·리포트 → ④ `e0fcedd` `/할일`·비서 칩·`schedule_task` 확인 카드 → ⑤ `621e80d` 알림·딥링크·권한 안내.
 - **검증**: `swift test` **766/766**(6 skip) · Debug **BUILD SUCCEEDED** · 번역표 30여 키 추가(커버리지 테스트 통과).
 - **핵심 제약**: 앱이 꺼져 있으면 실행 없음(로그인 자동 시작 전제) · 승인 대기 중 앱 종료 시 다음 정시에 재시도 · 모델에게 일정 삭제 도구를 주지 않음 · 예약 실행 중에는 새 일정을 만들지 않음.
-- **다음**: `docs/qa/assistant-persona-2026-11-03/CHECKLIST.md` 로 **S1~S8·N1~N3 실측** → 결과 기록 → 문제 수정. (PR #80 → `732ea6e`)
+- **배포**: 2026-11-03 19:26 `~/Applications/QuickTalk.app` 교체(백업 없음) · `codesign --verify --strict --deep` OK · SHA-256 `b0a73f42a7a371cbdbb3fbb272d6cc44fa443fbb3f073e256eeeab722425be16` · **앱 재실행 필요**.
+- **다음**: `docs/qa/assistant-persona-2026-11-03/CHECKLIST.md` 로 **S1~S8·N1~N3 실측** → 결과 기록 → 문제 수정. (PR #80 → `732ea6e` · 문서 #81 → `0f891a1`)
 
 ## 검증 (2026-11-03) — 실측 백로그 마감: **전부 정상, 버그 없음**
 
