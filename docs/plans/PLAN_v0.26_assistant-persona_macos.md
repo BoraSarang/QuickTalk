@@ -1,6 +1,6 @@
 # PLAN v0.26 — 비서(페르소나) · 예약 작업 · 리포트 (macOS)
 
-> 작성: 2026-11-03 · 상태: **설계 확정 대기 (구현 전)**
+> 작성: 2026-11-03 · 상태: **1~5단계 구현 완료 (실측 대기)**
 > 상위 문서: `docs/HANDOFF.md`(단일 출처) · `docs/CHANGELOG.md` · `docs/plans/PLAN_v0.18_agent-runtime_macos.md` · `PLAN_v0.25_computer-control_macos.md`
 > i18n: 사용자 노출 문자열은 **`en`(기본) + `ko`** 동시 등록 — `Sources/QuickTalkCore/LocalizationTable.swift` 한 곳(기존 방식). 새 키 누락은 `LocalizationCoverageTests` 가 실패시킨다.
 
@@ -236,7 +236,7 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
 - `swift test` 전체 통과 · Debug/Release `xcodebuild` BUILD SUCCEEDED.
 - 오프스크린 렌더: 설정 › 비서(한/영) · `/할일` 시트(일정 3개·상태 3종) · 요약 카드(성공/실패) · 알림 문구는 텍스트 렌더로 확인.
 
-### 10.3 실측(사용자) — `docs/qa/persona-scheduler-2026-11/CHECKLIST.md`
+### 10.3 실측(사용자) — `docs/qa/assistant-persona-2026-11-03/CHECKLIST.md`
 
 | # | 항목 | 기대 |
 |---|---|---|
