@@ -199,6 +199,31 @@ public enum AgentToolCatalog {
     return tools
   }
 
+  /// **비서별** 도구 목록 (v0.26) — `PersonaTools` 가 켠 것만 넘긴다.
+  ///
+  /// 도구를 끄면 모델이 그 도구를 **고를 수 없게** 될 뿐, 실행 권한이 느슨해지지는 않는다
+  /// (권한 판정은 `AgentExecutor`·`PolicyEngine` 이 따로 한다 — 이중 게이트).
+  public static func available(for tools: PersonaTools,
+                               includingWebSearch: Bool,
+                               includingUI: Bool = false) -> [AgentTool] {
+    let wanted = Set(tools.toolNames)
+    var out = all.filter { wanted.contains($0.name) }
+    if tools.web && includingWebSearch { out.append(webSearch) }
+    if tools.ui && includingUI { out += [uiSnapshot, uiAction] }
+    return out
+  }
+
+  /// 예약 실행용 — 비서가 없으면 **현재와 같은** 목록을 돌려준다.
+  public static func available(for persona: Persona?,
+                               includingWebSearch: Bool,
+                               includingUI: Bool = false) -> [AgentTool] {
+    guard let persona else {
+      return available(includingWebSearch: includingWebSearch, includingUI: includingUI)
+    }
+    return available(for: persona.tools, includingWebSearch: includingWebSearch,
+                     includingUI: includingUI)
+  }
+
   /// 이름으로 도구를 찾는다.
   public static func tool(named name: String) -> AgentTool? {
     all.first { $0.name == name }

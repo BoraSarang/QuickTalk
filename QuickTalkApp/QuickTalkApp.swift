@@ -57,9 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var appearanceOverride: AppAppearance?
   /// QA 렌더 하네스 전용 — `--lang=`/`--theme=` 오버라이드를 해제해 **실제 설정 경로**(sink)를 태운다.
   func clearLaunchLanguageOverride() { languageOverride = nil }
+  /// 예약 작업 스케줄러 (v0.26) — 앱이 실행 중일 때만 동작한다.
+  private var scheduler: SchedulerService?
 
   /// 앱 종료 — 잠금을 명시적으로 푼다(OS 가 어차피 풀지만, 즉시 재실행이 막히지 않게).
   func applicationWillTerminate(_ notification: Notification) {
+    scheduler?.stop()
+    scheduler?.save()
     SingleInstance.release()
   }
 
@@ -83,6 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ShelfController.shared.start(store: store, chatWindowProvider: { [weak self] in self?.panel })
     PointerPillController.shared.start(store: store, onOutcome: { [weak self] in self?.handlePill($0) })
     applyShortcuts(store.settings, force: true)
+    // 예약 작업 스케줄러 — 앱이 실행 중일 때만. 꺼져 있으면 다음 설정 변경에서 시작한다.
+    let scheduler = SchedulerService(store: store)
+    self.scheduler = scheduler
+    store.schedulerService = scheduler
+    scheduler.start()
     NSLog("[QuickTalk] launched, LSUIElement=%@, shortcut=%@",
           Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? String ?? "?",
           store.settings.globalShortcut)
@@ -332,6 +341,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.applyPointerTracking(s)
         self?.applyShortcuts(s)
         self?.applyPanelLevel()
+        Task { @MainActor in self?.scheduler?.applySettings() }
       }
       .store(in: &cancellables)
   }

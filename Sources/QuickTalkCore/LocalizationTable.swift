@@ -1357,5 +1357,20 @@ extension L10n {
     "매일 같은 일을 시키거나, 비서마다 말투를 다르게 할 때.": "When you want the same job done every day, or a different tone per assistant.",
     "비서를 만들지 않으면 지금과 똑같이 동작합니다. 예약 작업은 /할일 에서 추가·삭제합니다.": "If you do not create an assistant, nothing changes. Add or delete scheduled tasks in /tasks.",
 
+    "리포트 문서": "Report",
+    "지시": "Instruction",
+    "결과": "Result",
+    "출처": "Sources",
+    "사용자 홈 폴더 밖에는 저장할 수 없습니다: %@": "Cannot save outside your home folder: %@",
+    "심볼릭 링크가 홈 폴더 밖을 가리킵니다: %@": "A symbolic link points outside your home folder: %@",
+    "리포트 폴더를 만들지 못했습니다: %@": "Could not create the report folder: %@",
+    "리포트 파일을 쓰지 못했습니다: %@": "Could not write the report file: %@",
+    "AI 프로바이더가 설정되지 않았습니다.": "No AI provider is configured.",
+    "AI 클라이언트를 만들지 못했습니다 — 설정 › AI의 모델·키를 확인하세요.": "Could not create the AI client — check the model and key in Settings › AI.",
+    "승인 대기 시간(10분)이 만료되었습니다.": "The 10-minute approval wait expired.",
+    "승인이 거부되어 작업을 마치지 못했습니다.": "The task could not finish because approval was denied.",
+    "앱이 종료되어 실행이 중단되었습니다.": "The app quit before the run finished.",
+    "24시간이 지나 건너뛰었습니다.": "Skipped because more than 24 hours had passed.",
+
   ]
 }

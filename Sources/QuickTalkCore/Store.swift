@@ -79,6 +79,9 @@ public final class ConversationStore {
     conversation.turns[i].text = text
   }
 
+  /// 대화 수정 시각 갱신 — 카드만 바뀌었을 때도 보관함 정렬이 최신으로 유지된다.
+  public func touch(_ date: Date = Date()) { conversation.updatedAt = date }
+
   /// 도우미 도구 실행 기록을 턴에 붙인다(대화 기록에 함께 남는다).
   public func appendAgentEvent(_ event: AgentEvent, to id: UUID) {
     guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }

@@ -420,7 +420,7 @@ struct ContentView: View {
                   if t.role == .assistant,
                      let events = t.agentEvents, !events.isEmpty {
                     AgentCard(events: events,
-                              approval: t.id == store.agentTurnID ? store.agentApproval : nil,
+                              approval: approvalRequest(for: t),
                               showExecution: store.settings.agentShowExecution,
                               undoEntry: store.agentUndoEntry(for: events),
                               undoMessage: store.agentUndoMessage(for: events),
@@ -595,6 +595,14 @@ struct ContentView: View {
           guard request != nil else { return }
           scrollToBottom(proxy, animated: false)
           // 긴 명령이 여러 줄로 감기면 카드 높이가 한 프레임 늦게 확정된다 — 한 번 더 맞춘다.
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            scrollToBottom(proxy, animated: false)
+          }
+        }
+        // 예약 실행이 승인을 기다리면 그 대화의 카드 끝까지 따라간다.
+        .onChange(of: store.scheduledApproval) { _, pending in
+          guard pending != nil, pending?.conversationID == store.conversation.id else { return }
+          scrollToBottom(proxy, animated: false)
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             scrollToBottom(proxy, animated: false)
           }
@@ -945,6 +953,14 @@ struct ContentView: View {
         if focusedTurn == req.turnID { focusedTurn = nil }
       }
     }
+  }
+
+  /// 승인 카드에 넘길 요청 — 현재 턴의 실행이거나 **예약 실행의 승인 대기**.
+  /// 예약 실행은 그 대화를 열었을 때만 카드가 뜬다(다른 대화에 끼어들지 않는다).
+  private func approvalRequest(for turn: Turn) -> AgentApprovalRequest? {
+    if turn.id == store.agentTurnID { return store.agentApproval }
+    if let pending = store.scheduledApproval, pending.turnID == turn.id { return pending.request }
+    return nil
   }
 
   /// 응답 대기 표시 — 자체 점 애니메이션(네이티브 인디케이터 대신) + 경과·모델 라벨
