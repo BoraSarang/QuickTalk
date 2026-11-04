@@ -55,14 +55,17 @@ public final class ConversationStore {
   }
   public func appendAssistant(text: String, elapsedMs: Int? = nil) -> Turn {
     let now = Date()
-    let turn = Turn(role: .assistant, text: text, elapsedMs: elapsedMs, createdAt: now)
+    let turn = Turn(role: .assistant, text: text, elapsedMs: elapsedMs, createdAt: now,
+                    personaID: conversation.personaID)
     conversation.turns.append(turn); conversation.updatedAt = now; return turn
   }
 
   /// 스트리밍 응답용 빈 어시스턴트 턴 — 델타가 도착할 때마다 `appendStreaming`으로 채운다.
+  /// 이때의 비서를 턴에 박아 둔다 — 도중에 비서를 바꿔도 답변 귀속이 흔들리지 않는다.
   @discardableResult
   public func beginAssistantTurn() -> UUID {
-    let turn = Turn(role: .assistant, text: "", createdAt: Date())
+    let turn = Turn(role: .assistant, text: "", createdAt: Date(),
+                    personaID: conversation.personaID)
     conversation.turns.append(turn)
     return turn.id
   }

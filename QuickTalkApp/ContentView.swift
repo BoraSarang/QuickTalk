@@ -111,6 +111,98 @@ struct ContentView: View {
       $0.turns.contains { $0.text.lowercased().contains(q) }
     }
   }
+  /// 이 답변을 만든 비서 — 턴에 기록된 비서가 우선, 구버전 기록은 대화의 현재 비서.
+  private func persona(for turn: Turn) -> Persona? {
+    store.settings.persona(turn.personaID ?? store.conversation.personaID)
+  }
+  /// 보관함을 비서별로 묶은 그룹 — 기본(비서 없음)이 먼저, 그 다음 설정 순서.
+  private struct PersonaGroup: Identifiable {
+    let id: String
+    let title: String
+    let conversations: [Conversation]
+  }
+
+  /// 이 대화의 비서 — 대화에 기록된 값이 우선, 구버전은 마지막 답변의 비서.
+  private func personaID(for c: Conversation) -> UUID? {
+    c.personaID ?? c.turns.last(where: { $0.role == .assistant })?.personaID
+  }
+
+  private var personaGroups: [PersonaGroup] {
+    var buckets: [String: [Conversation]] = [:]
+    for c in filteredArchive {
+      let key = personaID(for: c)?.uuidString ?? "none"
+      buckets[key, default: []].append(c)
+    }
+    var groups: [PersonaGroup] = []
+    if let basic = buckets.removeValue(forKey: "none"), !basic.isEmpty {
+      // 비서를 쓰지 않는 사용자에게는 예전처럼 "대화 기록" 한 칸으로 보인다.
+      let title = store.settings.personas.isEmpty ? L("대화 기록") : L("기본(비서 없음)")
+      groups.append(PersonaGroup(id: "none", title: title, conversations: basic))
+    }
+    for p in store.settings.personas {
+      if let list = buckets.removeValue(forKey: p.id.uuidString), !list.isEmpty {
+        groups.append(PersonaGroup(id: p.id.uuidString,
+                                   title: "\(p.normalized().emoji ?? "🗣") \(p.name)",
+                                   conversations: list))
+      }
+    }
+    // 비서가 삭제된 대화도 사라지지 않게 마지막 그룹으로 남긴다.
+    for (key, list) in buckets.sorted(by: { $0.key < $1.key }) {
+      groups.append(PersonaGroup(id: key, title: L("삭제된 비서"), conversations: list))
+    }
+    return groups
+  }
+
+  private func personaTag(_ p: Persona) -> some View {
+    Text("\(p.normalized().emoji ?? "🗣") \(p.name)")
+      .font(.caption2)
+      .padding(.horizontal, 5).padding(.vertical, 1)
+      .background(Capsule().fill(Color.purple.opacity(0.16)))
+      .foregroundColor(.primary)
+      .lineLimit(1)
+  }
+
+  /// 보관함 한 행 — 제목·비서·턴 수·보관 상태. 행 전체가 열기 버튼이다.
+  private func archiveRow(_ c: Conversation) -> some View {
+    ZStack(alignment: .trailing) {
+      Button { store.openConversation(c, searching: archiveQuery); tab = 0 } label: {
+        VStack(alignment: .leading) {
+          HStack(spacing: 4) {
+            if c.pinned {
+              Image(systemName: "bookmark.fill").font(.system(size: 9)).foregroundColor(.purple)
+            }
+            Text(c.displayTitle).bold().lineLimit(1)
+          }
+          // 마지막으로 이야기한 때 — "5분 전 / 3일 전 / 10월 14일"
+          HStack(spacing: 6) {
+            if let p = store.settings.persona(personaID(for: c)) {
+              personaTag(p)
+            }
+            Text(Lf("%d턴 · %@ · %@", c.turns.count,
+                    RelativeTime.text(for: c.updatedAt, now: nowTick),
+                    c.pinned ? L("보관") : Lf("%d일 보관", store.settings.keepDays)))
+              .font(.caption).foregroundColor(.gray)
+              .help(Lf("마지막 대화: %@", RelativeTime.absolute(c.updatedAt)))
+          }
+        }
+        .padding(.trailing, 72)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+
+      HStack(spacing: 6) {
+        Button {
+          renameTarget = RenameTarget(id: c.id, title: c.displayTitle)
+        } label: {
+          Text(L("변경")).font(.caption2).foregroundColor(.secondary)
+        }.help(L("제목 변경")).buttonStyle(.borderless)
+        Button { deleteTarget = DeleteTarget(conversation: c) } label: {
+          Image(systemName: "trash").foregroundColor(.red)
+        }.help(L("기록에서 삭제")).buttonStyle(.borderless)
+      }
+    }
+  }
   /// 표시 언어에 맞는 날짜 형식(언어를 바꾸면 다음 렌더부터 반영된다)
   private static var historyDate: DateFormatter {
     let f = DateFormatter()
@@ -420,6 +512,16 @@ struct ContentView: View {
                 }
                 // 보낸 메시지에 붙인 첨부를 그대로 보여준다(썸네일 + 호버 미리보기)
                 VStack(alignment: t.role == .user ? .trailing : .leading, spacing: 4) {
+                  // 이 답변을 만든 비서 — 대화 중 비서를 바꿔도 턴마다 귀속이 보인다.
+                  if t.role == .assistant, let p = persona(for: t) {
+                    HStack(spacing: 4) {
+                      Text(p.normalized().emoji ?? "🗣")
+                      Text(p.name)
+                    }
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 3)
+                  }
                   if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
                   // ★ 도구 실행 카드는 **답변보다 위**에 둔다 — 명령이 먼저 돌고 그 결과로 답하기 때문.
                   //   답변 아래에 두면 "명령 → 응답" 순서와 화면 순서가 반대가 된다(2026-10-22 사용자 지적).
@@ -1304,56 +1406,40 @@ struct ContentView: View {
             Button { tab = 0 } label: {
               VStack(alignment: .leading) {
                 Text(store.conversation.displayTitle).bold()
-                Text(Lf("%d턴 · %@ · %@", store.conversation.turns.count,
-                        RelativeTime.text(for: store.conversation.updatedAt, now: nowTick),
-                        store.conversation.pinned ? L("보관") : L("자동 저장")))
-                  .font(.caption).foregroundColor(.gray)
-                  .help(Lf("마지막 대화: %@", RelativeTime.absolute(store.conversation.updatedAt)))
+                HStack(spacing: 6) {
+                  if let p = store.settings.persona(personaID(for: store.conversation)) {
+                    personaTag(p)
+                  }
+                  Text(Lf("%d턴 · %@ · %@", store.conversation.turns.count,
+                          RelativeTime.text(for: store.conversation.updatedAt, now: nowTick),
+                          store.conversation.pinned ? L("보관") : L("자동 저장")))
+                    .font(.caption).foregroundColor(.gray)
+                    .help(Lf("마지막 대화: %@", RelativeTime.absolute(store.conversation.updatedAt)))
+                }
               }
               .frame(maxWidth: .infinity, alignment: .leading)
               .contentShape(Rectangle())
             }.buttonStyle(.plain)
           }
         }
-        Section(L("대화 기록")) {
-          if filteredArchive.isEmpty {
+        if filteredArchive.isEmpty {
+          Section(L("대화 기록")) {
             Text(archiveQuery.isEmpty ? L("기록 없음 — 대화를 보내면 자동으로 저장됩니다") : L("검색 결과 없음"))
               .font(.callout).foregroundColor(.gray)
           }
-          ForEach(filteredArchive, id: \.id) { c in
-            // 행 전체가 열기 버튼이다 — 제목이 아닌 빈 공간을 눌러도 열린다.
-            ZStack(alignment: .trailing) {
-              Button { store.openConversation(c, searching: archiveQuery); tab = 0 } label: {
-                VStack(alignment: .leading) {
-                  HStack(spacing: 4) {
-                    if c.pinned {
-                      Image(systemName: "bookmark.fill").font(.system(size: 9)).foregroundColor(.purple)
-                    }
-                    Text(c.displayTitle).bold().lineLimit(1)
-                  }
-                  // 마지막으로 이야기한 때 — "5분 전 / 3일 전 / 10월 14일"
-                  Text(Lf("%d턴 · %@ · %@", c.turns.count,
-                          RelativeTime.text(for: c.updatedAt, now: nowTick),
-                          c.pinned ? L("보관") : Lf("%d일 보관", store.settings.keepDays)))
-                    .font(.caption).foregroundColor(.gray)
-                    .help(Lf("마지막 대화: %@", RelativeTime.absolute(c.updatedAt)))
-                }
-                .padding(.trailing, 72)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+        } else if archiveQuery.isEmpty {
+          // 비서별로 묶어서 보여 준다 — 기본(비서 없음)이 먼저, 그 다음 설정 순서.
+          ForEach(personaGroups) { group in
+            Section(group.title) {
+              ForEach(group.conversations, id: \.id) { c in
+                archiveRow(c)
               }
-              .buttonStyle(.plain)
-
-              HStack(spacing: 6) {
-                Button {
-                  renameTarget = RenameTarget(id: c.id, title: c.displayTitle)
-                } label: {
-                  Text(L("변경")).font(.caption2).foregroundColor(.secondary)
-                }.help(L("제목 변경")).buttonStyle(.borderless)
-                Button { deleteTarget = DeleteTarget(conversation: c) } label: {
-                  Image(systemName: "trash").foregroundColor(.red)
-                }.help(L("기록에서 삭제")).buttonStyle(.borderless)
-              }
+            }
+          }
+        } else {
+          Section(L("검색 결과")) {
+            ForEach(filteredArchive, id: \.id) { c in
+              archiveRow(c)
             }
           }
         }
