@@ -1,6 +1,6 @@
 # PLAN v0.27 — 예약 작업 v2: 규칙 고도화 + 조회/변경/삭제 도구 + 웹 본문 읽기 (macOS)
 
-> 상태: **1·2단계 구현 완료 · 병합 `ce48d29` · 실측 대기** (2026-11-04) · 플랫폼: macos · 언어: `ko` + `en`
+> 상태: **1·2단계 구현·병합 `ce48d29`·배포 완료 · 실측 대기** (2026-11-04) · 플랫폼: macos · 언어: `ko` + `en`
 > 선행: `PLAN_v0.26_assistant-persona_macos.md`
 > 번역 리소스: `Sources/QuickTalkCore/LocalizationTable.swift` (한국어 원문 → 영어)
 
@@ -34,6 +34,7 @@
 - 비서별 모델 덮어쓰기(`Persona.model`)는 **예약 실행에만** 적용한다 — 일반 대화는 설정 › AI의 활성 모델.
 - `swift test` **813/813**(6 skip, 신규 31) · Debug/Release **BUILD SUCCEEDED** · 번역 키 65건 추가(커버리지 테스트 통과).
 - 렌더: `schedule-list` · `schedule-editor` · `schedule-card-create|update|delete` (한/영).
+- 병합: **PR #85 → squash merge `ce48d29`**. 배포: 2026-11-04 23:04 `~/Applications/QuickTalk.app` 교체(백업 없음) · SHA-256 `753bf6f3…` · 앱 재실행 필요.
 
 
 ## 1. 계기
