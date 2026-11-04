@@ -140,6 +140,10 @@ final class UIStore: ObservableObject {
 
   /// 예약 작업 스케줄러 — `AppDelegate` 가 만들고 넣어 준다(설정·`/할일` 시트·알림이 함께 쓴다).
   var schedulerService: SchedulerService?
+  /// 일정 목록이 바뀔 때마다 오르는 값 — `SchedulerService` 는 ObservableObject 가 아니라
+  /// `@Published` 로 목록을 알릴 수 없다. 저장·삭제·중지 때 이 값을 올려 `/할일` 시트가
+  /// **30초 폴링을 기다리지 않고 즉시** 다시 그리게 한다(2026-11-03).
+  @Published var scheduleRevision = 0
   /// 지금 돌고 있는 예약 실행 — 도구 카드·승인·쓰기 범위를 **현재 대화와 분리**한다.
   var scheduledRun: ScheduledRunContext?
   /// 예약 실행의 승인 대기 — 그 대화를 열었을 때만 카드에 버튼이 뜬다.

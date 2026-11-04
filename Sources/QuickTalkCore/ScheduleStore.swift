@@ -2,7 +2,7 @@ import Foundation
 
 /// `schedules.json` 한 파일의 내용. `schemaVersion` 으로 이후 마이그레이션을 구분한다.
 public struct ScheduleSnapshot: Codable, Equatable {
-  public static let currentVersion = 1
+  public static let currentVersion = 2
 
   public var schemaVersion: Int
   public var tasks: [ScheduledTask]

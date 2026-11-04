@@ -64,14 +64,19 @@ public struct Turn: Codable, Equatable {
   /// 도우미 도구 실행 기록 — 실제로 실행한 명령·출력(대화 기록에 함께 남는다).
   /// 구버전 기록에는 없는 값(nil)이며, 없으면 실행 카드를 그리지 않는다.
   public var agentEvents: [AgentEvent]?
+  /// 이 답변을 만든 비서(v0.27) — 대화 중 비서를 바꿔도 **턴마다 귀속**이 남는다.
+  /// 구버전 기록에는 없으므로 nil 이며, 그때는 대화의 현재 비서로 표시한다.
+  public var personaID: UUID?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
               elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
-              createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil) {
+              createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil,
+              personaID: UUID? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
     self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
+    self.personaID = personaID
   }
 }
 

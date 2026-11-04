@@ -1,7 +1,18 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-03 KST
+> 마지막 갱신: 2026-11-04 KST
+
+## 구현 완료 (2026-11-04) — v0.27 **1단계** 예약 규칙 v2 · 할일 삭제 반응성 · 비서 표시
+
+`docs/plans/PLAN_v0.27_schedule-v2_macos.md` — **1단계 구현 완료**(도구·`web_fetch`는 미구현).
+
+- **예약 규칙 v2**: `ScheduleRule` 에 `weekly(days:)`(월·수·금) · `everyNDays(days, hour, minute, anchor)`(이틀마다) · `interval(start…, end…, everyMinutes)`(09~21시 2시간마다) 추가. `ScheduleSkip`(주말·대한민국 공휴일 자동[음력·대체공휴일]·직접 지정 날짜)을 `ScheduledTask.skip` 으로 저장하고 다음 시각 계산에 적용. `/할일` 편집기가 5종 규칙·요일 다중 선택·N일 간격·구간/간격·제외 날짜 UI 제공. `schedules.json` **schemaVersion 1 → 2**, 기존 `weekly.weekday` 하위 호환.
+- **삭제 반응성 수정**: `SchedulerService.tasks` 가 ObservableObject 가 아니어서 `/할일` 시트가 30초 폴링에만 갱신되던 문제 → `UIStore.scheduleRevision`(저장·삭제·중지 때 증가) + `삭제 중…` 오버레이 + 제거 애니메이션.
+- **비서 표시**: `Turn.personaID` 로 답변 생성 시점의 비서를 턴마다 기록(대화 중 변경에도 귀속 유지). 채팅 답변 위 이모지+비서명, 보관함 행 비서 칩 + **비서별 섹션 그룹**(기본 → 설정 순서 → `삭제된 비서`). 구버전 기록 하위 호환.
+- **검증**: `swift test` **782/782**(6 skip, 신규 16) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 28건 추가(커버리지 테스트 통과).
+- **병합/배포**: **PR #83 → squash merge** · 2026-11-03 23:52 `~/Applications/QuickTalk.app` 교체(백업 없음) · `codesign --verify --strict --deep` OK · SHA-256 `12719362f285ece13a0e98b98ac6ce68bc5151f04bdec9949220783f6c61c09c` · 빌드 산출물과 `diff -rq` 동일.
+- **남은 v0.27(미구현)**: `schedule_list`/`schedule_update`/`schedule_delete` 도구 · `ScheduleChangeProposal` · `ScheduleProposal` 새 규칙·`skip` 파싱 · `ExaContentsClient` + `web_fetch` · 비서 AI 라벨(`프로바이더 · 모델`)·비서별 모델 오버라이드.
 
 ## 구현 완료 (2026-11-03) — v0.26 비서(페르소나) · 예약 작업 · 리포트 · 알림
 

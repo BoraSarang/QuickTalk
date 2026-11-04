@@ -1,12 +1,23 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-03 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-04 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 >
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-03 19:26 배포**(v0.26 비서·예약 작업, `b0a73f42…`)**했다.
+
+### 2026-11-04 인계 — v0.27 **1단계** 예약 규칙 v2 + 비서 표시 **병합·배포 완료** (도구는 남음)
+
+- **브랜치**: `feat/macos-schedule-v2` → **PR #83 → squash merge** (기준 `main` = `1c44711`). **`main` 직접 push 금지** 유지.
+- **무엇(1단계)**: ① 예약 규칙 v2 — `weekly(days:)`(월·수·금) · `everyNDays(anchor)`(이틀마다) · `interval`(09~21시 2시간마다) · `ScheduleSkip`(주말·대한민국 공휴일 자동[음력·대체공휴일]·직접 지정 날짜). `/할일` 편집기가 5종 규칙·요일 다중 선택·N일 간격·구간/간격·제외 날짜 UI 제공. `schedules.json` **schemaVersion 1 → 2**, 기존 `weekly.weekday` 하위 호환.
+- **무엇(수정)**: `/할일` 삭제가 **최대 30초** 뒤에 사라지던 문제 — `SchedulerService.tasks` 가 ObservableObject 가 아니라 시트가 `Timer.publish(every: 30)` 에만 갱신됐다. `UIStore.scheduleRevision`(저장·삭제·중지 때 증가) + `삭제 중…` 오버레이 + 제거 애니메이션으로 즉시 반영.
+- **무엇(비서 표시)**: `Turn.personaID` 로 **답변 생성 시점의 비서**를 턴마다 기록 — 대화 중 비서를 바꿔도 이전 답변 귀속 유지. 채팅 답변 위 이모지+비서명, 보관함 행 비서 칩 + **비서별 섹션 그룹**(기본 → 설정 순서 → `삭제된 비서`). 구버전 `history.json` 은 nil 로 읽어 대화의 현재 비서로 표시.
+- **커밋**: `489da13` Core 규칙 v2 → `7e9875a` 할일 편집기·삭제 반응성 → `c6de3f9` 비서 표시/보관함 그룹 → `d528a4e` 번역 → (문서 커밋).
+- **검증**: `swift test` **782/782**(6 skip, 신규 16) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 28건 추가(커버리지 테스트 통과).
+- **배포**: 2026-11-03 23:52 `~/Applications/QuickTalk.app` 교체(**백업 번들 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `12719362f285ece13a0e98b98ac6ce68bc5151f04bdec9949220783f6c61c09c` · 빌드 산출물과 `diff -rq` 동일 · 배포 시점에 실행 중 프로세스 없음 → **다음 실행부터 새 빌드**.
+- **남은 v0.27 (미구현 — 정직하게 기록)**: `schedule_list`(읽기) · `schedule_update`/`schedule_delete`(쓰기+확인 카드) · `ScheduleChangeProposal` · `ScheduleProposal` 의 새 규칙·`skip` 파싱 · `ExaContentsClient` + `web_fetch` · 설정 비서 AI 라벨 `프로바이더 · 모델` 및 비서별 모델 오버라이드.
 
 ### 2026-11-03 인계 — v0.26 비서·예약 작업·리포트·알림 **구현 완료** (실측 대기)
 

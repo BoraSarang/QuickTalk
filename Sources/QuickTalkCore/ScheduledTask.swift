@@ -99,6 +99,8 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
   /// 실제 지시문 — 매번 **그대로** 실행된다.
   public var instruction: String
   public var rule: ScheduleRule
+  /// 건너뛸 날 (v0.27) — 주말·공휴일·직접 지정한 날짜.
+  public var skip: ScheduleSkip
   public var enabled: Bool
   public var nextFireAt: Date?
   public var lastRun: RunRecord?
@@ -109,7 +111,8 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
   public var conversationID: UUID?
 
   public init(id: UUID = UUID(), personaID: UUID? = nil, title: String, instruction: String,
-              rule: ScheduleRule, enabled: Bool = true, nextFireAt: Date? = nil,
+              rule: ScheduleRule, skip: ScheduleSkip = .none,
+              enabled: Bool = true, nextFireAt: Date? = nil,
               lastRun: RunRecord? = nil, history: [RunRecord] = [], createdAt: Date = Date(),
               conversationID: UUID? = nil) {
     self.id = id
@@ -117,6 +120,7 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
     self.title = title
     self.instruction = instruction
     self.rule = rule
+    self.skip = skip
     self.enabled = enabled
     self.nextFireAt = nextFireAt
     self.lastRun = lastRun
@@ -125,9 +129,9 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
     self.conversationID = conversationID
   }
 
-  // 새 키(history·nextFireAt)가 없어도 읽는다.
+  // 새 키(history·nextFireAt·skip)가 없어도 읽는다.
   private enum CodingKeys: String, CodingKey {
-    case id, personaID, title, instruction, rule, enabled, nextFireAt, lastRun, history,
+    case id, personaID, title, instruction, rule, skip, enabled, nextFireAt, lastRun, history,
          createdAt, conversationID
   }
 
@@ -138,6 +142,7 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
     title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
     instruction = try c.decodeIfPresent(String.self, forKey: .instruction) ?? ""
     rule = try c.decode(ScheduleRule.self, forKey: .rule)
+    skip = try c.decodeIfPresent(ScheduleSkip.self, forKey: .skip) ?? .none
     enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
     nextFireAt = try c.decodeIfPresent(Date.self, forKey: .nextFireAt)
     lastRun = try c.decodeIfPresent(RunRecord.self, forKey: .lastRun)
@@ -156,12 +161,13 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
     return nextFireAt <= now
   }
 
-  /// 저장 직전 정규화 — 제목·지시문 공백 정리, 빈 제목 방지.
+  /// 저장 직전 정규화 — 제목·지시문 공백 정리, 빈 제목 방지, 제외 날짜 정리.
   public func normalized() -> ScheduledTask {
     var t = self
     t.title = Self.clean(title, limit: 60)
     if t.title.isEmpty { t.title = L("예약 작업") }
     t.instruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+    t.skip = skip.normalized()
     return t
   }
 
@@ -186,15 +192,15 @@ public struct ScheduledTask: Codable, Identifiable, Equatable {
     case .once:
       nextFireAt = nil
       enabled = false
-    case .daily, .weekly:
-      nextFireAt = rule.next(after: max(fireAt, now), calendar: calendar)
+    case .daily, .weekly, .everyNDays, .interval:
+      nextFireAt = rule.next(after: max(fireAt, now), calendar: calendar, skip: skip)
     }
   }
 
   /// `nextFireAt` 이 비어 있으면 채운다(앱을 새로 켰을 때). 이미 있으면 건드리지 않는다.
   public mutating func fillNextFireIfNeeded(now: Date, calendar: Calendar = .current) {
     guard enabled, nextFireAt == nil else { return }
-    nextFireAt = rule.next(after: now, calendar: calendar)
+    nextFireAt = rule.next(after: now, calendar: calendar, skip: skip)
   }
 
   private static func clean(_ raw: String, limit: Int) -> String {
