@@ -3,16 +3,29 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-04 KST
 
+## 구현 완료 (2026-11-04) — v0.27 **2단계** 일정 목록·변경·삭제 도구 · `web_fetch` · 비서 모델 오버라이드
+
+`docs/plans/PLAN_v0.27_schedule-v2_macos.md` — **1·2단계 구현 완료 · 실측 대기.**
+
+- **일정 도구**: `schedule_list`(읽기, 카드 없음) · `schedule_update`/`schedule_delete`(쓰기 + 확인 카드). 대상은 **`schedule_list` 가 돌려준 UUID 로만** 지정한다(제목 매칭 금지). "취소"는 삭제로 해석하고, 지난 리포트 파일은 남긴다.
+- **확인 카드 3종**: `SchedulePendingAction`(create/update/delete) 하나로 같은 큐에서 처리 — 등록 / 변경(전 → 후 diff) / 삭제. 10분 무응답이면 자동 취소.
+- **안전장치**: 예약 실행 중에는 **목록만** 넘긴다(`includingScheduleMutations: false`) + 실행기에서도 재차 차단. 실행 중인 일정은 변경·삭제 불가. 자가진단 모드 차단.
+- **`ScheduleProposal` v2 파싱**: `weekly(days:)` · `everyNDays`(anchor 생략 시 다음 정시) · `interval` · `skip`(객체/배열, 주말·공휴일·직접 날짜). 잘못된 값은 구체적 오류로 돌려준다.
+- **`web_fetch`**: Exa `/contents` 로 URL 본문 읽기(같은 Exa 키). http/https 만 허용, 본문은 **신뢰할 수 없는 데이터**로 표시, 출처 카드에 기록. `web_search` 와 같은 준비 조건을 공유한다.
+- **비서 AI**: 설정 › 비서에 `프로바이더 · 모델` 표시 + 모델 덮어쓰기 칸. 덮어쓰기는 **예약 실행에만** 적용된다.
+- **검증**: `swift test` **813/813**(6 skip, 신규 31 — 규칙·skip 파싱 9, 변경/삭제 10, 목록 텍스트 3, Exa contents 8, 도구 게이팅 2 등) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 65건 추가(커버리지 테스트 통과) · 오프스크린 렌더 `schedule-list` · `schedule-editor` · `schedule-card-create|update|delete`(한/영).
+- **남은 것**: 사용자 실측 S1~S6(PLAN §4) · 배포는 사용자 확인 후.
+
 ## 구현 완료 (2026-11-04) — v0.27 **1단계** 예약 규칙 v2 · 할일 삭제 반응성 · 비서 표시
 
-`docs/plans/PLAN_v0.27_schedule-v2_macos.md` — **1단계 구현 완료**(도구·`web_fetch`는 미구현).
+`docs/plans/PLAN_v0.27_schedule-v2_macos.md` — **1단계 구현 완료**(2단계에서 도구·`web_fetch` 완료).
 
 - **예약 규칙 v2**: `ScheduleRule` 에 `weekly(days:)`(월·수·금) · `everyNDays(days, hour, minute, anchor)`(이틀마다) · `interval(start…, end…, everyMinutes)`(09~21시 2시간마다) 추가. `ScheduleSkip`(주말·대한민국 공휴일 자동[음력·대체공휴일]·직접 지정 날짜)을 `ScheduledTask.skip` 으로 저장하고 다음 시각 계산에 적용. `/할일` 편집기가 5종 규칙·요일 다중 선택·N일 간격·구간/간격·제외 날짜 UI 제공. `schedules.json` **schemaVersion 1 → 2**, 기존 `weekly.weekday` 하위 호환.
 - **삭제 반응성 수정**: `SchedulerService.tasks` 가 ObservableObject 가 아니어서 `/할일` 시트가 30초 폴링에만 갱신되던 문제 → `UIStore.scheduleRevision`(저장·삭제·중지 때 증가) + `삭제 중…` 오버레이 + 제거 애니메이션.
 - **비서 표시**: `Turn.personaID` 로 답변 생성 시점의 비서를 턴마다 기록(대화 중 변경에도 귀속 유지). 채팅 답변 위 이모지+비서명, 보관함 행 비서 칩 + **비서별 섹션 그룹**(기본 → 설정 순서 → `삭제된 비서`). 구버전 기록 하위 호환.
 - **검증**: `swift test` **782/782**(6 skip, 신규 16) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 28건 추가(커버리지 테스트 통과).
 - **병합/배포**: **PR #83 → squash merge `6271c7d`** · 2026-11-03 23:52 `~/Applications/QuickTalk.app` 교체(백업 없음) · `codesign --verify --strict --deep` OK · SHA-256 `12719362f285ece13a0e98b98ac6ce68bc5151f04bdec9949220783f6c61c09c` · 빌드 산출물과 `diff -rq` 동일.
-- **남은 v0.27(미구현)**: `schedule_list`/`schedule_update`/`schedule_delete` 도구 · `ScheduleChangeProposal` · `ScheduleProposal` 새 규칙·`skip` 파싱 · `ExaContentsClient` + `web_fetch` · 비서 AI 라벨(`프로바이더 · 모델`)·비서별 모델 오버라이드.
+- **남은 v0.27(1단계 시점 기록)**: 당시 미구현이던 `schedule_list`/`schedule_update`/`schedule_delete` 도구 · `ScheduleChangeProposal` · `ScheduleProposal` 새 규칙·`skip` 파싱 · `ExaContentsClient` + `web_fetch` · 비서 AI 라벨·모델 오버라이드는 **2단계에서 완료**했다.
 
 ## 구현 완료 (2026-11-03) — v0.26 비서(페르소나) · 예약 작업 · 리포트 · 알림
 

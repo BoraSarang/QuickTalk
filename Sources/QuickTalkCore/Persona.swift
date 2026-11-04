@@ -36,7 +36,7 @@ public struct PersonaTools: Codable, Equatable, Hashable {
   public var toolNames: [String] {
     var names: [String] = []
     if read { names += ["read_file", "list_dir", "processes", "screenshot"] }
-    if web { names.append("web_search") }
+    if web { names += ["web_search", "web_fetch"] }
     if shell { names.append("shell") }
     if ui { names += ["ui_snapshot", "ui_action"] }
     return names
@@ -81,13 +81,15 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
   public var emoji: String?
   /// nil = 설정의 활성 프로바이더
   public var providerID: String?
+  /// nil = 프로바이더의 모델. **예약 실행에만** 적용되는 모델 덮어쓰기(v0.27).
+  public var model: String?
   public var tools: PersonaTools
   /// nil = 설정의 기본 리포트 폴더
   public var reportFolder: String?
   public var createdAt: Date
 
   public init(id: UUID = UUID(), name: String, role: String = "", tone: String = "",
-              emoji: String? = nil, providerID: String? = nil,
+              emoji: String? = nil, providerID: String? = nil, model: String? = nil,
               tools: PersonaTools = PersonaTools(), reportFolder: String? = nil,
               createdAt: Date = Date()) {
     self.id = id
@@ -96,6 +98,7 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
     self.tone = tone
     self.emoji = emoji
     self.providerID = providerID
+    self.model = model
     self.tools = tools
     self.reportFolder = reportFolder
     self.createdAt = createdAt
@@ -116,6 +119,7 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
     p.tone = Self.clean(tone, limit: Limits.tone)
     p.emoji = Self.firstSymbol(emoji)
     p.providerID = Self.optional(providerID)
+    p.model = Self.optional(model)
     p.reportFolder = Self.optional(reportFolder)
     return p
   }

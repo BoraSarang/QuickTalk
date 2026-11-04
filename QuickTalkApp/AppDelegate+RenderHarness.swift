@@ -103,6 +103,97 @@ extension AppDelegate {
                           approvedAt: now.addingTimeInterval(-1 * 24 * 60 * 60))
         ]
       }
+      // QA: v0.27 일정 도구 — 목록·편집기·확인 카드(등록/변경/삭제)를 **저장 없이** 그린다.
+      if CommandLine.arguments.contains(where: { $0.hasPrefix("--demo-schedule") }) {
+        let persona = Persona(name: "리서처", role: "뉴스·리서치", emoji: "🔎",
+                              model: "gpt-5-mini")
+        self.store.applyRenderOverride(personas: [persona])
+        let cal = Calendar.current
+        let now = Date()
+        let next = cal.date(byAdding: .hour, value: 6, to: now)
+        let tasks = [
+          ScheduledTask(personaID: persona.id, title: "아침 테크 뉴스",
+                        instruction: "국내외 테크 뉴스 5건을 골라 핵심만 3줄로 요약하고, 각 항목에 출처 링크를 붙여 Markdown 리포트로 저장해 줘.",
+                        rule: .weekly(days: [2, 4, 6], hour: 7, minute: 30),
+                        skip: ScheduleSkip(weekends: true, holidays: true),
+                        nextFireAt: next,
+                        lastRun: RunRecord(startedAt: now.addingTimeInterval(-86_400),
+                                           finishedAt: now.addingTimeInterval(-86_300),
+                                           status: .succeeded,
+                                           summary: "테크 뉴스 5건 요약"),
+                        createdAt: now.addingTimeInterval(-6 * 86_400)),
+          ScheduledTask(title: "환율·금리 점검",
+                        instruction: "원/달러 환율과 한국은행 기준금리 변동을 확인해 5줄로 정리해 줘.",
+                        rule: .interval(startHour: 9, startMinute: 0,
+                                        endHour: 18, endMinute: 0, everyMinutes: 180),
+                        enabled: false,
+                        lastRun: RunRecord(startedAt: now.addingTimeInterval(-2 * 86_400),
+                                           finishedAt: now.addingTimeInterval(-2 * 86_400 + 90),
+                                           status: .failed,
+                                           failureReason: "네트워크 오류"),
+                        createdAt: now.addingTimeInterval(-3 * 86_400))
+        ]
+        self.store.schedulerService?.setPreviewTasks(tasks)
+        self.renderPNG(AnyView(TaskListSheet().environmentObject(self.store)),
+                       size: NSSize(width: 640, height: 580),
+                       to: "\(dir)/schedule-list-\(suffix).png")
+        self.renderPNG(AnyView(TaskEditorSheet(task: tasks[0], isNew: false,
+                                               personas: [persona],
+                                               onSave: { _ in }, onCancel: {})
+                                .environmentObject(self.store)),
+                       size: NSSize(width: 560, height: 640),
+                       to: "\(dir)/schedule-editor-\(suffix).png")
+
+        let variant = CommandLine.arguments
+          .first { $0.hasPrefix("--demo-schedule-card=") }
+          .map { String($0.dropFirst("--demo-schedule-card=".count)) } ?? "create"
+        let action: SchedulePendingAction
+        switch variant {
+        case "update":
+          let before = tasks[0]
+          var after = before
+          after.title = "아침 테크·AI 뉴스"
+          after.rule = .weekly(days: [2, 4, 6], hour: 8, minute: 0)
+          after.enabled = false
+          let change = ScheduleChangeProposal(
+            taskID: before.id, before: before, after: after,
+            changes: [
+              .init(id: "title", label: L("제목"), before: before.title, after: after.title),
+              .init(id: "rule", label: L("규칙"),
+                    before: before.rule.humanDescription(),
+                    after: after.rule.humanDescription()),
+              .init(id: "enabled", label: L("상태"), before: L("사용 중"), after: L("중지"))
+            ])
+          action = .update(change)
+        case "delete":
+          let task = tasks[0]
+          action = .delete(ScheduleDeletionProposal(
+            taskID: task.id, title: task.title, rule: task.rule,
+            skip: task.skip.normalized(), personaName: persona.name,
+            nextFireAt: task.nextFireAt))
+        default:
+          action = .create(ScheduleProposal(
+            title: "주간 경쟁사 동향",
+            instruction: "경쟁사 3곳의 이번 주 발표·가격 변경을 확인해 표로 정리하고, 눈에 띄는 변화 2가지를 짚어 줘.",
+            rule: .weekly(days: [6], hour: 17, minute: 0),
+            skip: ScheduleSkip(weekends: false, holidays: true),
+            personaID: persona.id, personaName: persona.name))
+        }
+        self.store.pendingSchedule = ScheduleConfirmation(
+          conversationID: self.store.conversation.id, turnID: nil,
+          action: action, isDuplicate: false)
+        self.renderPNG(AnyView(
+          ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            ScheduleProposalCard(pending: self.store.pendingSchedule!)
+              .padding(16)
+              .frame(width: 460)
+          }
+          .environmentObject(self.store)),
+          size: NSSize(width: 460, height: variant == "update" ? 240 : 210),
+          to: "\(dir)/schedule-card-\(variant)-\(suffix).png")
+        self.store.pendingSchedule = nil
+      }
       self.renderPNG(AnyView(SettingsView(initialTab: tab,
                                           initialAgentRuleProbe: ruleProbe)
                               .environmentObject(self.store)),

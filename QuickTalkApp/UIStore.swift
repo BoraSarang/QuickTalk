@@ -232,53 +232,105 @@ final class UIStore: ObservableObject {
     let duplicate = schedulerService?.tasks.contains {
       $0.title == proposal.title && $0.rule == proposal.rule
     } ?? false
-    return await withCheckedContinuation { cont in
+    return await requestScheduleAction(.create(proposal), isDuplicate: duplicate)
+  }
+
+  /// `schedule_update` 확인 카드 — 변경 전 → 변경 후를 보여 준다.
+  @MainActor
+  func requestScheduleChangeConfirmation(_ change: ScheduleChangeProposal) async -> Bool {
+    guard scheduledRun == nil, !agentSelfTestMode else { return false }
+    return await requestScheduleAction(.update(change))
+  }
+
+  /// `schedule_delete` 확인 카드 — "취소"는 삭제다.
+  @MainActor
+  func requestScheduleDeletionConfirmation(_ deletion: ScheduleDeletionProposal) async -> Bool {
+    guard scheduledRun == nil, !agentSelfTestMode else { return false }
+    return await requestScheduleAction(.delete(deletion))
+  }
+
+  @MainActor
+  private func requestScheduleAction(_ action: SchedulePendingAction,
+                                     isDuplicate: Bool = false) async -> Bool {
+    await withCheckedContinuation { cont in
       scheduleContinuation = cont
       pendingSchedule = ScheduleConfirmation(conversationID: conversation.id,
                                              turnID: agentTurnID,
-                                             proposal: proposal,
-                                             isDuplicate: duplicate)
+                                             action: action,
+                                             isDuplicate: isDuplicate)
       scheduleTimer?.invalidate()
-      scheduleTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
-        Task { @MainActor in self.resolveScheduleProposal(accept: false) }
+      scheduleTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { [weak self] _ in
+        Task { @MainActor in self?.resolveScheduleProposal(accept: false) }
       }
     }
   }
 
-  /// 카드의 [등록]/[취소]. 등록하면 `SchedulerService` 가 다음 실행 시각을 채워 저장한다.
+  /// 카드의 [등록]/[변경]/[삭제]/[취소]. 승인하면 `SchedulerService` 가 저장한다.
   @MainActor
   func resolveScheduleProposal(accept: Bool) {
     scheduleTimer?.invalidate()
     scheduleTimer = nil
     let pending = pendingSchedule
     pendingSchedule = nil
-    var registered = false
+    var applied = false
     if accept, let pending {
-      registered = register(pending)
+      switch pending.action {
+      case .create(let proposal):
+        applied = register(proposal)
+      case .update(let change):
+        applied = applyScheduleChange(change)
+      case .delete(let deletion):
+        applied = deleteSchedule(deletion)
+      }
     }
     guard let cont = scheduleContinuation else { return }
     scheduleContinuation = nil
-    cont.resume(returning: registered)
+    cont.resume(returning: applied)
   }
 
   /// 같은 제목·규칙이 있으면 **덮어쓴다**(중복 일정 방지). 없으면 새로 만든다.
   @MainActor
-  private func register(_ pending: ScheduleConfirmation) -> Bool {
+  private func register(_ p: ScheduleProposal) -> Bool {
     guard let service = schedulerService else { return false }
-    let p = pending.proposal
     if let existing = service.tasks.first(where: { $0.title == p.title && $0.rule == p.rule }) {
       var task = existing
       task.instruction = p.instruction
       task.personaID = p.personaID
+      task.skip = p.skip
       task.enabled = true
       task.nextFireAt = nil
       service.upsert(task)
       NSLog("[QuickTalk] 예약 작업 수정 — %@", task.title)
     } else {
       let task = service.upsert(ScheduledTask(personaID: p.personaID, title: p.title,
-                                              instruction: p.instruction, rule: p.rule))
+                                              instruction: p.instruction, rule: p.rule,
+                                              skip: p.skip))
       NSLog("[QuickTalk] 예약 작업 등록 — %@ (%@)", task.title, task.rule.humanDescription())
     }
+    return true
+  }
+
+  /// 변경 승인 — 실행 중인 일정은 건드리지 않는다(사람이 없는 자리에서 규칙이 바뀌면 위험).
+  @MainActor
+  private func applyScheduleChange(_ change: ScheduleChangeProposal) -> Bool {
+    guard let service = schedulerService,
+          service.task(change.taskID) != nil,
+          !service.isRunning(change.taskID) else { return false }
+    var task = change.after
+    task.nextFireAt = nil
+    service.upsert(task)
+    NSLog("[QuickTalk] 예약 작업 변경 — %@ (%@)", task.title, task.rule.humanDescription())
+    return true
+  }
+
+  /// 삭제 승인 — 리포트 파일은 그대로 둔다(PLAN §8.2).
+  @MainActor
+  private func deleteSchedule(_ deletion: ScheduleDeletionProposal) -> Bool {
+    guard let service = schedulerService,
+          service.task(deletion.taskID) != nil,
+          !service.isRunning(deletion.taskID) else { return false }
+    service.delete(deletion.taskID)
+    NSLog("[QuickTalk] 예약 작업 삭제 — %@", deletion.title)
     return true
   }
   /// 공통 메모리 — 모든 대화에 적용되는 사용자 작성 사실(PLAN_v0.16).
@@ -821,6 +873,13 @@ final class UIStore: ObservableObject {
 
   /// QA 자가검증 전용 — true면 `syncArchive()`가 파일을 쓰지 않는다(사용자 기록 보호).
   var suppressArchiveSaveForSelfTest = false
+
+  /// QA 렌더 전용 — 비서 목록을 **메모리에서만** 바꾼다(설정 저장 없음).
+  func applyRenderOverride(personas: [Persona]) {
+    suppressSettingsSave = true
+    settings.personas = personas
+    suppressSettingsSave = false
+  }
 
   /// QA 실검증용 — 활성 프로바이더를 **메모리에서만** 바꾼다(설정 저장 없음).
   func applyRenderOverride(activeProviderID id: String) {

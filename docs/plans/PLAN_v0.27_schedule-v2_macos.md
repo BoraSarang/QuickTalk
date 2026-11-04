@@ -1,6 +1,6 @@
 # PLAN v0.27 — 예약 작업 v2: 규칙 고도화 + 조회/변경/삭제 도구 + 웹 본문 읽기 (macOS)
 
-> 상태: **1단계 구현 완료 · 2단계(도구) 미구현** (2026-11-04) · 플랫폼: macos · 언어: `ko` + `en`
+> 상태: **1·2단계 구현 완료 · 실측 대기** (2026-11-04) · 플랫폼: macos · 언어: `ko` + `en`
 > 선행: `PLAN_v0.26_assistant-persona_macos.md`
 > 번역 리소스: `Sources/QuickTalkCore/LocalizationTable.swift` (한국어 원문 → 영어)
 
@@ -16,14 +16,24 @@
 - [x] 목록 삭제 즉시 반영 — `UIStore.scheduleRevision` + `삭제 중…` 오버레이
 - [x] 규칙·제외·공휴일·Codable 회귀 테스트 14건
 - [x] `swift test` **782/782**(6 skip) · Debug/Release **BUILD SUCCEEDED**
-- [ ] `schedule_list` 도구 (읽기 — 카드 없음)
-- [ ] `schedule_update` / `schedule_delete` 도구 (쓰기 + 확인 카드, UUID 로만 대상 지정)
-- [ ] `ScheduleChangeProposal` — 변경 전 → 변경 후 카드
-- [ ] `ScheduleProposal` — 새 규칙(`weekly(days:)`·`everyNDays`·`interval`)·`skip` 파싱
-- [ ] `ExaContentsClient` + `web_fetch` (Exa `/contents`, 같은 키)
-- [ ] 예약 실행 중 변경·삭제 금지, 실행 중 일정 변경 금지, 턴당 변경 1건
-- [ ] 오프스크린 렌더(편집 시트 5종·제외, 목록 카드, 확인 카드 3종)
+- [x] `schedule_list` 도구 (읽기 — 카드 없음)
+- [x] `schedule_update` / `schedule_delete` 도구 (쓰기 + 확인 카드, UUID 로만 대상 지정)
+- [x] `ScheduleChangeProposal` — 변경 전 → 변경 후 카드
+- [x] `ScheduleProposal` — 새 규칙(`weekly(days:)`·`everyNDays`·`interval`)·`skip` 파싱
+- [x] `ExaContentsClient` + `web_fetch` (Exa `/contents`, 같은 키)
+- [x] 예약 실행 중 변경·삭제 금지, 실행 중 일정 변경 금지, 턴당 변경 1건
+- [x] 오프스크린 렌더(편집 시트 5종·제외, 목록 카드, 확인 카드 3종)
 - [ ] 사용자 실측 S1~S6
+
+### 2단계 기록 (2026-11-04)
+
+- `SchedulePendingAction`(create/update/delete) 하나로 확인 카드 3종을 같은 큐에서 처리한다.
+- `schedule_list` 는 읽기 전용 — 모델은 여기서 받은 **UUID** 로만 변경·삭제를 요청한다.
+- 예약 실행에는 `schedule_list` 만 넘긴다(`includingScheduleMutations: false`) — 사람이 없는 자리에서 일정이 늘거나 지워지지 않게.
+- `web_fetch` 는 Exa `/contents` 를 쓰고 본문을 **신뢰할 수 없는 데이터**로 표시한다. `web_search` 와 같은 준비 조건(Exa 키 + Apple FM 아님)을 공유한다.
+- 비서별 모델 덮어쓰기(`Persona.model`)는 **예약 실행에만** 적용한다 — 일반 대화는 설정 › AI의 활성 모델.
+- `swift test` **813/813**(6 skip, 신규 31) · Debug/Release **BUILD SUCCEEDED** · 번역 키 65건 추가(커버리지 테스트 통과).
+- 렌더: `schedule-list` · `schedule-editor` · `schedule-card-create|update|delete` (한/영).
 
 
 ## 1. 계기

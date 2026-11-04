@@ -30,6 +30,12 @@ final class AgentExecutor: AgentToolExecutor {
   private var continuation: CheckedContinuation<AgentApprovalChoice, Never>?
   /// 이번 턴에 `web_search` 로 모은 출처 — 답변 아래 출처 카드에 쓴다.
   private(set) var turnSources: [TurnSource] = []
+
+  /// 이번 턴 출처에 한 건 추가 — `web_search`·`web_fetch` 가 같은 목록을 쓴다.
+  func addTurnSource(_ source: TurnSource) {
+    guard !turnSources.contains(where: { $0.url == source.url }) else { return }
+    turnSources.append(source)
+  }
   /// 이번 턴에 받은 화면 스냅샷 — 참조(`r12`)를 경로로 되돌린다(앱별 1장).
   var uiTrees: [String: UiTree] = [:]
   /// 마지막 스냅샷의 키 — 모델이 앱을 생략하면 이 앱을 쓴다.
@@ -67,9 +73,13 @@ final class AgentExecutor: AgentToolExecutor {
     case "processes": return await runProcesses(call)
     case "screenshot": return await captureScreenshot(call)
     case "web_search": return await runWebSearch(call)
+    case "web_fetch": return await runWebFetch(call)
     case "ui_snapshot": return await runUiSnapshot(call)
     case "ui_action": return await runUiAction(call)
+    case "schedule_list": return await listSchedules(call)
     case "schedule_task": return await proposeSchedule(call)
+    case "schedule_update": return await proposeScheduleChange(call)
+    case "schedule_delete": return await proposeScheduleDeletion(call)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
