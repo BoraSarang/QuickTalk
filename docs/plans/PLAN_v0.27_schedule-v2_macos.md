@@ -6,7 +6,7 @@
 
 ## 0. 진행 상태 (2026-11-04)
 
-**PR #83 → squash merge** 로 1단계가 `main` 에 들어갔다. 배포본 SHA-256 `12719362…`.
+**PR #83 → squash merge `6271c7d`** (2026-11-04)로 1단계가 `main` 에 들어갔다. 배포본 SHA-256 `12719362…`.
 
 - [x] `ScheduleRule` v2 — `weekly(days:)` · `everyNDays` · `interval` · `once` (기존 `weekly(weekday:)` 팩토리 유지)
 - [x] `ScheduleSkip` — 주말 · 대한민국 공휴일(음력·대체공휴일) · `extraDates`

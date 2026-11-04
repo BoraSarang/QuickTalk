@@ -10,7 +10,7 @@
 
 ### 2026-11-04 인계 — v0.27 **1단계** 예약 규칙 v2 + 비서 표시 **병합·배포 완료** (도구는 남음)
 
-- **브랜치**: `feat/macos-schedule-v2` → **PR #83 → squash merge** (기준 `main` = `1c44711`). **`main` 직접 push 금지** 유지.
+- **브랜치**: `feat/macos-schedule-v2` → **PR #83 → squash merge `6271c7d`** (2026-11-04, 기준 `main` = `1c44711`). **`main` 직접 push 금지** 유지.
 - **무엇(1단계)**: ① 예약 규칙 v2 — `weekly(days:)`(월·수·금) · `everyNDays(anchor)`(이틀마다) · `interval`(09~21시 2시간마다) · `ScheduleSkip`(주말·대한민국 공휴일 자동[음력·대체공휴일]·직접 지정 날짜). `/할일` 편집기가 5종 규칙·요일 다중 선택·N일 간격·구간/간격·제외 날짜 UI 제공. `schedules.json` **schemaVersion 1 → 2**, 기존 `weekly.weekday` 하위 호환.
 - **무엇(수정)**: `/할일` 삭제가 **최대 30초** 뒤에 사라지던 문제 — `SchedulerService.tasks` 가 ObservableObject 가 아니라 시트가 `Timer.publish(every: 30)` 에만 갱신됐다. `UIStore.scheduleRevision`(저장·삭제·중지 때 증가) + `삭제 중…` 오버레이 + 제거 애니메이션으로 즉시 반영.
 - **무엇(비서 표시)**: `Turn.personaID` 로 **답변 생성 시점의 비서**를 턴마다 기록 — 대화 중 비서를 바꿔도 이전 답변 귀속 유지. 채팅 답변 위 이모지+비서명, 보관함 행 비서 칩 + **비서별 섹션 그룹**(기본 → 설정 순서 → `삭제된 비서`). 구버전 `history.json` 은 nil 로 읽어 대화의 현재 비서로 표시.
