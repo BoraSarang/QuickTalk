@@ -76,6 +76,8 @@ final class SchedulerService {
       NSLog("[WARN] E-MAC-AGENT-0003 schedules.json 저장 실패: %@",
             String(describing: error))
     }
+    // 저장이 끝난 뒤 목록 변경을 알린다 — `/할일` 시트가 즉시 다시 그린다.
+    store.scheduleRevision &+= 1
   }
 
   // MARK: - 조회·편집 (4단계 `/할일` 이 쓴다)

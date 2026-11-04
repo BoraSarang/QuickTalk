@@ -15,6 +15,8 @@ struct TaskListSheet: View {
   @State private var editing: ScheduledTask?
   @State private var isNew = false
   @State private var deleting: ScheduledTask?
+  /// 삭제가 진행 중인 일정 — 카드에 진행 표시를 띄운다.
+  @State private var deletingIDs: Set<UUID> = []
   @State private var nowTick = Date()
 
   private var tasks: [ScheduledTask] { store.schedulerService?.tasks ?? [] }
@@ -53,6 +55,7 @@ struct TaskListSheet: View {
               taskCard(task)
             }
           }
+          .animation(.easeInOut(duration: 0.18), value: tasks.map(\.id))
           .padding(16)
         }
       }
@@ -81,8 +84,22 @@ struct TaskListSheet: View {
         message: L("더 이상 실행되지 않습니다. 지난 리포트 파일은 그대로 남습니다."),
         confirmLabel: L("삭제")
       ) {
-        store.schedulerService?.delete(task.id)
+        beginDelete(task)
       }
+    }
+  }
+
+  /// 삭제 시작 — 카드에 "삭제 중…" 을 먼저 보이게 하고 실제 삭제는 다음 런루프에서 한다.
+  ///
+  /// 저장은 원래 즉시 끝나지만, 목록이 30초 폴링에만 갱신되던 동안 "안 되는 것처럼"
+  /// 보였다(2026-11-03). 이제 `UIStore.scheduleRevision` 이 즉시 갱신하므로
+  /// 삭제는 눈에 보이는 즉시 반영되고, 이 표시는 느린 저장에 대한 안전장치다.
+  private func beginDelete(_ task: ScheduledTask) {
+    deletingIDs.insert(task.id)
+    Task { @MainActor in
+      await Task.yield()
+      store.schedulerService?.delete(task.id)
+      deletingIDs.remove(task.id)
     }
   }
 
@@ -175,6 +192,20 @@ struct TaskListSheet: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color(nsColor: .controlBackgroundColor).opacity(0.55))
     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .overlay {
+      if deletingIDs.contains(task.id) {
+        ZStack {
+          RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.7))
+          HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(L("삭제 중…"))
+              .font(.caption).foregroundColor(.secondary)
+          }
+        }
+      }
+    }
+    .opacity(deletingIDs.contains(task.id) ? 0.6 : 1)
   }
 
   private func statusChip(_ task: ScheduledTask) -> some View {
@@ -226,16 +257,28 @@ struct TaskEditorSheet: View {
   @State private var draft: ScheduledTask
   @State private var kind: Kind
   @State private var time: Date
-  @State private var weekday: Int
+  /// 매주 — 여러 요일 (1=일 … 7=토).
+  @State private var weekdays: Set<Int>
   @State private var onceDate: Date
+  /// N일마다.
+  @State private var everyNDays: Int
+  @State private var anchorDate: Date
+  /// 구간 반복.
+  @State private var intervalStart: Date
+  @State private var intervalEnd: Date
+  @State private var everyMinutes: Int
+  /// 제외 날짜 입력칸.
+  @State private var newSkipDate = ""
 
   private enum Kind: Int, CaseIterable, Identifiable {
-    case daily, weekly, once
+    case daily, weekly, everyNDays, interval, once
     var id: Int { rawValue }
     var label: String {
       switch self {
       case .daily: return L("매일")
       case .weekly: return L("매주")
+      case .everyNDays: return L("N일마다")
+      case .interval: return L("구간 반복")
       case .once: return L("한 번")
       }
     }
@@ -253,24 +296,44 @@ struct TaskEditorSheet: View {
     let cal = Calendar.current
     var kind = Kind.daily
     var time = cal.date(from: DateComponents(hour: 9, minute: 0)) ?? Date()
-    var weekday = 2
+    var weekdays: Set<Int> = [2]
     var once = Date().addingTimeInterval(60 * 60)
+    var nDays = 2
+    var anchor = cal.startOfDay(for: Date())
+    var start = cal.date(from: DateComponents(hour: 9, minute: 0)) ?? time
+    var end = cal.date(from: DateComponents(hour: 21, minute: 0)) ?? time
+    var cadence = 120
     switch task.rule {
     case let .daily(hour, minute):
       kind = .daily
       time = cal.date(from: DateComponents(hour: hour, minute: minute)) ?? time
-    case let .weekly(w, hour, minute):
+    case let .weekly(days, hour, minute):
       kind = .weekly
-      weekday = w
+      weekdays = Set(days)
       time = cal.date(from: DateComponents(hour: hour, minute: minute)) ?? time
+    case let .everyNDays(days, hour, minute, a):
+      kind = .everyNDays
+      nDays = days
+      anchor = a
+      time = cal.date(from: DateComponents(hour: hour, minute: minute)) ?? time
+    case let .interval(sh, sm, eh, em, every):
+      kind = .interval
+      start = cal.date(from: DateComponents(hour: sh, minute: sm)) ?? start
+      end = cal.date(from: DateComponents(hour: eh, minute: em)) ?? end
+      cadence = every
     case let .once(date):
       kind = .once
       once = date
     }
     _kind = State(initialValue: kind)
     _time = State(initialValue: time)
-    _weekday = State(initialValue: weekday)
+    _weekdays = State(initialValue: weekdays)
     _onceDate = State(initialValue: once)
+    _everyNDays = State(initialValue: nDays)
+    _anchorDate = State(initialValue: anchor)
+    _intervalStart = State(initialValue: start)
+    _intervalEnd = State(initialValue: end)
+    _everyMinutes = State(initialValue: cadence)
   }
 
   var body: some View {
@@ -320,10 +383,10 @@ struct TaskEditorSheet: View {
               ForEach(Kind.allCases) { k in Text(k.label).tag(k) }
             }
             .labelsHidden().pickerStyle(.segmented)
-            .frame(width: 220)
+            .frame(width: 420)
           }
 
-          if kind != .once {
+          if kind == .daily || kind == .weekly || kind == .everyNDays {
             HStack {
               Text(L("시각")).font(.body)
               Spacer()
@@ -331,19 +394,78 @@ struct TaskEditorSheet: View {
                 .labelsHidden().datePickerStyle(.stepperField)
             }
           }
+
           if kind == .weekly {
-            HStack {
+            HStack(alignment: .center) {
               Text(L("요일")).font(.body)
               Spacer()
-              Picker("", selection: $weekday) {
+              HStack(spacing: 4) {
                 ForEach(1...7, id: \.self) { w in
-                  Text(ScheduleRule.weekdayName(w)).tag(w)
+                  Button {
+                    if weekdays.contains(w) { weekdays.remove(w) } else { weekdays.insert(w) }
+                  } label: {
+                    Text(ScheduleRule.weekdayShortName(w))
+                      .font(.caption)
+                      .frame(width: 26, height: 22)
+                      .background(weekdays.contains(w)
+                                  ? Color.accentColor.opacity(0.2)
+                                  : Color.secondary.opacity(0.1))
+                      .foregroundColor(weekdays.contains(w) ? .accentColor : .secondary)
+                      .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                  }
+                  .buttonStyle(.plain)
+                }
+              }
+            }
+          }
+
+          if kind == .everyNDays {
+            HStack {
+              Text(L("간격")).font(.body)
+              Spacer()
+              Stepper(value: $everyNDays, in: 2...365) {
+                Text(Lf("%d일마다", everyNDays)).font(.body)
+              }
+              .frame(width: 150)
+            }
+            HStack {
+              Text(L("첫 실행일")).font(.body)
+              Spacer()
+              DatePicker("", selection: $anchorDate, displayedComponents: .date)
+                .labelsHidden()
+            }
+          }
+
+          if kind == .interval {
+            HStack {
+              Text(L("시작")).font(.body)
+              Spacer()
+              DatePicker("", selection: $intervalStart, displayedComponents: .hourAndMinute)
+                .labelsHidden().datePickerStyle(.stepperField)
+            }
+            HStack {
+              Text(L("끝")).font(.body)
+              Spacer()
+              DatePicker("", selection: $intervalEnd, displayedComponents: .hourAndMinute)
+                .labelsHidden().datePickerStyle(.stepperField)
+            }
+            HStack {
+              Text(L("간격")).font(.body)
+              Spacer()
+              Picker("", selection: $everyMinutes) {
+                ForEach([30, 60, 120, 180, 240, 360, 480, 720], id: \.self) { m in
+                  Text(ScheduleRule.cadenceText(minutes: m)).tag(m)
                 }
               }
               .labelsHidden().pickerStyle(.menu)
               .frame(width: 140, alignment: .trailing)
             }
+            if intervalSpanMinutes <= 0 || everyMinutes > intervalSpanMinutes {
+              Text(L("간격이 구간보다 깁니다. 끝 시각을 늘리거나 간격을 줄이세요."))
+                .font(.caption).foregroundColor(.orange)
+            }
           }
+
           if kind == .once {
             HStack {
               Text(L("실행 시각")).font(.body)
@@ -352,6 +474,44 @@ struct TaskEditorSheet: View {
                          in: Date().addingTimeInterval(60)...,
                          displayedComponents: [.date, .hourAndMinute])
                 .labelsHidden()
+            }
+          }
+
+          Divider()
+
+          VStack(alignment: .leading, spacing: 8) {
+            Text(L("제외")).font(.body)
+            HStack(spacing: 16) {
+              Toggle(L("주말 제외"), isOn: $draft.skip.weekends)
+              Toggle(L("공휴일 제외"), isOn: $draft.skip.holidays)
+            }
+            Text(L("공휴일은 대한민국 공휴일을 자동 계산합니다. 임시공휴일·선거일은 아래에 직접 추가하세요."))
+              .font(.caption).foregroundColor(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            if !draft.skip.extraDates.isEmpty {
+              ForEach(draft.skip.extraDates, id: \.self) { day in
+                HStack {
+                  Text(day).font(.caption)
+                  Spacer()
+                  Button {
+                    draft.skip.extraDates.removeAll { $0 == day }
+                  } label: {
+                    Image(systemName: "xmark.circle.fill")
+                  }
+                  .buttonStyle(.borderless).foregroundColor(.secondary)
+                }
+              }
+            }
+            HStack {
+              TextField("yyyy-MM-dd", text: $newSkipDate)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 130)
+              Button(L("날짜 추가")) { addSkipDate() }
+                .disabled(ScheduleSkip.normalizedDayKey(newSkipDate) == nil)
+              if !newSkipDate.isEmpty && ScheduleSkip.normalizedDayKey(newSkipDate) == nil {
+                Text(L("yyyy-MM-dd 형식으로 입력하세요."))
+                  .font(.caption).foregroundColor(.orange)
+              }
             }
           }
 
@@ -374,11 +534,12 @@ struct TaskEditorSheet: View {
         }
         .keyboardShortcut(.defaultAction)
         .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                  draft.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                  draft.instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                  !ruleIsValid)
       }
       .padding(16)
     }
-    .frame(width: 560, height: 560)
+    .frame(width: 560, height: 640)
   }
 
   private func save() {
@@ -389,12 +550,52 @@ struct TaskEditorSheet: View {
     case .daily:
       task.rule = .daily(hour: c.hour ?? 9, minute: c.minute ?? 0)
     case .weekly:
-      task.rule = .weekly(weekday: weekday, hour: c.hour ?? 9, minute: c.minute ?? 0)
+      let days = weekdays.isEmpty ? [2] : Array(weekdays).sorted()
+      task.rule = .weekly(days: days, hour: c.hour ?? 9, minute: c.minute ?? 0)
+    case .everyNDays:
+      task.rule = .everyNDays(days: max(1, everyNDays),
+                              hour: c.hour ?? 9, minute: c.minute ?? 0,
+                              anchor: cal.startOfDay(for: anchorDate))
+    case .interval:
+      let s = cal.dateComponents([.hour, .minute], from: intervalStart)
+      let e = cal.dateComponents([.hour, .minute], from: intervalEnd)
+      task.rule = .interval(startHour: s.hour ?? 9, startMinute: s.minute ?? 0,
+                            endHour: e.hour ?? 21, endMinute: e.minute ?? 0,
+                            everyMinutes: everyMinutes)
     case .once:
       task.rule = .once(onceDate)
     }
     // 규칙이 바뀌면 다음 시각을 다시 계산한다(수정 시 옛 시각이 남지 않게).
     task.nextFireAt = nil
+    task.skip = draft.skip.normalized()
     onSave(task.normalized())
+  }
+
+  /// 구간 길이(분) — 간격 검증에 쓴다.
+  private var intervalSpanMinutes: Int {
+    let cal = Calendar.current
+    let s = cal.dateComponents([.hour, .minute], from: intervalStart)
+    let e = cal.dateComponents([.hour, .minute], from: intervalEnd)
+    return ((e.hour ?? 0) * 60 + (e.minute ?? 0)) - ((s.hour ?? 0) * 60 + (s.minute ?? 0))
+  }
+
+  private var ruleIsValid: Bool {
+    switch kind {
+    case .weekly:
+      return !weekdays.isEmpty
+    case .interval:
+      return intervalSpanMinutes > 0 && everyMinutes <= intervalSpanMinutes
+    default:
+      return true
+    }
+  }
+
+  private func addSkipDate() {
+    guard let key = ScheduleSkip.normalizedDayKey(newSkipDate) else { return }
+    if !draft.skip.extraDates.contains(key) {
+      draft.skip.extraDates.append(key)
+      draft.skip.extraDates.sort()
+    }
+    newSkipDate = ""
   }
 }
