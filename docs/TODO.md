@@ -15,6 +15,7 @@
 - **비서 AI**: 설정 › 비서에 `프로바이더 · 모델` 표시 + 모델 덮어쓰기 칸. 덮어쓰기는 **예약 실행에만** 적용된다.
 - **검증**: `swift test` **813/813**(6 skip, 신규 31 — 규칙·skip 파싱 9, 변경/삭제 10, 목록 텍스트 3, Exa contents 8, 도구 게이팅 2 등) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 65건 추가(커버리지 테스트 통과) · 오프스크린 렌더 `schedule-list` · `schedule-editor` · `schedule-card-create|update|delete`(한/영).
 - **남은 것**: 사용자 실측 S1~S6(PLAN §4) · 배포는 사용자 확인 후.
+- **병합**: **PR #85 → squash merge `ce48d29`** (2026-11-04).
 
 ## 구현 완료 (2026-11-04) — v0.27 **1단계** 예약 규칙 v2 · 할일 삭제 반응성 · 비서 표시
 

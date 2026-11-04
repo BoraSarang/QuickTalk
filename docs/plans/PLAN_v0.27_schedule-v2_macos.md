@@ -1,6 +1,6 @@
 # PLAN v0.27 — 예약 작업 v2: 규칙 고도화 + 조회/변경/삭제 도구 + 웹 본문 읽기 (macOS)
 
-> 상태: **1·2단계 구현 완료 · 실측 대기** (2026-11-04) · 플랫폼: macos · 언어: `ko` + `en`
+> 상태: **1·2단계 구현 완료 · 병합 `ce48d29` · 실측 대기** (2026-11-04) · 플랫폼: macos · 언어: `ko` + `en`
 > 선행: `PLAN_v0.26_assistant-persona_macos.md`
 > 번역 리소스: `Sources/QuickTalkCore/LocalizationTable.swift` (한국어 원문 → 영어)
 
