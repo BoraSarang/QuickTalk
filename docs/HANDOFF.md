@@ -8,6 +8,18 @@
 >
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-03 19:26 배포**(v0.26 비서·예약 작업, `b0a73f42…`)**했다.
 
+### 2026-11-04 인계 (2) — v0.27 **2단계** 일정 도구·`web_fetch`·비서 모델 오버라이드 **구현 완료** (실측 대기)
+
+- **브랜치**: `feat/macos-schedule-tools` (기준 `main` = `2217589`). **`main` 직접 push 금지** 유지.
+- **무엇(도구)**: `schedule_list`(읽기 — 카드 없음) · `schedule_update`/`schedule_delete`(쓰기 + 확인 카드). 대상은 **`schedule_list` 가 돌려준 UUID 로만** 지정한다(제목 매칭 금지). "취소"는 삭제로 해석하며 지난 리포트 파일은 남긴다. `SchedulePendingAction`(create/update/delete) 하나로 확인 카드 3종을 같은 큐에서 처리한다.
+- **무엇(안전)**: 예약 실행에는 `schedule_list` 만 넘긴다(`includingScheduleMutations: false`) — 실행기에서도 재차 차단. 실행 중인 일정은 변경·삭제 불가. 자가진단 모드 차단. 10분 무응답이면 카드 자동 취소.
+- **무엇(파싱)**: `ScheduleProposal` 이 `weekly(days:)` · `everyNDays`(anchor 생략 시 다음 정시) · `interval` · `skip`(객체/배열)을 읽는다. `ScheduleChangeProposal` 은 바꾼 필드만 반영하고 **변경 전 → 변경 후** diff 를 만든다.
+- **무엇(웹)**: `web_fetch` — Exa `/contents` 로 URL 본문 읽기(같은 Exa 키). http/https 만 허용, 본문은 **신뢰할 수 없는 데이터**로 표시, 출처 카드에 기록. `web_search` 와 같은 준비 조건(Exa 키 + Apple FM 아님)을 공유한다.
+- **무엇(비서)**: 설정 › 비서에 `프로바이더 · 모델` 표시 + 모델 덮어쓰기 칸. `Persona.model` 은 **예약 실행에만** 적용된다(`ScheduledRunRunner.provider(for:)` 가 복사본의 모델만 교체).
+- **검증**: `swift test` **813/813**(6 skip, 신규 31) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 65건 추가(커버리지 테스트 통과) · 오프스크린 렌더 `schedule-list` · `schedule-editor` · `schedule-card-create|update|delete`(한/영).
+- **남은 것**: 사용자 실측 **S1~S6**(PLAN §4) · 배포는 사용자 확인 후.
+- **주의**: `SchedulerService.setPreviewTasks` 는 `--render` 전용 — `isPreview` 동안 `reload`/`save` 가 디스크를 건드리지 않는다.
+
 ### 2026-11-04 인계 — v0.27 **1단계** 예약 규칙 v2 + 비서 표시 **병합·배포 완료** (도구는 남음)
 
 - **브랜치**: `feat/macos-schedule-v2` → **PR #83 → squash merge `6271c7d`** (2026-11-04, 기준 `main` = `1c44711`). **`main` 직접 push 금지** 유지.
@@ -17,7 +29,7 @@
 - **커밋**: `489da13` Core 규칙 v2 → `7e9875a` 할일 편집기·삭제 반응성 → `c6de3f9` 비서 표시/보관함 그룹 → `d528a4e` 번역 → (문서 커밋).
 - **검증**: `swift test` **782/782**(6 skip, 신규 16) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 키 28건 추가(커버리지 테스트 통과).
 - **배포**: 2026-11-03 23:52 `~/Applications/QuickTalk.app` 교체(**백업 번들 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `12719362f285ece13a0e98b98ac6ce68bc5151f04bdec9949220783f6c61c09c` · 빌드 산출물과 `diff -rq` 동일 · 배포 시점에 실행 중 프로세스 없음 → **다음 실행부터 새 빌드**.
-- **남은 v0.27 (미구현 — 정직하게 기록)**: `schedule_list`(읽기) · `schedule_update`/`schedule_delete`(쓰기+확인 카드) · `ScheduleChangeProposal` · `ScheduleProposal` 의 새 규칙·`skip` 파싱 · `ExaContentsClient` + `web_fetch` · 설정 비서 AI 라벨 `프로바이더 · 모델` 및 비서별 모델 오버라이드.
+- **남은 v0.27 (1단계 시점 기록)**: 당시 미구현이던 `schedule_list` · `schedule_update`/`schedule_delete` · `ScheduleChangeProposal` · `ScheduleProposal` 새 규칙·`skip` 파싱 · `ExaContentsClient` + `web_fetch` · 비서 AI 라벨·모델 오버라이드는 **2단계에서 완료**했다(위 인계 참조).
 
 ### 2026-11-03 인계 — v0.26 비서·예약 작업·리포트·알림 **구현 완료** (실측 대기)
 
