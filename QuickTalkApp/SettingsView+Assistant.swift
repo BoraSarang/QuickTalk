@@ -126,6 +126,15 @@ struct AssistantSettingsSection: View {
     .padding(.vertical, 2)
   }
 
+  /// 비서가 예약 실행에 쓸 AI — `프로바이더 · 모델`.
+  func personaAI(_ persona: Persona) -> String {
+    let provider = persona.providerID.flatMap { store.settings.provider($0) }
+      ?? store.settings.activeProvider
+    let name = provider?.displayName ?? L("설정의 활성 AI")
+    let model = persona.normalized().model ?? provider?.model ?? ""
+    return model.isEmpty ? name : "\(name) · \(model)"
+  }
+
   private func personaRow(_ persona: Persona) -> some View {
     HStack(alignment: .center, spacing: 10) {
       Text(persona.normalized().emoji ?? "🗣")
@@ -148,6 +157,8 @@ struct AssistantSettingsSection: View {
         }
         Text(persona.subtitle).font(.caption).foregroundColor(.secondary)
           .lineLimit(1)
+        Text(personaAI(persona)).font(.caption2).foregroundColor(.secondary)
+          .lineLimit(1).truncationMode(.middle)
         Text(persona.tools.summary).font(.caption2).foregroundColor(.secondary)
           .lineLimit(1)
       }
@@ -394,6 +405,19 @@ struct PersonaEditorSheet: View {
     _useCustomFolder = State(initialValue: persona.reportFolder != nil)
   }
 
+  /// 비서가 실제로 쓸 프로바이더 — 비어 있으면 설정의 활성 AI.
+  private var resolvedProvider: LLMProviderConfig? {
+    if let id = draft.providerID, let p = store.settings.provider(id), p.enabled { return p }
+    return store.settings.activeProvider
+  }
+
+  /// "프로바이더 · 모델" — 모델 덮어쓰기가 있으면 그 값을 보여 준다.
+  private var aiLabel: String {
+    let name = resolvedProvider?.displayName ?? L("설정의 활성 AI")
+    let model = draft.normalized().model ?? resolvedProvider?.model ?? ""
+    return model.isEmpty ? name : "\(name) · \(model)"
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text(isNew ? L("새 비서") : L("비서 편집"))
@@ -437,7 +461,7 @@ struct PersonaEditorSheet: View {
           Divider()
 
           VStack(alignment: .leading, spacing: 4) {
-            Text(L("사용할 AI")).font(.body)
+            Text(L("예약 실행에 사용할 AI")).font(.body)
             Picker("", selection: Binding(
               get: { draft.providerID ?? "" },
               set: { draft.providerID = $0.isEmpty ? nil : $0 }
@@ -448,7 +472,16 @@ struct PersonaEditorSheet: View {
               }
             }
             .labelsHidden().pickerStyle(.menu)
-            caption(L("비우면 설정 › AI의 활성 프로바이더를 씁니다."))
+            Text(aiLabel)
+              .font(.caption).foregroundColor(.secondary)
+              .textSelection(.enabled)
+            TextField(L("모델 (비우면 프로바이더 모델)"), text: Binding(
+              get: { draft.model ?? "" },
+              set: { draft.model = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil : $0 }
+            ))
+            .textFieldStyle(.roundedBorder)
+            caption(L("이 설정은 예약 실행에만 적용됩니다. 일반 대화는 설정 › AI의 활성 AI를 씁니다."))
           }
 
           Divider()

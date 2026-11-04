@@ -64,12 +64,14 @@ final class SchedulerService {
 
   /// 디스크에서 다시 읽는다(다른 창에서 수정했을 때).
   func reload() {
+    guard !isPreview else { return }
     tasks = ScheduleStore.load().tasks
     reconcile()
     save()
   }
 
   func save() {
+    guard !isPreview else { return }
     do {
       try ScheduleStore.save(ScheduleSnapshot(tasks: tasks))
     } catch {
@@ -77,6 +79,16 @@ final class SchedulerService {
             String(describing: error))
     }
     // 저장이 끝난 뒤 목록 변경을 알린다 — `/할일` 시트가 즉시 다시 그린다.
+    store.scheduleRevision &+= 1
+  }
+
+  /// QA 오프스크린 렌더 전용 — **저장하지 않고** 목록만 채운다(`--render` 하네스).
+  /// 미리보기 중에는 `reload`/`save` 가 디스크를 건드리지 않는다.
+  private(set) var isPreview = false
+
+  func setPreviewTasks(_ preview: [ScheduledTask]) {
+    isPreview = true
+    tasks = preview
     store.scheduleRevision &+= 1
   }
 
