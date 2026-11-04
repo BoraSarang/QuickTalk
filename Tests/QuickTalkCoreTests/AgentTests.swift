@@ -489,14 +489,49 @@ final class AgentTests: XCTestCase {
     XCTAssertEqual(params?["required"] as? [String], ["command"])
   }
 
-  /// `web_search` 는 **검색이 준비된 턴에만** 도구 목록에 붙는다(기본 5개는 그대로).
+  /// `web_search`·`web_fetch` 는 **검색이 준비된 턴에만** 도구 목록에 붙는다(기본 5개는 그대로).
   func testWebSearchToolIsOptional() {
     XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 5)
     let withSearch = AgentToolCatalog.available(includingWebSearch: true)
-    XCTAssertEqual(withSearch.count, 6)
+    XCTAssertEqual(withSearch.count, 7)
     XCTAssertTrue(withSearch.contains { $0.name == "web_search" })
+    XCTAssertTrue(withSearch.contains { $0.name == "web_fetch" })
     XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "web_search" },
                    "기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 간다")
+  }
+
+  /// 예약 도구 — 목록은 읽기 전용, 등록·변경·삭제는 사람이 있는 턴에만.
+  func testScheduleToolsSplitListAndMutations() {
+    let readOnly = AgentToolCatalog.available(includingWebSearch: false,
+                                              includingSchedule: true,
+                                              includingScheduleMutations: false)
+    XCTAssertTrue(readOnly.contains { $0.name == "schedule_list" })
+    XCTAssertFalse(readOnly.contains { $0.name == "schedule_task" })
+    XCTAssertFalse(readOnly.contains { $0.name == "schedule_update" })
+    XCTAssertFalse(readOnly.contains { $0.name == "schedule_delete" })
+
+    let full = AgentToolCatalog.available(includingWebSearch: false,
+                                          includingSchedule: true)
+    for name in ["schedule_list", "schedule_task", "schedule_update", "schedule_delete"] {
+      XCTAssertTrue(full.contains { $0.name == name }, "\(name) 이 빠졌습니다")
+    }
+    XCTAssertFalse(AgentToolCatalog.all.contains { $0.name.hasPrefix("schedule_") },
+                   "기본 목록에 넣으면 예약 실행·QA 하네스까지 딸려 간다")
+  }
+
+  /// `web_fetch` 는 `web_search` 와 **같은 문**을 쓴다 — 비서가 웹을 끄면 둘 다 빠진다.
+  func testWebFetchFollowsPersonaWebToggle() {
+    let off = AgentToolCatalog.available(for: PersonaTools(web: false),
+                                         includingWebSearch: true)
+    XCTAssertFalse(off.contains { $0.name == "web_search" })
+    XCTAssertFalse(off.contains { $0.name == "web_fetch" })
+
+    let on = AgentToolCatalog.available(for: PersonaTools(), includingWebSearch: true)
+    XCTAssertTrue(on.contains { $0.name == "web_search" })
+    XCTAssertTrue(on.contains { $0.name == "web_fetch" })
+    XCTAssertFalse(AgentToolCatalog.available(for: PersonaTools(),
+                                              includingWebSearch: false)
+      .contains { $0.name == "web_fetch" })
   }
 
   /// `ui_snapshot` 은 **마스터 토글이 켜진 턴에만** 도구 목록에 붙는다 (PLAN_v0.25 Phase 1).
