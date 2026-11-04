@@ -209,6 +209,8 @@ public struct AgentRunner {
       return Lf("스크린샷 — %@", target)
     case "web_search":
       return Lf("웹 검색 — %@", call.stringArgument("query") ?? "")
+    case "web_fetch":
+      return Lf("웹 페이지 읽기 — %@", call.stringArgument("url") ?? "")
     case "ui_snapshot":
       let app = (call.stringArgument("app") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       return Lf("화면 요소 — %@", app.isEmpty ? L("앞에 있는 앱") : app)
