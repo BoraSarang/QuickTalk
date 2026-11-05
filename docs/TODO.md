@@ -1,7 +1,19 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-05 KST
+> 마지막 갱신: 2026-11-06 KST
+
+## 구현 완료 (2026-11-06) — v0.31 질문 호버 폭 · 제목 드래그 · 진행 중 대화 삭제
+
+`docs/qa/v0.31-question-hover/README.md` · `docs/qa/v0.31-archive-fix/README.md` — **구현·검증·병합·배포·실측 완료.**
+
+- **계기**: 사용자 지적 3건 — 호버 때 말풍선이 **세로로 변함**, 제목 클릭이 바로 수정이라 **창 드래그 불가**, **진행 중 대화 삭제** 불가.
+- **호버 폭**: `⋯` 를 말풍선 레이아웃 밖(`.overlay` + `offset(x: 16)`)으로 → 폭·줄바꿈·높이 고정. 호버는 행 전체 판정.
+- **제목 드래그**: `TitleDragArea`(NSViewRepresentable) — 한 번 클릭+끌기 = `performDrag`, **두 번 클릭** = 이름 변경.
+- **진행 중 삭제**: 보관함 "진행 중" 행 🗑 → `cancelReply` → `core.reset` → 기본 비서 재적용 → **새 대화** + 대화 탭 이동.
+- **검증**: `swift test` **840/840**(6 skip) · Debug/Release BUILD SUCCEEDED · 렌더 `docs/qa/v0.31-question-hover/` · `current-delete-ko.png`.
+- **병합·배포**: **PR #102 → `da3ab52`** · **2026-11-06 00:13** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `7e90b38d…` · **00:17 재실행(PID 19500)**.
+- **실측 완료(2026-11-06 00:17, 사용자 확인 "다 잘 동작 되는거 확인했어")**. **다음**: v0.31 Q1~Q7 → 다중 대화 6a.
 
 ## 구현 완료 (2026-11-05) — v0.31 보관함 복원 · 타이틀바 정렬 · 마크다운 강조색
 
