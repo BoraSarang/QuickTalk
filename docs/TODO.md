@@ -3,6 +3,20 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-05 KST
 
+## 구현 완료 (2026-11-05) — v0.31 시리식 대화 창 · QuickShelf 대화 허브
+
+`docs/plans/PLAN_v0.31_chat-ui_macos.md` — **구현·검증·병합·배포·재실행 완료 · 실측 대기.**
+
+- **계기**: 사용자 요청 — 시리식 대화 창. 상단 버튼은 숨기고 제목·비서만, 응답은 전체 폭 15pt, 질문은 말풍선, 입력독은 `＋` 하나로 통합, QuickShelf를 대화 허브로.
+- **확정(사용자)**: 새 대화(✎)는 호버 도구에서 제외하고 `⋯`에만 · 호버 숨김 0.5초 · `⋯` = 보관함·새 대화·툴바 항상 보기·설정 · 창 400×560(최소 380×420) · autosave `QuickTalkMainPanelV31`.
+- **구현**: `ContentView`(headerRow·messageRow·composerToolMenu·QuestionBubbleTail) · `ShelfView` 대화 탭 · `ShelfModel.chats` · `Settings.chatToolbarAlwaysVisible` + 설정 토글 · QuickTalkApp 창/타이틀바/보관함 라우팅 · 리사이즈 시 비서 칩 오른쪽 정렬.
+- **검증**: `swift test` **840/840**(6 skip, 2026-11-05 23:19 재확인) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 커버리지(신규 16키) · 렌더 `docs/qa/chat-redesign-2026-11-05/`(`mock-*` 승인 목업 + `impl-*` 구현, 한/영).
+- **병합**: **PR #96 → squash merge `dc2dc49`** · 비서 칩 오른쪽 정렬 수정 **PR #97 → `7f21a85`**.
+- **배포**: **2026-11-05 23:03** `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음**, `~/Applications/` 에 `QuickTalk.app` 하나만) · `codesign --verify --strict --deep` OK · SHA-256 `98dedb4e548eeb209fef7148263c245850c3872fbf5a564e997554eaa75ed80b` · **23:04 재실행 완료(PID 1877)**.
+- **실측 완료(실제 창)**: 제목·traffic light 겹침 없음 · 비서 칩 오른쪽 · 시간/지연 항상 표시.
+- **실측 대기**: Q1~Q7(HANDOFF §0 인계 (4)) — 호버 도구 페이드 인/0.5초 숨김 · ✎는 `⋯`에만 · 15pt 전체 폭·질문 말풍선 · `＋` 3종 성격 · 셸프 대화 탭 이동·자동 닫힘 · 창 400×560 · "도구 항상 보기" 토글.
+- **다음**: 다중 대화 6a(`UIStore` → 대화별 `ChatSession` 분리) → 6b(동시 실행).
+
 ## 구현 완료 (2026-11-05) — v0.30 ⌘Space pill 비서 선택 · 글자/커서 세로 중심
 
 `docs/plans/PLAN_v0.30_pill-persona_macos.md` — **구현·검증·병합·배포 완료 · 실측 대기.**
