@@ -90,6 +90,14 @@ struct ContentView: View {
   /// 대화창이 맨 아래에 있는가 — 아니면 우하단에 "맨 아래로" 버튼을 띄운다.
   /// (NSScrollView 값을 직접 읽는다 — SwiftUI 선호도는 스크롤 중에 갱신되지 않는다)
   @State private var atBottom = true
+  /// 자동으로 바닥을 따라갈지 — 사용자가 위로 올려 읽는 중에는 **끌어내리지 않는다**.
+  /// (스트리밍·도구 출력이 매번 스크롤을 납치하면 위로 올려도 볼 수가 없다 — 2026-11-05 사용자 지적)
+  @State private var followsBottom = true
+  /// "지금 맨 아래로 붙여라" 신호 — `NSScrollView`를 직접 움직인다.
+  /// SwiftUI `scrollTo(anchor:.bottom)`은 내용 높이가 늦게 확정되면 끝까지 가지 못했다.
+  @State private var bottomPinToken = 0
+  /// 거리 기반 재고정을 너무 자주 하지 않게(스크롤 알림은 초당 수십 번 온다)
+  @State private var lastPinAt = Date.distantPast
   var initialTab: Int = 0
   var suppressArchiveLoad = false
 
@@ -597,6 +605,10 @@ struct ContentView: View {
                     webRetryButton(t)
                   }
                 }
+                // 내용 열은 **남는 폭을 정확히 차지**한다 — 긴 표·명령이 이상 폭(ideal width)을
+                // 주장하면 HStack 이 그 폭으로 높이를 재고, 실제로는 좁게 그려져 아래 턴과 겹쳤다.
+                .frame(maxWidth: t.role == .assistant ? .infinity : nil,
+                       alignment: .leading)
                 // 질문 메뉴는 말풍선 **오른쪽**에 두고 위·아래 중앙에 맞춘다.
                 // 26pt를 비워 두어 말풍선과 겹치지 않게 한다.
                 .padding(.trailing, t.role == .user ? 26 : 0)
@@ -658,11 +670,15 @@ struct ContentView: View {
           // 내용 끝(마커)의 위치를 스크롤 좌표계에서 잰다 — 뷰포트 높이와 비교해 맨 아래 여부를 안다.
           // ★ GeometryReader+PreferenceKey 는 macOS 에서 스크롤 중 갱신되지 않아 버튼이 뜨지 않았다.
           //   NSScrollView 를 직접 관찰한다(2026-10-27).
-          .background(ScrollOffsetObserver(onChange: handleScrollDistance))
+          .background(ScrollOffsetObserver(
+            bottomToken: bottomPinToken,
+            onChange: handleScrollDistance))
         }
         .coordinateSpace(name: Self.chatSpace)
-        // 처음 그릴 때·높이가 바뀔 때 **바닥을 기준**으로 잡는다(맨 아래 턴이 잘려 보이지 않게)
-        .defaultScrollAnchor(.bottom)
+        // `.defaultScrollAnchor(.bottom)` 은 **크기가 바뀔 때도** 바닥에 다시 붙는다
+        // (macOS 15). 그래서 위로 올려 읽는 중에도 새 글자가 오면 바닥으로 납치됐다
+        // — 스크롤이 아예 안 되는 것처럼 느껴진 원인(2026-11-05). 초기 위치는
+        // onAppear 의 AppKit 고정(pin)이 잡는다.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // 기억 사용량 — 헤더가 아니라 대화 영역 위에 띄운다(탭 전환 시 헤더 높이 고정).
         .overlay(alignment: .topTrailing) { memoryChip }
@@ -670,7 +686,7 @@ struct ContentView: View {
         // 맨 아래가 아닐 때만 — 우하단에 "맨 아래로" 플로팅 버튼
         .overlay(alignment: .bottomTrailing) {
           if !atBottom && !store.conversation.turns.isEmpty {
-            Button { scrollToBottom(proxy) } label: {
+            Button { jumpToBottom() } label: {
               Image(systemName: "arrow.down")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.white)
@@ -687,57 +703,56 @@ struct ContentView: View {
             .accessibilityLabel(L("맨 아래로"))
           }
         }
-        // 새 턴·응답 대기 상태가 바뀌면 맨 아래로 따라간다(긴 대화에서 답이 화면 밖에 생기는 문제 방지)
-        .onChange(of: store.conversation.turns.count) { _, _ in scrollToBottom(proxy) }
+        // 새 턴(내가 보낸 메시지)·대화 전환은 사용자가 읽던 위치와 무관하게 바닥으로
+        .onChange(of: store.conversation.turns.count) { _, _ in jumpToBottom() }
         // 스트리밍 — 글자가 늘 때마다 바닥을 따라간다(애니메이션 없이, 초당 12회 수준)
         .onChange(of: store.conversation.turns.last?.text.count) { _, _ in
-          if store.streamingTurnID != nil { followStream(proxy) }
+          if store.streamingTurnID != nil { followBottom() }
         }
+        // 도구 실행 — 이벤트가 추가되거나 출력이 늘 때도 **맨 아래**를 따라간다.
+        // (도구가 무엇을 하는지 화면 밖에서 진행되면 볼 수 없다 — 2026-11-05 사용자 지적)
+        .onChange(of: agentFollowToken) { _, _ in followBottom() }
         // 보관함에서 다른 대화를 열 때 — 검색 결과로 열었으면 그 턴, 아니면 맨 아래부터
         .onChange(of: store.conversation.id) { _, _ in
           if let req = store.searchFocus {
             focusTurn(req, proxy: proxy)
           } else {
-            scrollToBottom(proxy, animated: false)
+            jumpToBottom()
           }
         }
         // 이미 열려 있는 대화에서 검색 결과를 다시 눌러도 그 턴으로
         .onChange(of: store.searchFocus) { _, req in
           if let req { focusTurn(req, proxy: proxy) }
         }
-        .onChange(of: store.isReplying) { _, _ in scrollToBottom(proxy) }
+        .onChange(of: store.isReplying) { _, _ in followBottom() }
         // 승인 카드가 뜨면 카드 **끝(버튼)** 까지 보이게 맨 아래로 따라간다.
         // (2026-10-26: 카드가 화면 밖에 걸려 [한 번 허용]이 잘려 보이던 문제)
         .onChange(of: store.agentApproval) { _, request in
           guard request != nil else { return }
-          scrollToBottom(proxy, animated: false)
+          jumpToBottom()
           // 긴 명령이 여러 줄로 감기면 카드 높이가 한 프레임 늦게 확정된다 — 한 번 더 맞춘다.
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            scrollToBottom(proxy, animated: false)
-          }
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { jumpToBottom() }
         }
         // 일정 제안 카드가 뜨면 그 턴까지 스크롤한다.
         .onChange(of: store.pendingSchedule) { _, pending in
           guard pending != nil, pending?.conversationID == store.conversation.id else { return }
-          scrollToBottom(proxy, animated: false)
+          jumpToBottom()
         }
         // 예약 실행이 승인을 기다리면 그 대화의 카드 끝까지 따라간다.
         .onChange(of: store.scheduledApproval) { _, pending in
           guard pending != nil, pending?.conversationID == store.conversation.id else { return }
-          scrollToBottom(proxy, animated: false)
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            scrollToBottom(proxy, animated: false)
-          }
+          jumpToBottom()
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { jumpToBottom() }
         }
         // 창을 열 때(숨겼다 다시 열 때 포함) — SwiftUI onAppear는 다시 오지 않는다
         .onReceive(NotificationCenter.default.publisher(for: .quickTalkScrollToBottom)) { _ in
-          scrollToBottom(proxy, animated: false)
+          jumpToBottom()
         }
         .onAppear {
           if let req = store.searchFocus {
             focusTurn(req, proxy: proxy)
           } else {
-            scrollToBottom(proxy, animated: false)
+            jumpToBottom()
           }
         }
         }
@@ -1024,34 +1039,51 @@ struct ContentView: View {
     return Lf("%d분 %d초", total / 60, total % 60)
   }
 
-  /// 스트리밍 중 바닥 따라가기 — 한 번만, 애니메이션 없이(호출이 잦아 애니메이션은 끊긴다)
-  private func followStream(_ proxy: ScrollViewProxy) {
-    guard focusedTurn == nil else { return }
-    proxy.scrollTo(Self.bottomID, anchor: .bottom)
+  /// 자동으로 바닥을 따라간다 — 사용자가 위로 올려 읽는 중(`followsBottom == false`)이면 가만히 둔다.
+  /// 스트리밍 글자·도구 출력이 매번 스크롤을 납치하면 과거 내용을 볼 수 없다(2026-11-05).
+  private func followBottom() {
+    guard focusedTurn == nil, followsBottom else { return }
+    pinBottom()
   }
 
-  /// 스크롤 위치가 바뀔 때 — 맨 아래 판정(24pt 여유). NSScrollView 관찰자가 부른다.
-  private func handleScrollDistance(_ distance: CGFloat) {
+  /// 사용자가 직접 "맨 아래로"를 눌렀거나 새 메시지를 보낸 경우 — 무조건 끝으로.
+  private func jumpToBottom() {
+    guard focusedTurn == nil else { return }
+    followsBottom = true
+    atBottom = true
+    pinBottom()
+  }
+
+  /// `NSScrollView`에 "맨 끝으로" 신호를 보낸다. 실제 이동은 관찰 뷰가 한다.
+  /// SwiftUI `scrollTo(anchor:.bottom)` 은 내용 높이가 한 프레임 늦게 확정되면 끝까지 못 갔다.
+  private func pinBottom() {
+    lastPinAt = Date()
+    bottomPinToken &+= 1
+  }
+
+  /// 도구 실행 카드가 추가·갱신될 때마다 바뀌는 값 — 자동 스크롤 트리거.
+  private var agentFollowToken: String {
+    let events = store.conversation.turns.last?.agentEvents ?? []
+    let last = events.last
+    return "\(events.count)|\(last?.state.rawValue ?? "")|\(last?.output.count ?? 0)"
+  }
+
+  /// 사용자가 스크롤을 **위로** 올리면 자동 따라가기를 멈춘다(내용이 스크롤을 납치하지 않게).
+  /// 바닥에 닿으면 다시 따라간다.
+  private func handleScrollDistance(_ distance: CGFloat, didScrollUp: Bool) {
+    if didScrollUp { followsBottom = false }
     let atEnd = ScrollMetrics.isAtBottom(distance: distance)
-    guard atBottom != atEnd else { return }
-    withAnimation(.easeInOut(duration: 0.12)) { atBottom = atEnd }
-  }
-
-  private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
-    // 검색 포커스 중에는 바닥으로 끌지 않는다(찾은 턴을 화면에 유지)
-    guard focusedTurn == nil else { return }
-    let apply: () -> Void = {
-      if animated {
-        withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
-      } else {
-        proxy.scrollTo(Self.bottomID, anchor: .bottom)
-      }
+    if atEnd != atBottom {
+      withAnimation(.easeInOut(duration: 0.12)) { atBottom = atEnd }
     }
-    apply()
-    guard !animated else { return }
-    // 창이 막 열려 높이·내용 레이아웃이 확정되기 전이면 첫 호출은 잘린다 → 한 프레임·조금 뒤에 다시 맞춘다
-    DispatchQueue.main.async { apply() }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { apply() }
+    if atEnd {
+      followsBottom = true
+      return
+    }
+    // 내용이 늘어 바닥에서 멀어진 경우 — 붙어 있던 사용자라면 다시 끝으로 붙인다.
+    // (위로 올려 읽는 중이면 followsBottom 이 false 라 건드리지 않는다)
+    guard followsBottom, Date().timeIntervalSince(lastPinAt) > 0.25 else { return }
+    pinBottom()
   }
 
   /// 보관함 검색 결과로 연 대화 — 찾은 턴을 가운데로 스크롤하고 테두리를 3회 깜빡인다.
@@ -1110,8 +1142,11 @@ struct ContentView: View {
         }
       }
       .padding(.horizontal, 11).padding(.vertical, 9)
-      .background(Color.primary.opacity(0.06))
-      .cornerRadius(12)
+      // 불투명한 카드 — 도구 카드가 뒤에 길게 이어져도 글자가 비쳐 겹쳐 보이지 않게 한다.
+      .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .fill(Color(nsColor: .controlBackgroundColor)))
+      .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .stroke(Color.primary.opacity(0.10), lineWidth: 1))
       Spacer()
     }
   }
@@ -1289,7 +1324,8 @@ struct ContentView: View {
       ZStack(alignment: .topLeading) {
         ChatInputField(text: $store.draft, height: $inputHeight,
                        isBusy: store.isReplying,
-                       focusToken: store.composerFocusToken) { value in
+                       focusToken: store.composerFocusToken,
+                       onPasteAttachments: { store.pasteAttachmentFromPasteboard() }) { value in
           store.draft = value
           store.send()
         }
@@ -1297,15 +1333,26 @@ struct ContentView: View {
         if store.draft.isEmpty {
           Text(L("무엇이든 물어보세요"))
             .font(.system(size: 13)).foregroundColor(Color.secondary.opacity(0.75))
-            // 여백은 **컨테이너가 이미 준 14pt 안쪽**이므로 다시 더하지 않는다(캐럿과 같은 x에서 시작)
+            // 여백은 **컨테이너가 이미 준 안쪽 여백**이므로 다시 더하지 않는다(캐럿과 같은 x에서 시작)
             .padding(.leading, ChatInputField.horizontalPadding + 2)
             .padding(.top, ChatInputField.verticalPadding)
             .allowsHitTesting(false)
         }
       }
-      .padding(.leading, 14)
+      // 비서가 있으면 왼쪽 아래 버튼(26pt)만큼 글자 시작점을 비운다 — 없으면 기존과 동일.
+      .padding(.leading, store.settings.personas.isEmpty ? 14 : 48)
       .padding(.trailing, composerTrailingPadding)     // 오른쪽 아래 창 연결·🌐·🎤·↑ 자리
       .padding(.vertical, 8)
+
+      // 비서 버튼 — 새 대화에서도 입력 전에 고를 수 있다(v0.28, 헤더 칩과 같은 메뉴).
+      if !store.settings.personas.isEmpty {
+        HStack {
+          PersonaDockButton()
+          Spacer()
+        }
+        .padding(.leading, 12)
+        .padding(.bottom, 9)
+      }
 
       HStack(spacing: 6) {
         Spacer()
@@ -1527,16 +1574,38 @@ struct MemorySheet: View {
 /// 그래서 "맨 아래로" 버튼이 스크롤 중에 뜨지 않았다(2026-10-27 사용자 보고).
 /// 문서 크기 변화(스트리밍·첨부)도 함께 본다.
 private struct ScrollOffsetObserver: NSViewRepresentable {
-  let onChange: (CGFloat) -> Void
+  /// 값이 바뀌면 문서 끝으로 이동한다 — SwiftUI 스크롤 프록시 대신 AppKit 으로 직접.
+  let bottomToken: Int
+  /// (남은 거리, 사용자가 위로 스크롤했는가)
+  let onChange: (CGFloat, Bool) -> Void
 
-  func makeNSView(context: Context) -> ObserverView { ObserverView(onChange: onChange) }
-  func updateNSView(_ nsView: ObserverView, context: Context) { nsView.onChange = onChange }
+  func makeNSView(context: Context) -> ObserverView {
+    ObserverView(bottomToken: bottomToken, onChange: onChange)
+  }
+
+  func updateNSView(_ nsView: ObserverView, context: Context) {
+    nsView.onChange = onChange
+    nsView.pinIfNeeded(token: bottomToken)
+  }
 
   final class ObserverView: NSView {
-    var onChange: (CGFloat) -> Void
+    var onChange: (CGFloat, Bool) -> Void
     private var tokens: [NSObjectProtocol] = []
+    private var lastPinToken: Int
+    /// 직전 리포트의 스크롤 위치 — **위로 움직였는지** 판정한다.
+    /// 트랙패드·마우스 휠·스크롤바·키보드 모두 여기로 잡힌다.
+    private var lastOffsetY: CGFloat?
+    /// 사용자가 위로 스크롤하는 순간 예약된 재고정(0.02s/0.14s)을 취소한다.
+    private var pinCancelled = false
+    /// "처음 열 때 바닥" — 내용 높이가 나중에 확정돼도(framedDidChange) 끝까지 붙인다.
+    /// 문서 높이가 0인 채로 핀하면 맨 위에 남기 때문(2026-11-05 오프스크린 실측).
+    private var awaitingInitialPin = true
+    /// 초기 핀이 늦게 확정되는 레이아웃을 따라가기 위한 짧은 타이머(최대 4초).
+    private var settleTimer: Timer?
 
-    init(onChange: @escaping (CGFloat) -> Void) {
+    init(bottomToken: Int, onChange: @escaping (CGFloat, Bool) -> Void) {
+      // -1 로 시작해 첫 update 에서 한 번 붙인다 — onAppear 핀을 놓치지 않게.
+      self.lastPinToken = -1
       self.onChange = onChange
       super.init(frame: .zero)
     }
@@ -1544,20 +1613,95 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    deinit { tokens.forEach(NotificationCenter.default.removeObserver) }
+    deinit {
+      settleTimer?.invalidate()
+      tokens.forEach(NotificationCenter.default.removeObserver)
+    }
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
-      attach()
+      attach(attempt: 0)
     }
 
     /// 배경 뷰가 클릭·스크롤을 가로채지 않게
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    private func attach() {
+    /// 내용 높이가 늦게 확정되는 경우(대화 복원·큰 도구 카드)를 위해 잠깐만 반복해서 맞춘다.
+    private func startSettle() {
+      guard awaitingInitialPin, settleTimer == nil else { return }
+      var ticks = 0
+      let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] t in
+        guard let self else { t.invalidate(); return }
+        ticks += 1
+        if !self.awaitingInitialPin || self.pinCancelled || ticks > 26 {
+          self.stopSettle()
+          return
+        }
+        self.pin(attempt: 0)
+      }
+      RunLoop.main.add(timer, forMode: .common)
+      settleTimer = timer
+    }
+
+    private func stopSettle() {
+      settleTimer?.invalidate()
+      settleTimer = nil
+    }
+
+    /// 문서 끝으로 이동한다. 내용 높이는 한 프레임 늦게 확정되므로 몇 번 더 맞춘다.
+    func pinIfNeeded(token: Int) {
+      guard token != lastPinToken else { return }
+      lastPinToken = token
+      pinCancelled = false
+      awaitingInitialPin = true
+      pin(attempt: 0)
+      startSettle()
+    }
+
+    private func pin(attempt: Int) {
+      guard !pinCancelled else { return }
+      // 아직 스크롤 뷰 계층에 붙기 전이면 곧바로 포기하지 말고 다시 시도한다.
+      // (오프스크린 렌더·창 생성 직후에는 `enclosingScrollView` 가 nil 이다)
+      guard let scroll = enclosingScrollView, let document = scroll.documentView else {
+        guard attempt < 6 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+          self?.pin(attempt: attempt + 1)
+        }
+        return
+      }
+      scroll.layoutSubtreeIfNeeded()
+      // `scrollToEndOfDocument:` 는 SwiftUI 의 스크롤 뷰가 응답하지 않는다(예외로 죽는다).
+      // 문서 높이에서 뷰포트 높이를 뺀 위치로 **직접** 옮긴다.
+      let clip = scroll.contentView
+      let maxY = max(0, document.frame.height - clip.bounds.height)
+      let targetY = document.isFlipped ? maxY : 0
+      let proposed = NSRect(x: clip.bounds.origin.x, y: targetY,
+                            width: clip.bounds.width, height: clip.bounds.height)
+      clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+      scroll.reflectScrolledClipView(clip)
+      // 높이가 확정된 뒤의 핀이라면 초기 핀은 끝난 것.
+      if maxY > 0 {
+        awaitingInitialPin = false
+        stopSettle()
+      }
+      // 0.02s · 0.14s — 도구 카드·마크다운이 높이를 확정한 뒤 한 번 더.
+      guard attempt < 2 else { return }
+      DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.02 : 0.14)) { [weak self] in
+        self?.pin(attempt: attempt + 1)
+      }
+    }
+
+    private func attach(attempt: Int) {
       tokens.forEach(NotificationCenter.default.removeObserver)
       tokens.removeAll()
-      guard let scroll = enclosingScrollView else { return }
+      guard let scroll = enclosingScrollView else {
+        // 창에 붙는 첫 순간에는 아직 상위 스크롤 뷰가 없을 수 있다 — 잠시 뒤 다시.
+        guard attempt < 10 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+          self?.attach(attempt: attempt + 1)
+        }
+        return
+      }
       scroll.contentView.postsBoundsChangedNotifications = true
       scroll.documentView?.postsFrameChangedNotifications = true
       let center = NotificationCenter.default
@@ -1571,15 +1715,30 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       })
       // 레이아웃이 확정된 뒤 첫 값 — 창을 열 때 버튼이 잠깐 잘못 뜨는 것을 막는다.
       DispatchQueue.main.async { [weak self] in self?.report() }
+      startSettle()
     }
 
     private func report() {
       guard let scroll = enclosingScrollView, let document = scroll.documentView else { return }
+      let offsetY = scroll.contentView.bounds.origin.y
+      // flipped 좌표계에서 위로 스크롤 = offsetY 감소.
+      let scrolledUp = lastOffsetY.map { offsetY < $0 - 0.5 } ?? false
+      lastOffsetY = offsetY
+      if scrolledUp {
+        // 사용자가 직접 올렸다 — 초기 핀도 포기한다(열자마자 읽으려는 걸 방해하지 않게).
+        pinCancelled = true
+        awaitingInitialPin = false
+        stopSettle()
+      }
       let distance = ScrollMetrics.distanceFromBottom(
         documentHeight: document.frame.height,
-        offsetY: scroll.contentView.bounds.origin.y,
+        offsetY: offsetY,
         viewportHeight: scroll.contentView.bounds.height)
-      onChange(distance)
+      // 처음 열 때는 내용 높이가 나중에 확정된다 — 그때까지 바닥으로 붙인다.
+      if awaitingInitialPin, !pinCancelled, distance > 1, document.frame.height > 0 {
+        pin(attempt: 0)
+      }
+      onChange(distance, scrolledUp)
     }
   }
 }

@@ -534,6 +534,56 @@ final class UIStore: ObservableObject {
     NotificationCenter.default.post(name: .quickTalkShowChat, object: nil)
   }
 
+  /// ⌘V — 클립보드의 **이미지·파일**을 대화 첨부로 붙인다(v0.28).
+  /// 텍스트는 AppKit 기본 붙여넣기에 맡기려고 `false` 를 돌려준다.
+  /// (QuickShelf를 열고 카드를 고르지 않아도 바로 첨부된다)
+  func pasteAttachmentFromPasteboard() -> Bool {
+    let pb = NSPasteboard.general
+
+    // 1) 파일 — Finder에서 복사한 파일들. 지원 형식만 받고, 거부는 조용히 버리지 않는다.
+    if let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
+      var added = 0
+      var rejected: [String] = []
+      for url in urls {
+        let name = url.lastPathComponent
+        guard Attachment.isSupported(filename: name) else {
+          rejected.append(name)
+          continue
+        }
+        guard !attached.contains(where: { $0.name == name }) else { continue }
+        let kind: Attachment.Kind = Self.isImageName(name) ? .image : .file
+        attached.append(PendingAttachment(name: name, url: url, kind: kind))
+        added += 1
+      }
+      if !rejected.isEmpty { setAttachNotice(Self.unsupportedMessage(rejected)) }
+      if added > 0 {
+        NSLog("[QuickTalk] ⌘V 파일 첨부 %d건 (총 %d)", added, attached.count)
+        closeShelfAfterPick()
+        NotificationCenter.default.post(name: .quickTalkShowChat, object: nil)
+      }
+      return true
+    }
+
+    // 2) 이미지 — 스크린샷 붙여넣기. **원본 해상도**로 저장한다(스트립 썸네일이 아니라).
+    if let image = NSImage(pasteboard: pb),
+       let data = Self.pngData(image),
+       let url = Self.writeTempImage(data) {
+      attached.append(PendingAttachment(name: url.lastPathComponent, url: url, kind: .image))
+      NSLog("[QuickTalk] ⌘V 이미지 첨부 (총 %d)", attached.count)
+      closeShelfAfterPick()
+      NotificationCenter.default.post(name: .quickTalkShowChat, object: nil)
+      return true
+    }
+
+    return false
+  }
+
+  private static func pngData(_ image: NSImage) -> Data? {
+    guard let tiff = image.tiffRepresentation,
+          let rep = NSBitmapImageRep(data: tiff) else { return nil }
+    return rep.representation(using: .png, properties: [:])
+  }
+
   /// 창 안 허브에서 항목을 고른 뒤에는 허브를 접는다 — 오버레이가 입력독·전송 버튼을 가리지 않게
   /// (목업 v0.6의 드로어 동작. 여러 개를 붙이려면 ⌥⌘V로 다시 열면 된다 — 카드·탭 상태는 그대로 남는다)
   private func closeShelfAfterPick() {

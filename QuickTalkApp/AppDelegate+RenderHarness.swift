@@ -103,6 +103,42 @@ extension AppDelegate {
                           approvedAt: now.addingTimeInterval(-1 * 24 * 60 * 60))
         ]
       }
+      // QA: v0.28 비서 선택 — 빈 대화의 입력독 버튼과 아이콘 그리드(저장 없음).
+      if CommandLine.arguments.contains("--demo-persona-chat")
+          || CommandLine.arguments.contains("--demo-persona-editor")
+          || CommandLine.arguments.contains("--demo-persona-chip") {
+        let persona = Persona(name: "테크충",
+                              role: "IT, AI, Mac, iPad 등에 전문적인 비서",
+                              emoji: "🦾")
+        self.store.applyRenderOverride(personas: [persona])
+        if CommandLine.arguments.contains("--demo-persona-chip") {
+          self.store.conversation = Conversation(personaID: persona.id)
+          self.renderPNG(AnyView(
+            ZStack {
+              Color(nsColor: .windowBackgroundColor)
+              VStack(spacing: 12) {
+                PersonaChip().environmentObject(self.store)
+                PersonaDockButton().environmentObject(self.store)
+              }
+            }),
+            size: NSSize(width: 360, height: 110),
+            to: "\(dir)/persona-chip-\(suffix).png")
+        }
+        if CommandLine.arguments.contains("--demo-persona-chat") {
+          self.store.conversation = Conversation(personaID: persona.id)
+          self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                         size: NSSize(width: 460, height: 620),
+                         to: "\(dir)/persona-chat-\(suffix).png")
+        }
+        if CommandLine.arguments.contains("--demo-persona-editor") {
+          self.renderPNG(AnyView(
+            PersonaEditorSheet(persona: persona, isNew: false,
+                               onSave: { _ in }, onCancel: {})
+              .environmentObject(self.store)),
+            size: NSSize(width: 540, height: 700),
+            to: "\(dir)/persona-editor-\(suffix).png")
+        }
+      }
       // QA: v0.27 일정 도구 — 목록·편집기·확인 카드(등록/변경/삭제)를 **저장 없이** 그린다.
       if CommandLine.arguments.contains(where: { $0.hasPrefix("--demo-schedule") }) {
         let persona = Persona(name: "리서처", role: "뉴스·리서치", emoji: "🔎",
@@ -233,6 +269,91 @@ extension AppDelegate {
                                 .environmentObject(self.store)),
                        size: NSSize(width: 460, height: 620),
                        to: "\(dir)/archive-search-\(suffix).png")
+      }
+      // QA: 실제로 복원된 대화를 그대로 렌더 — 겹침·스크롤 회귀를 실데이터로 확인(v0.28).
+      if CommandLine.arguments.contains("--demo-current-chat") {
+        // 겹침 원인 격리 — 거대 명령/출력만 잘라 본다(저장 안 함).
+        if CommandLine.arguments.contains("--demo-trim-commands") {
+          self.store.conversation.turns = self.store.conversation.turns.map { turn in
+            var turn = turn
+            if let events = turn.agentEvents {
+              turn.agentEvents = events.map { e in
+                AgentEvent(id: e.id, toolName: e.toolName, title: e.title,
+                           command: String(e.command.prefix(300)),
+                           level: e.level, risk: e.risk, state: e.state,
+                           output: String(e.output.prefix(400)),
+                           elapsedMs: e.elapsedMs, undoID: e.undoID,
+                           terminalCommand: e.terminalCommand)
+              }
+            }
+            return turn
+          }
+        }
+        self.renderChatBottomPNG(AnyView(ContentView().environmentObject(self.store)),
+                                 size: NSSize(width: 780, height: 1280),
+                                 to: "\(dir)/current-chat-\(suffix).png")
+      }
+      // QA: 겹침 원인 격리 — 실제 대화의 도구 카드/마크다운을 각각 렌더하고 바로 뒤에 색 띠를 둔다.
+      if CommandLine.arguments.contains("--demo-overlap-probe") {
+        let conv = PersistenceService.load().first { $0.title.contains("테크충") }
+        let bigEvents = conv?.turns.max(by: { ($0.agentEvents?.count ?? 0) < ($1.agentEvents?.count ?? 0) })
+        if let turn = bigEvents, let events = turn.agentEvents, !events.isEmpty {
+          self.renderPNG(AnyView(
+            ScrollView {
+              VStack(alignment: .leading, spacing: 8) {
+                Text("AGENT CARD START").font(.caption)
+                AgentCard(events: events, approval: nil).environmentObject(self.store)
+                Rectangle().fill(Color.green).frame(height: 12)
+                Text("AGENT CARD END / MARKDOWN BELOW").font(.caption)
+                MarkdownText(text: turn.text)
+                  .padding(9)
+                  .background(Color.primary.opacity(0.055))
+                Rectangle().fill(Color.blue).frame(height: 12)
+                Text("AFTER MARKDOWN").font(.caption)
+              }
+              .padding(12)
+            }
+          ), size: NSSize(width: 780, height: 2400),
+             to: "\(dir)/overlap-probe-\(suffix).png")
+        }
+      }
+      // QA: 마크다운 높이 측정 겹침 격리 — 가장 긴 답변 + 바로 뒤 초록 띠.
+      if CommandLine.arguments.contains("--demo-md-probe") {
+        let conv = PersistenceService.load().first { $0.title.contains("테크충") }
+        if let turn = conv?.turns.max(by: { $0.text.count < $1.text.count }), !turn.text.isEmpty {
+          self.renderPNG(AnyView(
+            ScrollView {
+              VStack(alignment: .leading, spacing: 0) {
+                MarkdownText(text: turn.text)
+                  .padding(9)
+                  .background(Color.red.opacity(0.12))
+                  .border(Color.red, width: 1)
+                Rectangle().fill(Color.green).frame(height: 24)
+                Text("AFTER MARKDOWN (marker)").font(.system(size: 20, weight: .bold))
+                  .foregroundColor(.green)
+              }
+              .padding(12)
+            }
+          ), size: NSSize(width: 780, height: 2600),
+             to: "\(dir)/md-probe-\(suffix).png")
+        }
+      }
+      // QA: 도구 카드 높이 측정 겹침 격리 — 카드 바로 뒤에 초록 띠(스크롤 없이).
+      if CommandLine.arguments.contains("--demo-agent-probe") {
+        let conv = PersistenceService.load().first { $0.title.contains("테크충") }
+        let big = conv?.turns.max(by: { ($0.agentEvents?.count ?? 0) < ($1.agentEvents?.count ?? 0) })
+        if let events = big?.agentEvents, !events.isEmpty {
+          self.renderPNG(AnyView(
+            VStack(alignment: .leading, spacing: 0) {
+              AgentCard(events: events, approval: nil).environmentObject(self.store)
+              Rectangle().fill(Color.green).frame(height: 24)
+              Text("AFTER AGENT CARD (marker)").font(.system(size: 20, weight: .bold))
+                .foregroundColor(.green)
+            }
+            .padding(12)
+          ), size: NSSize(width: 780, height: 12000),
+             to: "\(dir)/agent-probe-\(suffix).png")
+        }
       }
       if CommandLine.arguments.contains(where: {
         $0 == "--demo-chat" || $0.hasPrefix("--demo-chat=") || $0.hasPrefix("--demo-search")
@@ -919,6 +1040,107 @@ extension AppDelegate {
   }
 
   /// SwiftUI 뷰를 창 없이 PNG로 — `--render` 전용
+  /// 대화 뷰를 **맨 아래까지 스크롤한 상태**로 렌더한다.
+  /// 오프스크린 `NSHostingView`는 창이 없어 `defaultScrollAnchor`·`onAppear` 스크롤이 먹지 않는다.
+  /// 여기서 NSScrollView를 직접 찾아 끝으로 옮긴 뒤 캡처한다 — 실제 하단 겹침을 보기 위한 QA 경로.
+  private func renderChatBottomPNG(_ view: AnyView, size: NSSize, to path: String) {
+    let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
+    host.appearance = NSApp.appearance
+    host.frame = NSRect(origin: .zero, size: size)
+    // 창 없이 호스팅하면 SwiftUI 스크롤 뷰가 문서 높이 0으로 남는다 — 보이지 않는 창에 붙여 실제 레이아웃을 만든다.
+    let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    window.layoutIfNeeded()
+    host.layoutSubtreeIfNeeded()
+    RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+    host.layoutSubtreeIfNeeded()
+    let scan = CommandLine.arguments.contains("--demo-scan-chat")
+    let noScroll = CommandLine.arguments.contains("--demo-no-scroll")
+    // 위에서 아래로 내려가며 찍으면 자동 따라가기가 다시 바닥으로 붙인다.
+    // **바닥에서 위로** 올라가며 찍어 실제 사용자 스크롤과 같은 상태를 만든다.
+    var fractions: [CGFloat] = scan ? [1, 0.75, 0.5, 0.25, 0] : [1]
+    if noScroll { fractions = [] }
+    _ = window   // 스냅샷까지 창을 살려 둔다(스크롤 뷰 계층 유지)
+    if noScroll {
+      // 레이아웃이 끝난 **뒤에** 예약된 핀(0.03s 재시도)이 실행되도록 한 번 더 돌린다.
+      for _ in 0..<10 {
+        host.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+      }
+      host.layoutSubtreeIfNeeded()
+      guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+      host.cacheDisplay(in: host.bounds, to: rep)
+      if let data = rep.representation(using: .png, properties: [:]) {
+        try? data.write(to: URL(fileURLWithPath: path))
+        NSLog("[QuickTalk] rendered %@ (no-scroll, distance=%.0f)", path,
+              Self.chatDistance(in: host))
+      }
+      return
+    }
+    for (index, fraction) in fractions.enumerated() {
+      if let scroll = Self.firstScrollView(in: host), let document = scroll.documentView {
+        scroll.layoutSubtreeIfNeeded()
+        let maxY = max(0, document.frame.height - scroll.contentView.bounds.height)
+        let target = NSPoint(x: scroll.contentView.bounds.origin.x,
+                             y: document.isFlipped ? maxY * fraction : 0)
+        scroll.contentView.scroll(to: target)
+        scroll.reflectScrolledClipView(scroll.contentView)
+        NSLog("[QuickTalk] QA 스크롤 %.2f — doc=%.0f viewport=%.0f targetY=%.0f",
+              fraction, document.frame.height, scroll.contentView.bounds.height, target.y)
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+      host.layoutSubtreeIfNeeded()
+      guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+      host.cacheDisplay(in: host.bounds, to: rep)
+      if let data = rep.representation(using: .png, properties: [:]) {
+        let out = scan ? path.replacingOccurrences(of: ".png", with: "-\(index).png") : path
+        try? data.write(to: URL(fileURLWithPath: out))
+        NSLog("[QuickTalk] rendered %@", out)
+      }
+    }
+    // QA: 위로 올려 둔 상태에서 **내용만** 늘었을 때 스크롤이 납치되지 않는지 확인.
+    if scan {
+      let before = Self.chatDistance(in: host)
+      var grown = self.store.conversation
+      if grown.turns.isEmpty == false {
+        let last = grown.turns.count - 1
+        grown.turns[last].text += "\n" + String(repeating: L("스트리밍 추가 텍스트"), count: 120)
+        self.store.streamingTurnID = grown.turns[last].id
+        self.store.conversation = grown
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+      let after = Self.chatDistance(in: host)
+      NSLog("[QuickTalk] QA 자동따라가기 멈춤 before=%.0f after=%.0f (위에 머물면 정상)",
+            before, after)
+    }
+    // QA: 위로 올려 둔 상태에서 "맨 아래로" 신호를 보내 실제로 끝에 붙는지 확인.
+    if scan {
+      NotificationCenter.default.post(name: .quickTalkScrollToBottom, object: nil)
+      RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+      let distance = Self.chatDistance(in: host)
+      NSLog("[QuickTalk] QA 맨아래로 distance=%.1f (0이면 정상)", distance)
+    }
+  }
+
+  private static func chatDistance(in host: NSView) -> CGFloat {
+    guard let scroll = firstScrollView(in: host), let document = scroll.documentView else { return -1 }
+    return document.frame.height - scroll.contentView.bounds.height
+      - scroll.contentView.bounds.origin.y
+  }
+
+  private static func firstScrollView(in view: NSView) -> NSScrollView? {
+    var all: [NSScrollView] = []
+    collectScrollViews(in: view, into: &all)
+    return all.max { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) }
+  }
+
+  private static func collectScrollViews(in view: NSView, into all: inout [NSScrollView]) {
+    if let scroll = view as? NSScrollView { all.append(scroll) }
+    for sub in view.subviews { collectScrollViews(in: sub, into: &all) }
+  }
+
   private func renderPNG(_ view: AnyView, size: NSSize, to path: String) {    // 창이 없으므로 배경을 직접 깔고, 외형(라이트/다크)도 호스팅 뷰에 지정한다
     let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
     host.appearance = NSApp.appearance

@@ -426,27 +426,29 @@ struct PersonaEditorSheet: View {
 
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
-          HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
+          VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
               Text(L("아이콘")).font(.caption).foregroundColor(.secondary)
-              TextField("🦾", text: Binding(
-                get: { draft.emoji ?? "" },
-                set: { draft.emoji = $0.isEmpty ? nil : $0 }
-              ))
+              Text(draft.emoji ?? "🗣").font(.system(size: 13))
+              Spacer()
+            }
+            PersonaIconGrid(selection: Binding(
+              get: { draft.emoji },
+              set: { draft.emoji = $0 }
+            ))
+            caption(L("아이콘은 목록·답변·알림에 같은 표시로 쓰입니다."))
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            HStack {
+              Text(L("이름")).font(.caption).foregroundColor(.secondary)
+              Spacer()
+              Text(Lf("%d자", draft.name.count))
+                .font(.caption2)
+                .foregroundColor(draft.name.count > Persona.Limits.name ? .red : .secondary)
+            }
+            TextField(L("예: 돌쇠"), text: $draft.name)
               .textFieldStyle(.roundedBorder)
-              .frame(width: 52)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-              HStack {
-                Text(L("이름")).font(.caption).foregroundColor(.secondary)
-                Spacer()
-                Text(Lf("%d자", draft.name.count))
-                  .font(.caption2)
-                  .foregroundColor(draft.name.count > Persona.Limits.name ? .red : .secondary)
-              }
-              TextField(L("예: 돌쇠"), text: $draft.name)
-                .textFieldStyle(.roundedBorder)
-            }
           }
 
           field(L("담당 (역할)"), limit: Persona.Limits.role,
@@ -593,5 +595,42 @@ struct PersonaEditorSheet: View {
     panel.prompt = L("선택")
     guard panel.runModal() == .OK, let url = panel.url else { return }
     draft.reportFolder = url.path
+  }
+}
+
+// MARK: - 비서 아이콘 선택 (v0.28)
+
+/// 아이콘 텍스트필드 대신 **20개 프리셋을 나열**한다.
+/// 목록에 없는 이모지를 쓰던 기존 비서는 그 값을 첫 칸에 함께 보여 준다(저장 값 유지).
+struct PersonaIconGrid: View {
+  @Binding var selection: String?
+
+  private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 10)
+
+  private var icons: [String] {
+    guard let custom = selection, !Persona.iconChoices.contains(custom) else {
+      return Persona.iconChoices
+    }
+    return [custom] + Persona.iconChoices
+  }
+
+  var body: some View {
+    LazyVGrid(columns: columns, spacing: 6) {
+      ForEach(icons, id: \.self) { icon in
+        let selected = selection == icon
+        Button { selection = icon } label: {
+          Text(icon)
+            .font(.system(size: 15))
+            .frame(maxWidth: .infinity, minHeight: 30)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+              .fill(selected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+              .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 1.5))
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(icon))
+      }
+    }
   }
 }

@@ -71,6 +71,17 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
     public static let tone = 200
   }
 
+  /// 편집 시트에 나열하는 아이콘 프리셋 (v0.28).
+  ///
+  /// 빈 텍스트필드에 "심볼을 입력하라"는 인상을 주지 않도록 **고르는 목록**으로 보여 준다.
+  /// 저장 형식은 그대로 `emoji` 한 글자다 — 기존 비서·기록과 호환된다.
+  public static let iconChoices: [String] = [
+    "🤖", "🦾", "🧠", "🦉", "🦊",
+    "🐻", "🐼", "🐱", "🐶", "🐧",
+    "🦁", "🐨", "🦄", "🐝", "🐬",
+    "👩‍💻", "🧑‍🔬", "🕵️", "🔎", "📚"
+  ]
+
   public var id: UUID
   public var name: String
   /// 담당 — "매일 아침 테크 소식을 정리하는 비서"

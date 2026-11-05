@@ -7,3 +7,4 @@ DerivedData/
 .DS_Store
 *.profraw
 docs/qa/*-debug/
+build-release/

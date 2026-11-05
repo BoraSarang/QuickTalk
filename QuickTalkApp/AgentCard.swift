@@ -33,6 +33,8 @@ struct AgentCard: View {
 
   /// 중요·치명적 명령의 **2차 확인** — 한 번 더 눌러야 실행된다.
   @State private var armed = false
+  /// 출력이 길 때 펼친 이벤트 — 기본은 8줄까지만 보여 대화가 길어지지 않게 한다.
+  @State private var expandedOutputs: Set<String> = []
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -88,7 +90,9 @@ struct AgentCard: View {
             .font(.system(size: 10.5, design: .monospaced))
             .foregroundColor(.primary.opacity(0.85))
             .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
+            // `fixedSize(vertical:)` 는 바깥 ScrollView 안에서 높이를 **명령 길이와 무관하게**
+            // 작게 잡아 아래 턴과 겹치게 만들었다(2026-11-05 실측). ScrollView 는 높이를
+            // 무한히 제안하므로 고정할 필요가 없다 — 자연 줄바꿈에 맡긴다.
             .padding(.leading, 16)
         }
         // 실제 출력
@@ -144,17 +148,39 @@ struct AgentCard: View {
     }
   }
 
-  /// 실제 출력 — 스크롤되는 작은 터미널 창
+  /// 실제 출력 — 대화 흐름을 끊지 않도록 **8줄까지만** 보여 주고, 길면 펼친다.
+  ///
+  /// 예전에는 안쪽에 `ScrollView` 를 두고 `maxHeight: 150` 을 줬는데,
+  /// 바깥 대화 스크롤 안에서는 항상 **150pt 를 꽉 채운 빈 상자**가 됐고
+  /// (짧은 출력도 빈 공간), 그 위에서 휠을 굴리면 안쪽 스크롤이 먼저 먹었다.
+  /// 20턴 대화가 2만 pt 까지 늘어난 주 원인이라 고정 높이 상자를 없앴다(2026-11-05).
   private func outputBox(_ event: AgentEvent) -> some View {
-    ScrollView(.vertical) {
+    let expanded = expandedOutputs.contains(event.id)
+    let lineCount = event.output.split(separator: "\n", omittingEmptySubsequences: false).count
+    let isLong = lineCount > 8 || event.output.count > 700
+    return VStack(alignment: .leading, spacing: 4) {
       Text(event.output)
         .font(.system(size: 10, design: .monospaced))
         .foregroundColor(.primary.opacity(0.8))
         .textSelection(.enabled)
+        .lineLimit(expanded ? nil : 8)
+        .truncationMode(.tail)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(6)
+        .padding(.horizontal, 6)
+        .padding(.top, 6)
+        .padding(.bottom, isLong ? 0 : 6)
+      if isLong {
+        Button(expanded ? L("접기") : Lf("전체 보기 · %d자", event.output.count)) {
+          if expanded { expandedOutputs.remove(event.id) }
+          else { expandedOutputs.insert(event.id) }
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundColor(Color.accentColor)
+        .padding(.horizontal, 6)
+        .padding(.bottom, 5)
+      }
     }
-    .frame(maxHeight: 150)
     .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
       .fill(Color.primary.opacity(0.05)))
     .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
