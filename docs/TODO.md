@@ -3,6 +3,15 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-06 KST
 
+## 정리 완료 (2026-11-06) — v0.31 코드·문서 정리
+
+- **세션 라우팅**: `AgentExecutor+Schedule`·`AgentExecutor+UI` 가 `store.appendAgentEvent(...)` 등 **활성 세션** 래퍼를 쓰던 것을 실행기 `session` 으로 통일 — 응답 중 다른 방으로 전환해도 카드가 섞이지 않는다. `approveWriteScopes`·셸 스트리밍 갱신도 동일.
+- **데드 코드**: `UIStore.appendAgentEventToTurn`·`updateAgentEventInTurn` 삭제(세션 경로가 `core` 를 직접 사용).
+- **경고**: Debug 빌드 경고 0 — `try?` 미사용 결과 `_ =`, `Timer`(@Sendable)의 비-Sendable `UIStore` 캡처를 `WeakMainActorBox` 로 제거.
+- **문서**: 다중 대화 QA 상태·후속 보강 절, 질문 호버 실측 이력 갱신.
+- **검증**: `swift test` **856/856**(6 skip) · Debug/Release BUILD SUCCEEDED · `--session-test` PASS.
+- **병합·배포**: **PR #110** → squash merge · Release 재배포.
+
 ## 구현 완료 (2026-11-06) — v0.31 다중 대화방 (대화별 세션 + 동시 응답, 6a/6b)
 
 `docs/qa/v0.31-multi-conversation/README.md` · PLAN §7.3 — **구현·검증·병합·배포 완료 · 실측 대기(M1~M8).**

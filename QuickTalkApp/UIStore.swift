@@ -185,18 +185,6 @@ final class UIStore: ObservableObject {
     get { activeSession.agentHandoffNotice }
     set { activeSession.agentHandoffNotice = newValue }
   }
-  /// 실행 기록을 턴에 저장한다 — 대화 기록(history.json)에 함께 남아 다음에 다시 보인다.
-  func appendAgentEventToTurn(_ event: AgentEvent, turnID: UUID) {
-    core.appendAgentEvent(event, to: turnID)
-    conversation = core.conversation
-  }
-
-  /// 턴에 저장된 실행 기록 한 건을 고친다(상태·출력·경과시간).
-  func updateAgentEventInTurn(id eventID: String, turnID: UUID, _ mutate: (inout AgentEvent) -> Void) {
-    core.updateAgentEvent(id: eventID, in: turnID, mutate)
-    conversation = core.conversation
-  }
-
   /// 도구 실행기 — 정책 판단·사용자 확인·감사 기록
   var agentExecutor: AgentExecutor? {
     get { activeSession.agentExecutor }
@@ -254,9 +242,11 @@ final class UIStore: ObservableObject {
                                             request: request)
       onScheduledApproval?(scheduledApproval!)
       scheduledApprovalTimer?.invalidate()
+      let box = WeakMainActorBox(self)
       scheduledApprovalTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
         Task { @MainActor in
-          guard let ctx = self.scheduledRun, ctx.approvalContinuation != nil else { return }
+          guard let self = box.value,
+                let ctx = self.scheduledRun, ctx.approvalContinuation != nil else { return }
           ctx.approvalTimedOut = true
           self.resolveScheduledApproval(.deny)
         }
@@ -346,8 +336,9 @@ final class UIStore: ObservableObject {
                                              action: action,
                                              isDuplicate: isDuplicate)
       scheduleTimer?.invalidate()
-      scheduleTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { [weak self] _ in
-        Task { @MainActor in self?.resolveScheduleProposal(accept: false) }
+      let box = WeakMainActorBox(self)
+      scheduleTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
+        Task { @MainActor in box.value?.resolveScheduleProposal(accept: false) }
       }
     }
   }
@@ -3075,6 +3066,13 @@ final class UIStore: ObservableObject {
                                                  attachments: attachments, model: p.model)
     }
   }
+}
+
+/// `Timer` 블록(`@Sendable`)이 비-Sendable 객체를 직접 잡지 않도록 감싸는 약한 상자.
+/// 실제 작업은 `Task { @MainActor }` 안에서 하고, 타이머가 살아 있는 동안만 대상을 붙든다.
+final class WeakMainActorBox<T: AnyObject>: @unchecked Sendable {
+  weak var value: T?
+  init(_ value: T) { self.value = value }
 }
 
 // MARK: - 대화방 하나의 상태 (v0.31 6a)

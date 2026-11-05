@@ -838,7 +838,7 @@ extension AppDelegate {
     var results: [String] = []
 
     // 1번 방: 질문 1개 + 초안 + 응답 중 상태를 만든다.
-    try? s.core.submit(text: "첫 번째 방 질문", attachments: [])
+    _ = try? s.core.submit(text: "첫 번째 방 질문", attachments: [])
     s.conversation = s.core.conversation
     s.draft = "첫 방 초안"
     s.isReplying = true
