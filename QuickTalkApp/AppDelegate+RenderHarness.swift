@@ -537,13 +537,28 @@ extension AppDelegate {
                        updatedAt: Date().addingTimeInterval(-86_400))
         ]
         let empty = PillModel()
+        // QA: pill 에서도 비서를 고를 수 있다(v0.30) — 버튼·선택 상태를 함께 그린다.
+        let persona = Persona(name: "테크충",
+                              role: "IT, AI, Mac, iPad 등에 전문적인 비서",
+                              emoji: "🦾")
+        empty.personas = [persona]
+        empty.persona = persona
         let listed = PillModel()
+        listed.personas = [persona]
+        listed.persona = nil          // 비서 없음 상태도 보이게
         listed.showList = true
         listed.recent = recent
         let typed = PillModel()
-        typed.text = "내일 서울 날씨 알려줘"
+        typed.text = suffix == "en" ? "What's the weather tomorrow?" : "내일 서울 날씨 알려줘"
+        typed.personas = [persona]
+        typed.persona = persona
         let multiline = PillModel()
         multiline.text = "내일 서울 날씨 알려줘\n그리고 이번 주 일정도 같이 보여줘"
+        multiline.personas = [persona]
+        multiline.persona = persona
+        // 비서 없음 상태 — 버튼은 보이되 기본 아이콘(체크 없음)으로 구분된다.
+        let noPersona = PillModel()
+        noPersona.personas = [persona]
         // 렌더는 값을 프로그램적으로 넣어(textDidChange 없음) 측정이 일어나지 않는다 → 높이를 명시한다
         multiline.inputHeight = 2 * 18 + 12   // 2줄 × 줄높이 18 + 위아래 여백 12
         self.renderPNG(AnyView(Self.pillStage(empty)),
@@ -555,6 +570,9 @@ extension AppDelegate {
         self.renderPNG(AnyView(Self.pillStage(multiline)),
                        size: NSSize(width: 460, height: 200),
                        to: "\(dir)/pill-multiline-\(suffix).png")
+        self.renderPNG(AnyView(Self.pillStage(noPersona)),
+                       size: NSSize(width: 460, height: 140),
+                       to: "\(dir)/pill-nopersona-\(suffix).png")
         self.renderPNG(AnyView(Self.pillStage(listed)),
                        size: NSSize(width: 460, height: 320),
                        to: "\(dir)/pill-list-\(suffix).png")

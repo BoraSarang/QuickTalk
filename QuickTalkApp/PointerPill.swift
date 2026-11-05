@@ -73,6 +73,10 @@ final class PillModel: ObservableObject {
   @Published var focusToken = UUID()
   /// 입력창이 측정한 높이 — 여러 줄이 되면 pill 이 위로 자란다.
   @Published var inputHeight: CGFloat = 0
+  /// 지금 이 대화의 비서(없으면 nil = 비서 없음).
+  @Published var persona: Persona?
+  /// 고를 수 있는 비서 목록 — 비어 있으면 버튼을 숨긴다.
+  @Published var personas: [Persona] = []
 }
 
 // MARK: - 창
@@ -122,6 +126,11 @@ final class PointerPillController {
   private var onOutcome: ((PillOutcome) -> Void)?
   private let model = PillModel()
   private var bag = Set<AnyCancellable>()
+  /// 메뉴(비서·보관함) 추적 중 — 이때의 포커스 상실로는 pill 을 닫지 않는다.
+  private var menuTracking = false
+  /// pill 에서 고른 비서 — 세션이 만료돼 새 대화가 시작돼도 이번 요청에는 유지한다.
+  private(set) var selectedPersonaID: UUID?
+  private(set) var personaTouched = false
   /// Esc·단축키로 닫을 때 되돌려 줄 앱(다른 앱에서 ⌘Space를 눌렀던 경우).
   private var previousApp: NSRunningApplication?
   private var openedAt = Date.distantPast
@@ -156,6 +165,10 @@ final class PointerPillController {
     }
     model.recent = recentConversations()
     model.showList = false
+    if let store {
+      model.personas = store.settings.personas
+      model.persona = store.settings.persona(store.conversation.personaID)
+    }
     // 초안이 남아 있으면( Esc 로만 닫은 경우) 높이도 그대로 둔다 —
     // 0으로 지우면 입력창이 같은 높이를 다시 보고하지 않아 글이 잘린 채로 열린다.
     if model.text.isEmpty { model.inputHeight = 0 }
@@ -245,6 +258,28 @@ final class PointerPillController {
     finish(.archive)
   }
 
+  // MARK: 비서
+
+  /// pill 에서 비서 선택 — 대화 창과 같은 설정(`conversation.personaID`)을 바꾼다.
+  private func selectPersona(_ id: UUID?) {
+    guard let store else { return }
+    store.selectPersona(id)
+    selectedPersonaID = id
+    personaTouched = true
+    model.persona = store.settings.persona(id)
+    model.focusToken = UUID()     // 메뉴가 닫힌 뒤에도 입력을 이어갈 수 있게
+    NSLog("[QuickTalk] pill 비서 선택 — %@",
+          store.settings.persona(id)?.name ?? "비서 없음")
+  }
+
+  /// 세션이 만료돼 `startShortcutSession()` 이 새 대화를 시작하면 비서가 기본값으로 돌아간다.
+  /// pill 에서 **직접 고른** 경우에만 그 선택을 다시 적용한다.
+  func reapplyPersonaIfNeeded() {
+    guard personaTouched, let store else { return }
+    store.selectPersona(selectedPersonaID)
+    model.persona = store.settings.persona(selectedPersonaID)
+  }
+
   /// QA 전용 — pill 을 미리 채운다(입력창 높이·위로 성장 확인용)
   func setDraftForQA(_ text: String) {
     model.text = text
@@ -323,6 +358,8 @@ final class PointerPillController {
   // MARK: 만들기
 
   private func buildPanel(store: UIStore) {
+    model.personas = store.settings.personas
+    model.persona = store.settings.persona(store.conversation.personaID)
     let root = PillRootView(
       model: model,
       onSubmit: { [weak self] in self?.submit($0) },
@@ -330,7 +367,8 @@ final class PointerPillController {
       onCommandReturn: { [weak self] in self?.openChatWindow() },
       onToggleList: { [weak self] in self?.toggleList() },
       onResume: { [weak self] in self?.resume($0) },
-      onOpenArchive: { [weak self] in self?.openArchive() }
+      onOpenArchive: { [weak self] in self?.openArchive() },
+      onSelectPersona: { [weak self] id in self?.selectPersona(id) }
     )
     let win = PointerPillPanel(contentRect: NSRect(x: 0, y: 0, width: PillMetrics.width, height: PillMetrics.height),
                                styleMask: [.borderless], backing: .buffered, defer: false)
@@ -373,6 +411,41 @@ final class PointerPillController {
       }
       .store(in: &bag)
 
+    // 비서 목록·현재 선택을 pill 에 반영한다(설정에서 추가/삭제·이름 변경해도 최신).
+    store.$settings
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] settings in
+        guard let self, let store = self.store else { return }
+        self.model.personas = settings.personas
+        self.model.persona = settings.persona(store.conversation.personaID)
+      }
+      .store(in: &bag)
+    store.$conversation
+      .map(\.personaID)
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] id in
+        guard let self, let store = self.store else { return }
+        self.model.persona = store.settings.persona(id)
+      }
+      .store(in: &bag)
+
+    // 메뉴를 여는 동안에는 포커스를 잃어도 pill 을 닫지 않는다.
+    // (닫히면 비서를 고르는 첫 클릭이 취소된 것처럼 보인다)
+    NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification,
+                                           object: nil, queue: .main) { [weak self] _ in
+      self?.menuTracking = true
+    }
+    NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification,
+                                           object: nil, queue: .main) { [weak self] _ in
+      guard let self else { return }
+      self.menuTracking = false
+      guard self.isVisible, NSApp.isActive else { return }
+      self.panel?.makeKeyAndOrderFront(nil)
+      self.model.focusToken = UUID()      // 메뉴를 닫으면 입력창으로 돌아온다
+    }
+
     // 바깥을 클릭해 key를 잃으면 닫는다(Spotlight처럼). 여는 도중의 일시적 resign은 무시한다.
     NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                            object: win, queue: .main) { [weak self] _ in
@@ -384,6 +457,7 @@ final class PointerPillController {
   /// 포커스를 잃으면 닫는다 — 여는 도중(활성화 지연)의 일시적 resign은 무시한다.
   private func handleResignKey() {
     guard isVisible, Date().timeIntervalSince(openedAt) > 0.25 else { return }
+    if menuTracking { return }                 // 비서·보관함 메뉴를 고르는 중
     if NSApp.modalWindow != nil { return }
     dismiss(restoringFocus: false)
   }
@@ -399,6 +473,8 @@ struct PillRootView: View {
   let onToggleList: () -> Void
   let onResume: (Conversation) -> Void
   let onOpenArchive: () -> Void
+  /// 비서 선택 — nil 은 "비서 없음". 대화 창과 **같은 설정**을 바꾼다.
+  var onSelectPersona: (UUID?) -> Void = { _ in }
 
   var body: some View {
     // 창 높이는 컨트롤러가 `capsuleHeight` 로 계산한다 — 여기서 **간격을 더하지 않는다**.
@@ -421,11 +497,22 @@ struct PillRootView: View {
     max(0, capsuleHeight - PillMetrics.height)
   }
 
-  /// 입력창 프레임 높이 — **빈 입력은 언제나 1줄**이다.
-  /// 측정값(`inputHeight`)이 늦게 갱신돼도 예전 여러 줄 높이가 남으면, 한 줄 글자가 그 프레임
-  /// 맨 위에 그려지고 아래가 비어 보인다(사용자 보고 "위로 쏠려 있음"). 그래서 여기서 막는다.
+  /// 입력창 프레임 높이 — **빈 입력도 1줄 상자와 같은 높이**를 쓴다.
+  /// (예전엔 24pt 어림값이라 실제 NSTextView 상자(줄 높이+여백)보다 작았고,
+  ///  그 작은 상자를 아래 기준선에 붙여 글자·캐럿이 아래로 치우쳐 보였다)
   private var textHeight: CGFloat {
-    model.text.isEmpty ? PillMetrics.minTextHeight : max(PillMetrics.minTextHeight, model.inputHeight)
+    max(oneLineTextHeight, model.inputHeight)
+  }
+
+  /// 1줄일 때 NSTextView 가 실제로 쓰는 높이(줄 높이 + 위아래 여백)
+  private var oneLineTextHeight: CGFloat {
+    ChatInputField.lineHeight(for: PillMetrics.font) + ChatInputField.verticalPadding * 2
+  }
+
+  /// 글자 상자를 본체 **세로 중앙**에 둔다 — 위아래 여백을 같게.
+  /// 1줄(56pt 본체)에서는 `textPad`(13)보다 큰 12.7pt, 여러 줄에서는 13pt 로 수렴한다.
+  private var textBottomPad: CGFloat {
+    max(0, (capsuleHeight - textHeight) / 2)
   }
 
   private var capsuleHeight: CGFloat {
@@ -441,20 +528,15 @@ struct PillRootView: View {
         .padding(.bottom, PillMetrics.textPad)
 
       ZStack(alignment: .topLeading) {
-        if model.text.isEmpty {
-          Text(L("무엇이든 물어보세요"))
-            .font(.system(size: 15.5))
-            .foregroundColor(Color.secondary.opacity(0.8))
-            .allowsHitTesting(false)
-            .padding(.top, 3)
-        }
-        // 대화 입력창과 **같은 컴포넌트** — Enter 전송 · Shift+Enter 줄바꿈 · 위로 성장
+        // 대화 입력창과 **같은 컴포넌트** — Enter 전송 · Shift+Enter 줄바꿈 · 위로 성장.
+        // 안내 문구는 뷰가 아니라 NSTextView 가 직접 그린다(캐럿과 같은 기준선).
         ChatInputField(text: $model.text,
                        height: $model.inputHeight,
                        isBusy: false,
                        maxLines: PillMetrics.maxLines,
                        focusToken: model.focusToken,
                        font: PillMetrics.font,
+                       placeholder: L("무엇이든 물어보세요"),
                        onCommandReturn: onCommandReturn,
                        onCancel: onCancel,
                        onSubmit: onSubmit)
@@ -462,7 +544,14 @@ struct PillRootView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.bottom, PillMetrics.textPad)
+      .padding(.bottom, textBottomPad)
+
+      // 비서 선택 — ⌘Space 화면에서도 대화 창과 **같은 메뉴**로 고른다.
+      if !model.personas.isEmpty {
+        PillPersonaButton(personas: model.personas, current: model.persona,
+                          onSelect: onSelectPersona)
+          .padding(.bottom, 12)
+      }
 
       PillIconButton(system: "archivebox", active: model.showList,
                      help: L("보관함 — 최근 대화 이어가기")) {
@@ -574,6 +663,53 @@ private struct PillOrb: View {
       .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 1))
       .frame(width: 30, height: 30)
       .accessibilityHidden(true)
+  }
+}
+
+private struct PillPersonaButton: View {
+  let personas: [Persona]
+  let current: Persona?
+  let onSelect: (UUID?) -> Void
+
+  var body: some View {
+    Menu {
+      PersonaMenuList(personas: personas, current: current, onSelect: onSelect)
+    } label: {
+      ZStack(alignment: .bottomTrailing) {
+        Group {
+          if let current {
+            Text(current.displayEmoji).font(.system(size: 15))
+          } else {
+            Image(systemName: "person.crop.circle")
+              .font(.system(size: 15, weight: .medium))
+          }
+        }
+        .frame(width: 32, height: 32)
+        .background(Circle().fill(Color.purple.opacity(current == nil ? 0.10 : 0.22)))
+        .overlay(Circle().strokeBorder(Color.purple.opacity(current == nil ? 0.18 : 0.45),
+                                       lineWidth: 1))
+        .foregroundColor(current == nil ? Color.primary.opacity(0.78) : .primary)
+        .contentShape(Circle())
+
+        if current != nil {
+          Image(systemName: "checkmark")
+            .font(.system(size: 7, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 11, height: 11)
+            .background(Circle().fill(Color.purple))
+            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
+            .offset(x: 3, y: 1)
+        }
+      }
+      .fixedSize()
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help(current == nil
+          ? L("비서 없음 — 눌러서 이 대화의 비서를 고릅니다")
+          : L("이 대화의 비서를 고릅니다 — 말투가 바뀌고, 예약 작업도 이 비서로 실행할 수 있습니다"))
   }
 }
 
