@@ -56,3 +56,12 @@
 - P1 ⌘Space → 비서 버튼으로 다른 비서를 고르면 **이름·이모지·체크**가 바뀌고, 이어서 보낸 질문의 답변이 그 비서 말투로 온다.
 - P2 같은 화면에서 `무엇이든 물어보세요`·키보드 커서가 **본체 세로 중앙**에 보인다(위아래 여백이 같아 보임).
 - P3 pill 에서 비서를 고른 뒤 Esc → 다시 ⌘Space 로 열어도 선택이 유지된다(세션 만료 시에도 유지).
+
+## 7. 배포
+
+- **병합**: PR #94 → squash merge `356c4c6` (2026-11-05).
+- **시각**: 2026-11-05 21:13 KST.
+- **절차**: Release 빌드(`build-release`) → `codesign --verify --strict --deep` 통과 → `~/Applications/QuickTalk.app` **삭제** → 새 번들 **한 번에 이동** → 재검증. **백업 번들 없음**(`.old`·`.v0xx`·`copy`·`.app.new` 금지, `AGENTS.local.md` §4 [HARD]).
+- **검증**: 설치본 SHA-256 `de4de73329bdc4abe588680fc7cd269fc7c7476272dfe690722f8e224c1201b5` = Release 빌드 산출물 · `codesign --verify --strict --deep` OK · 바이너리에 v0.30 코드(`pill 비서 선택`, `reapplyPersonaIfNeeded`) 포함 · `~/Applications/` 에 `QuickTalk.app` 하나만.
+- **롤백**: git 에서 `356c4c6` 이전으로 되돌려 재빌드·재배포(복제본 보관 금지).
+- **적용 조건**: 실행 중 프로세스(PID 82629)는 이전 빌드 — **앱을 종료하고 다시 실행**해야 v0.30 이 적용된다.

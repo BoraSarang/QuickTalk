@@ -5,13 +5,14 @@
 
 ## 구현 완료 (2026-11-05) — v0.30 ⌘Space pill 비서 선택 · 글자/커서 세로 중심
 
-`docs/plans/PLAN_v0.30_pill-persona_macos.md` — **구현·검증 완료 · 실측 대기.**
+`docs/plans/PLAN_v0.30_pill-persona_macos.md` — **구현·검증·병합·배포 완료 · 실측 대기.**
 
 - **계기**: v0.29 후 사용자 지적 — *"CMD+Space 저 화면에서 비서를 선택할 수 없어"*, *"키보드 커서와 입력 위치가 아래로 치우쳐 있다"*. 둘 다 **pill 화면**이었고 이전 수정은 대화 창만 대상이었다.
 - **비서**: `PillPersonaButton`(보관함 왼쪽, 이모지+체크/`person.crop.circle`) + `PersonaMenuList` 공통화(칩·입력독·pill 동일 목록) + 메뉴 추적 중 닫힘 방지 + 세션 만료 후에도 `reapplyPersonaIfNeeded`.
 - **세로 중심**: 1줄 상자 30.6 · 아래 여백 `(capsule-textHeight)/2` · 안내 문구를 `NSTextView` 가 직접 그리기(`ChatTextView.placeholder`).
 - **검증**: 글자 잉크 중심 114.75 → **112.75~113.0**(본체 112.0) · 입력독 588.0 vs 588.25 · `swift test` **840/840**(6 skip) · Debug/Release BUILD SUCCEEDED · 렌더 `docs/qa/pill-persona-2026-11-05/`.
 - **요청 점검**: 2026-11-05 요청 11건 표(PLAN §2). 미구현은 **QuickShelf 자동 펼침** 1건(⌘V 대안 동작).
+- **병합/배포**: PR #94 → `356c4c6` · **2026-11-05 21:13** `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `de4de733…` · **앱 재실행 필요**.
 - **실측 대기**: P1~P3(PLAN §6).
 
 ## 구현 완료 (2026-11-05) — v0.29 연결 끊김 이어쓰기 · 예고 답변 방지 · 비서 리포트 폴더
