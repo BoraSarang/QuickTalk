@@ -20,7 +20,7 @@
 - **배포**: **2026-11-06 01:37** `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음** — 기존 번들 삭제 → 새 번들 이동, `~/Applications/` 에 `QuickTalk.app` 하나만) · `codesign --verify --strict --deep` OK · 설치본 SHA-256 `45618fcb594a4a195dfd88f1216fb2f0a35b7553e144190cbc0900043f0d3f86`(37MB) · Release 바이너리 `--session-test` **PASS**. (01:18 중간 배포 `22b39fe1…` 는 타임라인까지만 포함.)
 - **실측 대기**: **R1~R9**(사고 과정 타임라인 순서·접힘·3모드·자동 스크롤·재방문 유지) · **H1~H5**(`⋯` 호버 유지·클릭) · **M1~M8**(다중 대화 동시 응답·방별 응답 중 점·전환 복귀) · **W1**(승인한 `~/Documents/QuickTalkReport` 저장).
 - **남은 확인**: Exa 검색 표시 요구 *"검색한거 하단에 출력 한거는 그대로 두고 Exa 검색 사용시 그 아래도 표현"* 의 정확한 의미 — 현재는 "타임라인에 `web_search` 도구 단계 + 출처 카드는 하단 유지"로 해석(별도 변경 없음).
-- **정리(PR #110)**: 실행기 확장(예약·화면 조작)이 활성 세션에 카드를 쓰던 경로를 **실행기 세션**으로 통일(백그라운드 응답 중 카드 섞임 방지). 데드 코드 2개 제거, Debug 경고 0, `swift test` 856/856 · `--session-test` PASS. Release 재배포.
+- **정리(PR #110·#111)**: 실행기 확장(예약·화면 조작)이 활성 세션에 카드를 쓰던 경로를 **실행기 세션**으로 통일(백그라운드 응답 중 카드 섞임 방지). 데드 코드 2개 제거, `GeneratedContent.Kind` 비망라 스위치 정리 — **Debug/Release 경고 0**. `swift test` 856/856 · `--session-test` PASS. **2026-11-06 01:51** 교체(백업 없음) · `codesign --verify --strict --deep` OK · SHA-256 `532d1e3fbf0404643fa13355ab98d7e186d608e5b02c44aa852cc9ebc30f3567`(37MB) · Release `--session-test` PASS.
 
 ### 2026-11-06 인계 (6) — v0.31 **질문 호버 폭 · 제목 드래그 · 진행 중 대화 삭제** **병합·배포·실측 완료**
 

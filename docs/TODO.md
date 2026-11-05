@@ -10,7 +10,7 @@
 - **경고**: Debug 빌드 경고 0 — `try?` 미사용 결과 `_ =`, `Timer`(@Sendable)의 비-Sendable `UIStore` 캡처를 `WeakMainActorBox` 로 제거.
 - **문서**: 다중 대화 QA 상태·후속 보강 절, 질문 호버 실측 이력 갱신.
 - **검증**: `swift test` **856/856**(6 skip) · Debug/Release BUILD SUCCEEDED · `--session-test` PASS.
-- **병합·배포**: **PR #110** → squash merge · Release 재배포.
+- **병합·배포**: **PR #110·#111** → squash merge · 2026-11-06 **01:51** 교체(백업 없음) · SHA-256 `532d1e3f…`(37MB) · Release `--session-test` PASS.
 
 ## 구현 완료 (2026-11-06) — v0.31 다중 대화방 (대화별 세션 + 동시 응답, 6a/6b)
 
