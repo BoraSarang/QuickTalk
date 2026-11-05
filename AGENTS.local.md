@@ -19,7 +19,8 @@
 ## 4. 프로젝트 특화 예외 규칙
 - 분석 대상 `/System/Applications/Siri AI.app` (bundle `com.apple.campo`)는 읽기 전용으로만 취급. 복사·수정·재배포 금지, 동작 관찰 + 리소스 인벤토리만 수행
 - QuickTalk는 Siri AI 복제가 아니라 대화·응답 UX 호환 구현을 목표로 함
-- **배포 시 `~/Applications/.QuickTalk.old*` 백업 번들을 만들지 않는다** — 같은 bundle id 복제본이 시스템 설정 › 개인정보 보호 및 보안 권한 목록에 중복 항목으로 남는다(2026-11-02 사용자 요청). 교체는 기존 번들을 바로 지우고 새 번들을 넣는다.
+- **[HARD] 배포 시 이전 버전 백업 번들을 만들지 않는다** — `~/Applications/` 안에 `.QuickTalk.old`, `.QuickTalk.v0xx`, `QuickTalk copy`, `QuickTalk.app.new` 같은 **어떤 이름의 복제본도 금지**. 같은 bundle id 번들이 두 개 이상 존재하면 시스템 설정 › 개인정보 보호 및 보안(카메라·마이크·손쉬운 사용·화면 기록 등)에 유령 항목이 쌓여 쓰레기 데이터가 된다(2026-11-02 요청, 2026-11-05 재확인).
+- **배포 절차(고정)**: ① `~/Applications/` **밖**(예: `build-release/…/Release/`)에서 빌드·코드서명 확인 → ② 실행 중이면 사용자에게 종료 요청 → ③ `rm -rf ~/Applications/QuickTalk.app` → ④ 새 번들을 **한 번에** `~/Applications/QuickTalk.app` 으로 이동 → ⑤ `codesign --verify --strict --deep` + SHA-256 기록. 임시 스테이징 경로도 `~/Applications/` 밖에 둔다. 롤백은 백업 번들이 아니라 git 커밋 되돌리기 + 재빌드로 한다.
 
 ## 5. 디자인 토큰 (custom 프로필일 때)
 - 색/폰트/간격 등은 docs/DESIGN.md에 정의, 여기서는 프로필만 확정

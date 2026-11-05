@@ -12,7 +12,7 @@
 - **리포트 폴더**: `SystemKnowledge.reportFolderText` — 비서/기본 폴더(`~` 확장)와 쓰기 꺼짐 상태를 일반·도구 프롬프트 모두에 주입.
 - **비서/입력독**: `displayEmoji`(안정 기본 아이콘) · 메뉴 `지금: …`+체크 · 칩/독 체크 배지 · 입력독 글자 중심 정렬.
 - **검증**: `swift test` **840/840**(6 skip, 신규 26) · Debug/Release BUILD SUCCEEDED · 번역 17키 · 렌더 `docs/qa/resume-continuity-2026-11-05/`.
-- **병합/배포**: PR #90 → `eec75df` · 기록 PR #91 → `ab4f37e` · 2026-11-05 20:36 `~/Applications/QuickTalk.app` 교체(직전 v0.28 은 `.QuickTalk.old`) · `codesign --verify --strict --deep` OK · `diff -rq` 동일 · SHA-256 `35a5ba0a…` · **앱 재실행 필요**.
+- **병합/배포**: PR #90 → `eec75df` · 기록 PR #91 → `ab4f37e` · 2026-11-05 20:36 `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음**) · `codesign --verify --strict --deep` OK · `diff -rq` 동일 · SHA-256 `35a5ba0a…` · **앱 재실행 필요**.
 - **실측 대기**: R1~R5(PLAN §6).
 
 ## 구현 완료 (2026-11-05) — v0.28 비서 선택 상시 노출 · 아이콘 그리드 · 대화 겹침/스크롤 수정

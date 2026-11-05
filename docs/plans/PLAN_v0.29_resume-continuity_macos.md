@@ -102,7 +102,7 @@
 
 - **PR #90 → squash merge `eec75df`** (2026-11-05).
 - 기록 PR #91 → `ab4f37e`.
-- **배포 2026-11-05 20:36** — `~/Applications/QuickTalk.app` 교체, 직전 v0.28 번들은 `~/Applications/.QuickTalk.old`.
+- **배포 2026-11-05 20:36** — `~/Applications/QuickTalk.app` 교체. **백업 번들을 만들지 않는다**(같은 bundle id 복제본은 시스템 권한 목록에 유령 항목을 남긴다 — `AGENTS.local.md` §4).
 - `codesign --verify --strict --deep` OK · Release 빌드 산출물과 `diff -rq` 동일.
 - SHA-256(실행 파일) `35a5ba0a8a01cabccabded641eddeb105d3f6a2dca075f104259b15cd1f6d9e7`.
 - **앱 재실행 필요** — 실행 중이던 이전 빌드는 종료·재실행해야 새 프롬프트·재시도 코드가 적용된다.
