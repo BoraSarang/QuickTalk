@@ -66,3 +66,9 @@
 
 검증(오프스크린): 20턴 실데이터 5개 위치 스캔 **겹침 0** · 위로 올린 채 120줄 추가해도 `19,479 → 19,881`(낭치 없음) · `맨 아래로` `distance=0` · 첫 열기 `distance=0` · `swift test` **814/814**(6 skip) · Debug/Release BUILD SUCCEEDED.
 렌더: `docs/qa/chat-scroll-2026-11-05/`(한/영 5장씩), 비서 UI `docs/qa/persona-picker-2026-11-05/`(한/영).
+
+## 7. 병합·배포
+
+- **PR #88 → squash merge `9115ad8`** (2026-11-05, 기준 `main` = `08851bf`).
+- 2026-11-05 19:31 `~/Applications/QuickTalk.app` 교체(백업 없음) · `codesign --verify --strict --deep` OK · 빌드 산출물과 `diff -rq` 동일 · SHA-256 `dd9a490edfe0c789cc04587ee1d29fa371fe43576c6fe11ac194a459ef9e1006` · **앱 재실행 필요**(실행 중 PID 796 은 이전 빌드).
+- 실측 대기(V1~V5)는 `docs/HANDOFF.md` 2026-11-05 인계 참조.
