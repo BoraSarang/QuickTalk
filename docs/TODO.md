@@ -1,7 +1,18 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-04 KST
+> 마지막 갱신: 2026-11-05 KST
+
+## 구현 완료 (2026-11-05) — v0.28 비서 선택 상시 노출 · 아이콘 그리드 · 대화 겹침/스크롤 수정
+
+`docs/plans/PLAN_v0.28_persona-picker_macos.md` — **구현 완료 · 배포 완료 · 실측 대기.**
+
+- **비서 선택**: 입력독 왼쪽 `PersonaDockButton`(헤더 칩과 같은 메뉴) — 첫 턴 전(빈 대화)에도 선택 가능. 편집 시트 아이콘 = **20개 그리드**(`Persona.iconChoices`, 저장 형식 유지).
+- **겹침**: `AgentCard` 긴 명령 `Text` 의 `.fixedSize(vertical:)` 제거 + 내용 열 폭 고정 — 20턴 실데이터 5개 위치 스캔 겹침 0(문서 20,821pt).
+- **스크롤**: `.defaultScrollAnchor(.bottom)` 제거(크기 변화마다 바닥 재고정 = 낭치) · `NSScrollView` 직접 핀 · 위로 읽는 중 자동 따라가기 중단/바닥에서 재개 · 첫 열기 정착 타이머.
+- **도구 출력**: 안쪽 스크롤 + 150pt 고정 상자 제거 → **8줄 + `전체 보기 · N자`**.
+- **검증**: `swift test` **814/814**(6 skip) · Debug/Release BUILD SUCCEEDED · 렌더 `docs/qa/chat-scroll-2026-11-05/`·`docs/qa/persona-picker-2026-11-05/`.
+- **병합/배포**: PR #88 → `9115ad8` · 2026-11-05 19:31 `~/Applications/QuickTalk.app` 교체 · SHA-256 `dd9a490e…` · **앱 재실행 필요**.
 
 ## 구현 완료 (2026-11-04) — v0.27 **2단계** 일정 목록·변경·삭제 도구 · `web_fetch` · 비서 모델 오버라이드
 
