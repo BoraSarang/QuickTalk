@@ -1,6 +1,6 @@
 # PLAN v0.29 — 연결 끊김 이어쓰기 · 예고 답변 방지 · 비서 상태 표시 (macOS)
 
-> 작성 2026-11-05 KST · 상태 **구현 완료**(사용자 실측 대기)
+> 작성 2026-11-05 KST · 상태 **구현·병합 `eec75df`**(사용자 실측·배포 대기)
 > 지원 언어: 한국어·영어 (`Sources/QuickTalkCore/LocalizationTable.swift`, 기존 `L()` 경로)
 > 관련: `PLAN_v0.28_persona-picker_macos.md` (비서 선택 UI), `PLAN_v0.18_agent-runtime_macos.md` (에이전트 루프)
 
