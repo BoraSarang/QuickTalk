@@ -1,7 +1,8 @@
 # 다중 대화방 — QA (2026-11-06, v0.31 6a/6b)
 
-> 상태: **구현 완료** — `swift test` 856/856(6 skip) · Debug/Release BUILD SUCCEEDED ·
-> `--session-test` **PASS**(9항목)
+> 상태: **구현·검증·병합·배포 완료** — PR #108 → `3c46d14` (2026-11-06 01:37, SHA-256 `45618fcb…`)
+> 검증: `swift test` 856/856(6 skip) · Debug/Release BUILD SUCCEEDED · `--session-test` **PASS**(9항목)
+> 후속 보강: PR #110 — 도구 확장(예약·화면 조작)도 실행기 세션으로 라우팅(2026-11-06)
 > 계기: PLAN_v0.31 §5 — *"한 번에 한 대화만"* (사용자 요청)
 
 ## 무엇이 바뀌었나
@@ -24,6 +25,13 @@
 - 이미 응답 중인 방을 다시 열면 **진행 중인 내용을 덮어쓰지 않는다**.
 - 다른 방에서 응답이 돌아도 QuickShelf·보관함 목록의 **응답 중 점**이 그 방에 표시된다.
 - 응답이 끝나면 그 방의 대화만 보관함에 저장된다(`syncArchive(session)`).
+
+## 후속 보강 (PR #110)
+
+- 실행기 확장 파일(`AgentExecutor+Schedule`, `AgentExecutor+UI`)이 `store.appendAgentEvent(...)`
+  처럼 **활성 세션** 기준 래퍼를 쓰고 있었다. 응답 중 다른 방으로 전환하면 예약·화면 조작 카드가
+  그 방에 붙을 수 있어, 실행기의 `session` 으로 라우팅하도록 고쳤다.
+- `approveWriteScopes` · 셸 출력 스트리밍 갱신도 실행 중인 방의 세션을 쓴다.
 
 ## 안전장치
 

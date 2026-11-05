@@ -390,14 +390,14 @@ extension AgentExecutor {
                              state: AgentEvent.State, output: String,
                              elapsed: Int = 0,
                              level: AgentPermissionLevel, risk: AgentRiskLevel) {
-    if store.hasAgentEvent(id: call.id) {
-      store.updateAgentEvent(id: call.id) {
+    if store.hasAgentEvent(id: call.id, session: session) {
+      updateEvent(call.id) {
         $0.state = state
         $0.output = output
         $0.elapsedMs = elapsed
       }
     } else {
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: title,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name, title: title,
                                         command: command, level: level, risk: risk,
                                         state: state, output: output, elapsedMs: elapsed))
     }

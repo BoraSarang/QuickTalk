@@ -14,20 +14,20 @@ extension AgentExecutor {
     let risk = AgentRiskLevel.normal
     guard let service = store.schedulerService else {
       let text = L("예약 작업을 읽을 수 없습니다. 앱을 다시 실행해 주세요.")
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: text,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name, title: text,
                                         command: "", level: level, risk: risk,
                                         state: .failed, output: text))
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
     let started = Date()
-    store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+    appendEvent(AgentEvent(id: call.id, toolName: call.name,
                                       title: L("예약 작업 목록"),
                                       command: "", level: level, risk: risk,
                                       state: .running))
     let names = Dictionary(uniqueKeysWithValues: store.settings.personas.map { ($0.id, $0.name) })
     let text = ScheduleListText.render(service.tasks, personaNames: names)
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-    store.updateAgentEvent(id: call.id) {
+    updateEvent(call.id) {
       $0.state = .done
       $0.output = Lf("예약 작업 %d개", service.tasks.count)
       $0.elapsedMs = elapsed
@@ -61,7 +61,7 @@ extension AgentExecutor {
 
     let title = Lf("일정 등록 제안 — %@ · %@",
                    proposal.title, proposal.summaryLine())
-    store.appendAgentEvent(AgentEvent(
+    appendEvent(AgentEvent(
       id: call.id, toolName: call.name, title: title,
       command: proposal.instruction, level: .write, risk: .normal,
       state: .pending, output: L("사용자 확인을 기다립니다.")))
@@ -72,7 +72,7 @@ extension AgentExecutor {
     let text = accepted
       ? Lf("등록했습니다: %@ (%@)", proposal.title, proposal.summaryLine())
       : L("사용자가 등록을 취소했습니다.")
-    store.updateAgentEvent(id: call.id) {
+    updateEvent(call.id) {
       $0.state = accepted ? .done : .denied
       $0.output = text
       $0.elapsedMs = elapsed
@@ -112,7 +112,7 @@ extension AgentExecutor {
       return AgentToolOutcome(output: text, denied: true, level: .write, risk: .normal)
     }
 
-    store.appendAgentEvent(AgentEvent(
+    appendEvent(AgentEvent(
       id: call.id, toolName: call.name,
       title: Lf("일정 변경 제안 — %@", change.after.title),
       command: change.changes.map { "\($0.label): \($0.before) → \($0.after)" }
@@ -126,7 +126,7 @@ extension AgentExecutor {
     let text = accepted
       ? Lf("일정을 변경했습니다: %@ (%@)", change.after.title, change.summaryLine())
       : L("사용자가 변경을 취소했습니다.")
-    store.updateAgentEvent(id: call.id) {
+    updateEvent(call.id) {
       $0.state = accepted ? .done : .denied
       $0.output = text
       $0.elapsedMs = elapsed
@@ -167,7 +167,7 @@ extension AgentExecutor {
       return AgentToolOutcome(output: text, denied: true, level: .write, risk: .normal)
     }
 
-    store.appendAgentEvent(AgentEvent(
+    appendEvent(AgentEvent(
       id: call.id, toolName: call.name,
       title: Lf("일정 삭제 제안 — %@", deletion.title),
       command: deletion.rule.humanDescription(),
@@ -180,7 +180,7 @@ extension AgentExecutor {
     let text = accepted
       ? Lf("일정을 삭제했습니다: %@", deletion.title)
       : L("사용자가 삭제를 취소했습니다.")
-    store.updateAgentEvent(id: call.id) {
+    updateEvent(call.id) {
       $0.state = accepted ? .done : .denied
       $0.output = text
       $0.elapsedMs = elapsed
@@ -220,7 +220,7 @@ extension AgentExecutor {
     let raw = call.stringArgument("url") ?? ""
     guard let url = WebFetchTool.url(from: call.arguments) else {
       let text = WebFetchError.badURL.userText
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name,
                                         title: text, command: raw,
                                         level: level, risk: risk,
                                         state: .failed, output: text))
@@ -228,14 +228,14 @@ extension AgentExecutor {
     }
     guard let key = SecretStore.load(account: store.settings.exaSecretID), !key.isEmpty else {
       let text = WebFetchError.missingKey.userText
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name,
                                         title: text, command: url,
                                         level: level, risk: risk,
                                         state: .failed, output: text))
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
     let maxCharacters = min(max(call.intArgument("max_characters") ?? 8_000, 500), 20_000)
-    store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+    appendEvent(AgentEvent(id: call.id, toolName: call.name,
                                       title: Lf("웹 페이지 읽기 — %@", url), command: url,
                                       level: level, risk: risk, state: .running))
     let started = Date()
@@ -247,7 +247,7 @@ extension AgentExecutor {
                                domain: WebText.domain(of: page.url),
                                publishedAt: page.publishedAt,
                                snippet: String(page.text.prefix(120))))
-      store.updateAgentEvent(id: call.id) {
+      updateEvent(call.id) {
         $0.state = .done
         $0.output = Lf("본문 %d자", page.text.count)
         $0.elapsedMs = elapsed
@@ -259,7 +259,7 @@ extension AgentExecutor {
     } catch {
       let elapsed = Int(Date().timeIntervalSince(started) * 1000)
       let text = (error as? WebFetchError)?.userText ?? error.localizedDescription
-      store.updateAgentEvent(id: call.id) {
+      updateEvent(call.id) {
         $0.state = .failed
         $0.output = text
         $0.elapsedMs = elapsed

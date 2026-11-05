@@ -54,13 +54,13 @@ final class AgentExecutor: AgentToolExecutor {
     self.session = session
   }
 
-  /// 이 방의 실행 카드에 붙인다.
-  private func appendEvent(_ event: AgentEvent) {
+  /// 이 방의 실행 카드에 붙인다(확장 파일의 도구들도 같은 방을 쓴다).
+  func appendEvent(_ event: AgentEvent) {
     store.appendAgentEvent(event, session: session)
   }
 
-  /// 이 방의 실행 카드를 고친다.
-  private func updateEvent(_ id: String, _ mutate: (inout AgentEvent) -> Void) {
+  /// 이 방의 실행 카드를 고친다(확장 파일의 도구들도 같은 방을 쓴다).
+  func updateEvent(_ id: String, _ mutate: (inout AgentEvent) -> Void) {
     store.updateAgentEvent(id: id, session: session, mutate)
   }
 
@@ -161,7 +161,7 @@ final class AgentExecutor: AgentToolExecutor {
       }
       if choice == .allowScope {
         // 이 폴더를 이번 대화 동안 허용 — 같은 폴더의 다음 쓰기는 다시 묻지 않는다.
-        store.approveWriteScopes(request.writeScopes)
+        store.approveWriteScopes(request.writeScopes, session: session)
       }
       // 승인된 뒤에야 실측한다 — 필요한 권한(경로)을 알아야 그 범위만 열 수 있다.
       let capability: AgentCapability
@@ -254,6 +254,7 @@ final class AgentExecutor: AgentToolExecutor {
     let liveEnabled = store.settings.agentStreamOutput
     let live = LiveShellOutput()
     let storeRef = store
+    let sessionRef = session
     var result = await Task.detached(priority: .userInitiated) {
       SandboxRunner.runStreaming(runCommand, profile: profile, timeout: timeout,
                                  cancellation: handle,
@@ -262,7 +263,7 @@ final class AgentExecutor: AgentToolExecutor {
         let text = live.append(chunk)
         guard live.shouldFlush() else { return }
         Task { @MainActor in
-          storeRef.updateAgentEvent(id: call.id) { $0.output = text }
+          storeRef.updateAgentEvent(id: call.id, session: sessionRef) { $0.output = text }
         }
       })
     }.value
