@@ -117,6 +117,7 @@
 		DC9CBF03E98BE7C92747D0DB /* UiSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E0941B442FB529124794B /* UiSnapshot.swift */; };
 		DCEF44C46F220F3F88100FF6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4472F21647669F7654514434 /* ContentView.swift */; };
 		DE125E6E50255538D9BAB7F3 /* CaptureGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */; };
+		DE4AA2CB4E6172195413E217 /* NetworkRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B2E8E186ACF3F03733F7DE /* NetworkRetry.swift */; };
 		E10F99B773B5394F401A5FA2 /* AgentClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C53F47F12D73C586CF8AEC /* AgentClients.swift */; };
 		E1805977843A5A15DE92CFFC /* ToolSchemas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977B88D65083332C14B1B0E6 /* ToolSchemas.swift */; };
 		E42DC23D1B42C59918FB3F52 /* SpeechCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A02B9140976F463DA5AB0D /* SpeechCatalog.swift */; };
@@ -163,6 +164,7 @@
 		3D921B01A80E01801140A170 /* PersonaChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaChip.swift; sourceTree = "<group>"; };
 		3DAE054BCDAF40168124449F /* AgentOverride.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentOverride.swift; sourceTree = "<group>"; };
 		4340B244244ED63B5DEF0D28 /* WebTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebTools.swift; sourceTree = "<group>"; };
+		43B2E8E186ACF3F03733F7DE /* NetworkRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkRetry.swift; sourceTree = "<group>"; };
 		43E3A0BFC302ECA3A8A7A23D /* SettingsView+Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Tools.swift"; sourceTree = "<group>"; };
 		4472F21647669F7654514434 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4490D9592A0BF3BF1ED648BD /* AgentExecutor+Schedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentExecutor+Schedule.swift"; sourceTree = "<group>"; };
@@ -384,6 +386,7 @@
 				6935F2B383353B720E54F016 /* LocalizationTable.swift */,
 				11322B1559F34D94C359655E /* Markdown.swift */,
 				91CCBD1D34A85E35E22F25E6 /* Models.swift */,
+				43B2E8E186ACF3F03733F7DE /* NetworkRetry.swift */,
 				BF6F7E15FBDB5674F84A5739 /* OutgoingAttachment.swift */,
 				B9B443636C48759C886EF337 /* PanelToggle.swift */,
 				AF188D635D4F46E486935089 /* Persistence.swift */,
@@ -549,6 +552,7 @@
 				7958CF55C473A7ACD4510CF4 /* MarkdownText.swift in Sources */,
 				7C7D875E3C4C6D701A815180 /* MenuBarHubView.swift in Sources */,
 				75CF26174AAAD2BF7A503831 /* Models.swift in Sources */,
+				DE4AA2CB4E6172195413E217 /* NetworkRetry.swift in Sources */,
 				BA0ACC9280BCB5F312D3DD16 /* NotificationService.swift in Sources */,
 				2C2BD381918D760466257D30 /* OutgoingAttachment.swift in Sources */,
 				FE12BBE4D2793340A1A23644 /* PanelToggle.swift in Sources */,

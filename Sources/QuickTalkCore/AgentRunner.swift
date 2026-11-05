@@ -99,11 +99,22 @@ public struct AgentRunner {
 
   /// 에이전트 루프 실행.
   /// `onDelta` 로 최종 답변이 토큰 단위로 흘러나온다(스트리밍 유지).
+  ///
+  /// - `retry`: 스텝 도중 연결이 끊기면 **같은 단계를 다시 요청**한다. 이미 실행한 도구는
+  ///   되돌리지 않고, 실패한 스텝에서 흘러나온 글자만 `onStepDiscard` 로 지운다.
+  /// - `onStepStart`: 한 스텝(=모델 호출)을 시작할 때. 호출부가 말풍선의 현재 글자를 기억한다.
+  /// - `onStepDiscard`: 그 스텝의 글자를 버려야 할 때(도구 호출 예고·재시도). 호출부가 기억한
+  ///   지점으로 말풍선을 되돌린다. **도구 호출 스텝의 예고 문장이 최종 답변에 섞이던 문제**를 막는다.
+  /// - `onRetry`: 재시도 대기 상태(끝나면 nil).
   public func run(prompt: String,
                   history: [Turn],
                   tools: [AgentTool],
                   attachments: [OutgoingAttachment] = [],
-                  onDelta: @escaping @MainActor (String) -> Void = { _ in }) async throws -> AgentRunResult {
+                  retry: NetworkRetryPolicy = .standard,
+                  onDelta: @escaping @MainActor (String) -> Void = { _ in },
+                  onStepStart: @escaping @MainActor () -> Void = {},
+                  onStepDiscard: @escaping @MainActor () -> Void = {},
+                  onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void = { _ in }) async throws -> AgentRunResult {
     var messages: [AgentMessage] = history.map {
       AgentMessage(role: $0.role == .user ? .user : .assistant, content: $0.text)
     }
@@ -118,23 +129,106 @@ public struct AgentRunner {
     var images: [OutgoingAttachment] = []
     /// 실행한 명령의 반복 횟수 — 같은 명령 무한 반복 방지
     var signatures: [String: Int] = [:]
+    /// "최종 답변을 쓰라"는 재촉을 이미 했는가 — 무한 재촉 방지
+    var nudged = false
+
+    /// 모델 호출 1회 — 연결이 끊기면 **같은 메시지로** 다시 요청한다.
+    /// 실패한 시도의 부분 글자는 `onStepDiscard` 로 지우므로 중복되지 않는다.
+    func callStep(tools: [AgentTool]) async throws -> AgentStep {
+      var failures = 0
+      while true {
+        await onStepStart()
+        do {
+          let step = try await client.nextStep(messages: messages, tools: tools,
+                                               attachments: attachments + images,
+                                               onDelta: onDelta)
+          await onRetry(nil)
+          return step
+        } catch {
+          if Task.isCancelled || error is CancellationError { throw error }
+          guard retry.canRetry(afterFailures: failures),
+                NetworkRetry.isRetryable(error) else {
+            await onRetry(nil)
+            throw error
+          }
+          failures += 1
+          await onStepDiscard()
+          await onRetry(NetworkRetryProgress(attempt: failures,
+                                             maxAttempts: retry.maxAttempts,
+                                             waitSeconds: retry.intervalSeconds))
+          NSLog("[QuickTalk] 연결 끊김 — %d/%d회, %d초 후 같은 단계를 다시 요청",
+                failures, retry.maxAttempts, retry.intervalSeconds)
+          try await Task.sleep(nanoseconds: UInt64(retry.interval * 1_000_000_000))
+        }
+      }
+    }
+
+    /// 지금까지 확인한 결과만으로 답을 만든다 — 모델이 끝내 답을 못 쓸 때의 **마지막 안전망**.
+    func fallbackAnswer() -> String {
+      let collectedText = collected.suffix(4).joined(separator: "\n\n")
+      let head = L("도구 실행은 끝났지만 모델이 최종 답변을 작성하지 못했습니다. 지금까지 확인한 내용은 아래와 같습니다.")
+      return head + (collectedText.isEmpty ? "" : "\n\n" + collectedText)
+    }
+
+    /// 도구를 **빼고** 최종 답변만 요구한다. 예고 문장으로 끝나는 답을 결과로 바꾸는 장치.
+    func nudgedAnswer() async throws -> String? {
+      messages.append(AgentMessage(role: .user, content: AgentInstructions.finalAnswerNudge))
+      do {
+        let step = try await callStep(tools: [])
+        guard case .finalAnswer(let text, _) = step else {
+          await onStepDiscard()
+          return nil
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !Self.looksLikeNarration(trimmed) else {
+          await onStepDiscard()
+          return nil
+        }
+        return text
+      } catch {
+        if Task.isCancelled || error is CancellationError { throw error }
+        NSLog("[WARN] 최종 답변 재촉 실패 — %@", AIErrorText.code(for: error))
+        await onStepDiscard()
+        return nil
+      }
+    }
 
     while steps < maxSteps {
       steps += 1
       try Task.checkCancellation()
       // ★ 사용자 첨부와 스크린샷을 **함께** 싣는다. 예전에는 스크린샷이 한 장이라도
       //   생기면 `images` 만 보내 **사용자가 붙인 첨부가 사라졌다**(2026-10-27).
-      let step = try await client.nextStep(messages: messages, tools: tools,
-                                           attachments: attachments + images,
-                                           onDelta: onDelta)
+      let step = try await callStep(tools: tools)
       switch step {
       case .finalAnswer(let text, _):
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // ① 빈 답 ② "확인하겠습니다" 같은 **예고만** 있는 답 → 도구를 빼고 한 번 더 요구한다.
+        if trimmed.isEmpty || (!nudged && Self.looksLikeNarration(trimmed)) {
+          await onStepDiscard()
+          if !nudged {
+            nudged = true
+            if let answer = try await nudgedAnswer() {
+              return AgentRunResult(answer: answer, events: events, steps: steps, hadDenial: hadDenial)
+            }
+          }
+          return AgentRunResult(answer: fallbackAnswer(), events: events, steps: steps, hadDenial: hadDenial)
+        }
         return AgentRunResult(answer: text, events: events, steps: steps, hadDenial: hadDenial)
 
       case .toolCalls(let calls, let reasoning):
         guard !calls.isEmpty else {
-          return AgentRunResult(answer: "", events: events, steps: steps, hadDenial: hadDenial)
+          await onStepDiscard()
+          if !nudged {
+            nudged = true
+            if let answer = try await nudgedAnswer() {
+              return AgentRunResult(answer: answer, events: events, steps: steps, hadDenial: hadDenial)
+            }
+          }
+          return AgentRunResult(answer: fallbackAnswer(), events: events, steps: steps, hadDenial: hadDenial)
         }
+        // 이 스텝에서 흘러나온 글자는 **도구 호출 예고**다 — 최종 답변으로 남기지 않는다.
+        // (예전에는 이 문장이 그대로 답변이 되어 "확인하겠습니다"에서 끊긴 것처럼 보였다)
+        await onStepDiscard()
         // assistant 메시지에 tool_calls 를 그대로 넣어야 프로토콜이 맞는다.
         // thinking 모드 모델은 사고 내용(reasoning_content)도 되돌려야 한다 — 빠지면 400.
         messages.append(AgentMessage(role: .assistant, content: "", toolCalls: calls,
@@ -183,11 +277,30 @@ public struct AgentRunner {
         }
       }
     }
-    // 스텝 상한에 걸렸으면 모델이 답하지 못했으므로 **지금까지 모은 결과**로 답한다.
-    let collectedText = collected.suffix(3).joined(separator: "\n\n")
-    let answer = L("작업이 길어 중단했습니다. 지금까지 확인한 내용은 아래와 같습니다.")
-      + (collectedText.isEmpty ? "" : "\n\n" + collectedText)
-    return AgentRunResult(answer: answer, events: events, steps: steps, hadDenial: hadDenial)
+    // 스텝 상한에 걸렸다 — 도구를 빼고 **최종 답변만** 한 번 더 요구한다.
+    // (예전에는 여기서 만든 "작업이 길어 중단했습니다 + 결과" 문구가 UI 에서 무시됐다)
+    if !nudged, let answer = try await nudgedAnswer() {
+      return AgentRunResult(answer: answer, events: events, steps: steps, hadDenial: hadDenial)
+    }
+    return AgentRunResult(answer: fallbackAnswer(), events: events, steps: steps, hadDenial: hadDenial)
+  }
+
+  /// 예고만 하고 끝나는 답인가 — 결과(수치·목록·줄바꿈) 없이 "확인하겠습니다"류로 끝나면 참.
+  /// 지나치게 넓히면 정상 답변을 다시 쓰게 하므로 **짧은 한 문단**만 본다.
+  public static func looksLikeNarration(_ text: String) -> Bool {
+    let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !t.isEmpty, t.count <= 400 else { return false }
+    // 줄바꿈·목록·수치가 있으면 이미 결과를 보여 준 답으로 본다.
+    if t.contains("\n") || t.rangeOfCharacter(from: .decimalDigits) != nil { return false }
+    let cues = [
+      "확인하겠", "확인해 보겠", "조회하겠", "조회해 보겠", "찾겠", "찾고",
+      "살펴보겠", "알아보겠", "진행하겠", "진행합니다", "작성하겠", "작성합니다",
+      "저장하겠", "저장합니다", "보겠습니다", "다시 확인", "지금 확인"
+    ]
+    if cues.contains(where: { t.contains($0) }) { return true }
+    let lower = t.lowercased()
+    return ["i'll ", "i will ", "let me ", "checking now", "i'm going to"]
+      .contains(where: { lower.contains($0) })
   }
 
   /// 실행 카드에 보여줄 한 줄.

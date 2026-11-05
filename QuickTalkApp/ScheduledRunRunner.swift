@@ -153,7 +153,7 @@ final class ScheduledRunRunner {
       return ConversationStore(conversation: existing)
     }
     let name = persona?.name ?? L("기본(비서 없음)")
-    let emoji = persona?.emoji ?? "🗓"
+    let emoji = persona?.displayEmoji ?? "🗓"
     var conversation = Conversation(title: "\(emoji) \(name) · \(task.title)",
                                     pinned: true, personaID: persona?.id)
     conversation.titleEdited = true   // 비서 대화 제목은 자동 제목이 덮지 않게.

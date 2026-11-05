@@ -137,7 +137,7 @@ struct AssistantSettingsSection: View {
 
   private func personaRow(_ persona: Persona) -> some View {
     HStack(alignment: .center, spacing: 10) {
-      Text(persona.normalized().emoji ?? "🗣")
+      Text(persona.displayEmoji)
         .font(.system(size: 18))
         .frame(width: 30, height: 30)
         .background(Color.accentColor.opacity(0.12))
@@ -429,7 +429,7 @@ struct PersonaEditorSheet: View {
           VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
               Text(L("아이콘")).font(.caption).foregroundColor(.secondary)
-              Text(draft.emoji ?? "🗣").font(.system(size: 13))
+              Text(draft.displayEmoji).font(.system(size: 13))
               Spacer()
             }
             PersonaIconGrid(selection: Binding(

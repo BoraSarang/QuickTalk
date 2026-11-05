@@ -41,6 +41,34 @@ extension SettingsView {
         store.settings.fallbackProviderID = ""
       }
     }
+    groupBox(L("연결 끊김 대기")) {
+      toggleRow(L("연결이 끊기면 자동으로 다시 연결"),
+                isOn: $store.settings.networkRetryEnabled,
+                description: L("응답 도중 인터넷이 끊겨도 지금까지 받은 답변을 지우지 않고, 다시 연결해 이어서 씁니다. 대기 중에도 [중지]로 멈출 수 있습니다."))
+      HStack {
+        Text(L("다시 연결까지 대기"))
+        Spacer()
+        Stepper(value: $store.settings.networkRetryIntervalSeconds, in: 1...60) {
+          Text(Lf("%d초", store.settings.networkRetryIntervalSeconds))
+            .monospacedDigit()
+        }
+        .frame(minWidth: 130, alignment: .trailing)
+      }
+      .disabled(!store.settings.networkRetryEnabled)
+      HStack {
+        Text(L("최대 재시도 횟수"))
+        Spacer()
+        Stepper(value: $store.settings.networkRetryMaxAttempts, in: 0...50) {
+          Text(store.settings.networkRetryMaxAttempts == 0
+               ? L("안 함")
+               : Lf("최대 %d회", store.settings.networkRetryMaxAttempts))
+            .monospacedDigit()
+        }
+        .frame(minWidth: 130, alignment: .trailing)
+      }
+      .disabled(!store.settings.networkRetryEnabled)
+      caption(Lf("기본값은 %d초 간격으로 %d회입니다. 횟수를 모두 쓰면 그때까지 받은 답변을 남기고 오류를 표시합니다. 인증·권한·형식 오류는 기다리지 않고 바로 알립니다.", 5, 10))
+    }
     groupBox(Lf("프로바이더 목록 (%d개)", store.settings.providers.count)) {
       ForEach(store.settings.providers) { p in
         providerRow(p)

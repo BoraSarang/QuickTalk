@@ -1527,6 +1527,25 @@ extension L10n {
     "자가진단 모드에서는 일정을 등록·변경·삭제하지 않습니다.": "Self-test mode does not create, change or delete schedules.",
     "제목: %@": "Title: %@",
     "중지": "Paused",
+    // v0.29 — 연결 끊김 대기·이어쓰기 + 비서 선택 상태
+    "다시 연결을 멈추고 지금까지 받은 답변을 남깁니다": "Stop reconnecting and keep the answer received so far",
+    "연결 끊김 — %d초 후 다시 연결합니다 (%d/%d)": "Connection lost — reconnecting in %d s (%d/%d)",
+    "연결 끊김 대기": "Reconnect after a drop",
+    "연결이 끊기면 자동으로 다시 연결": "Reconnect automatically when the connection drops",
+    "응답 도중 인터넷이 끊겨도 지금까지 받은 답변을 지우지 않고, 다시 연결해 이어서 씁니다. 대기 중에도 [중지]로 멈출 수 있습니다.": "If the internet drops mid-answer, the text received so far is kept, and the app reconnects and continues. You can stop while waiting.",
+    "다시 연결까지 대기": "Wait before reconnecting",
+    "최대 재시도 횟수": "Maximum retries",
+    "최대 %d회": "Up to %d times",
+    "안 함": "None",
+    "기본값은 %d초 간격으로 %d회입니다. 횟수를 모두 쓰면 그때까지 받은 답변을 남기고 오류를 표시합니다. 인증·권한·형식 오류는 기다리지 않고 바로 알립니다.": "The default waits %d seconds between attempts, up to %d times. When retries run out, the answer so far is kept and an error is shown. Authentication, permission and format errors are reported immediately.",
+    "도구 실행은 끝났지만 모델이 최종 답변을 작성하지 못했습니다. 지금까지 확인한 내용은 아래와 같습니다.": "The tools finished, but the model did not write a final answer. Here is what was confirmed so far.",
+    "지금: 비서 없음": "Now: no assistant",
+    "지금: %@ %@": "Now: %@ %@",
+    "비서 없음 (지금)": "No assistant (current)",
+    "비서 없음": "No assistant",
+    "%@ %@ (지금)": "%@ %@ (current)",
+    "%@ %@": "%@ %@",
+    "비서 없음 — 눌러서 이 대화의 비서를 고릅니다": "No assistant — click to choose an assistant for this chat",
 
   ]
 }

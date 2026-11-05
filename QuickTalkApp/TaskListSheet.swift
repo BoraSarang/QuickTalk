@@ -129,7 +129,7 @@ struct TaskListSheet: View {
     let persona = store.settings.persona(task.personaID)
     return VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .top, spacing: 10) {
-        Text(persona?.normalized().emoji ?? "🗓")
+        Text(persona?.displayEmoji ?? "🗓")
           .font(.system(size: 18))
           .frame(width: 30, height: 30)
           .background(Color.purple.opacity(0.12))
@@ -367,7 +367,7 @@ struct TaskEditorSheet: View {
             Picker("", selection: $draft.personaID) {
               Text(L("기본(비서 없음)")).tag(UUID?.none)
               ForEach(personas) { p in
-                Text("\(p.normalized().emoji ?? "") \(p.name)").tag(Optional(p.id))
+                Text("\(p.displayEmoji) \(p.name)").tag(Optional(p.id))
               }
             }
             .labelsHidden().pickerStyle(.menu)

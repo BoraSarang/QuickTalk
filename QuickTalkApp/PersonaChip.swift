@@ -1,26 +1,35 @@
 import SwiftUI
 
 /// 비서 선택 메뉴 내용 — 헤더 칩과 입력독 버튼이 **같은 목록**을 쓴다.
-/// 목록 맨 위는 `기본(비서 없음)` = 지금과 같은 동작.
+/// 목록 맨 위는 `비서 없음` = 지금과 같은 동작. 지금 선택된 항목은 **체크 + "(지금)"** 으로 분명히 보인다.
 struct PersonaMenuItems: View {
   @EnvironmentObject var store: UIStore
 
   private var current: Persona? { store.settings.persona(store.conversation.personaID) }
 
   var body: some View {
+    // 메뉴를 열자마자 현재 상태를 한 줄로 읽을 수 있게 한다.
+    Text(current == nil
+         ? L("지금: 비서 없음")
+         : Lf("지금: %@ %@", current!.displayEmoji, current!.name))
+      .font(.caption)
+    Divider()
     Button {
       store.selectPersona(nil)
     } label: {
-      Label(L("기본(비서 없음)"),
-            systemImage: current == nil ? "checkmark" : "person.crop.circle")
+      Label(current == nil ? L("비서 없음 (지금)") : L("비서 없음"),
+            systemImage: current == nil ? "checkmark.circle.fill" : "circle")
     }
     Divider()
     ForEach(store.settings.personas) { persona in
+      let selected = current?.id == persona.id
       Button {
         store.selectPersona(persona.id)
       } label: {
-        Label("\(persona.normalized().emoji ?? "🗣") \(persona.name)",
-              systemImage: current?.id == persona.id ? "checkmark" : "person")
+        Label(selected
+              ? Lf("%@ %@ (지금)", persona.displayEmoji, persona.name)
+              : Lf("%@ %@", persona.displayEmoji, persona.name),
+              systemImage: selected ? "checkmark.circle.fill" : "circle")
       }
     }
     Divider()
@@ -43,11 +52,20 @@ struct PersonaChip: View {
       PersonaMenuItems()
     } label: {
       HStack(spacing: 3) {
-        Text(current?.normalized().emoji ?? "🗣")
-          .font(.system(size: 10))
-        Text(current?.name ?? L("기본 비서"))
+        if let current {
+          Text(current.displayEmoji)
+            .font(.system(size: 10))
+        } else {
+          Image(systemName: "person.crop.circle")
+            .font(.system(size: 10, weight: .medium))
+        }
+        Text(current?.name ?? L("비서 없음"))
           .font(.system(size: 10.5, weight: .medium))
           .lineLimit(1)
+        if current != nil {
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 8, weight: .bold))
+        }
       }
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
@@ -59,7 +77,9 @@ struct PersonaChip: View {
     .buttonStyle(.plain)
     .menuIndicator(.hidden)
     .fixedSize()
-    .help(L("이 대화의 비서를 고릅니다 — 말투가 바뀌고, 예약 작업도 이 비서로 실행할 수 있습니다"))
+    .help(current == nil
+          ? L("비서 없음 — 눌러서 이 대화의 비서를 고릅니다")
+          : L("이 대화의 비서를 고릅니다 — 말투가 바뀌고, 예약 작업도 이 비서로 실행할 수 있습니다"))
   }
 }
 
@@ -76,18 +96,41 @@ struct PersonaDockButton: View {
     Menu {
       PersonaMenuItems()
     } label: {
-      Text(current?.normalized().emoji ?? "🗣")
-        .font(.system(size: 13))
+      ZStack(alignment: .bottomTrailing) {
+        Group {
+          if let current {
+            Text(current.displayEmoji).font(.system(size: 13))
+          } else {
+            Image(systemName: "person.crop.circle")
+              .font(.system(size: 13, weight: .medium))
+          }
+        }
         .frame(width: 26, height: 26)
         .background(Circle().fill(Color.purple.opacity(current == nil ? 0.10 : 0.22)))
         .overlay(Circle().stroke(Color.purple.opacity(current == nil ? 0.20 : 0.45),
                                 lineWidth: 1))
+        .foregroundColor(current == nil ? .secondary : .primary)
         .contentShape(Circle())
+
+        // 선택됨을 작은 체크 배지로도 보여 준다 — 아이콘만으로는 구분이 어려울 때가 있다.
+        if current != nil {
+          Image(systemName: "checkmark")
+            .font(.system(size: 7, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 11, height: 11)
+            .background(Circle().fill(Color.purple))
+            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
+            .offset(x: 3, y: 1)
+        }
+      }
+      .fixedSize()
     }
     .menuStyle(.button)
     .buttonStyle(.plain)
     .menuIndicator(.hidden)
     .fixedSize()
-    .help(L("이 대화의 비서를 고릅니다 — 말투가 바뀌고, 예약 작업도 이 비서로 실행할 수 있습니다"))
+    .help(current == nil
+          ? L("비서 없음 — 눌러서 이 대화의 비서를 고릅니다")
+          : L("이 대화의 비서를 고릅니다 — 말투가 바뀌고, 예약 작업도 이 비서로 실행할 수 있습니다"))
   }
 }

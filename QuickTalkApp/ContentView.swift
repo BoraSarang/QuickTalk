@@ -150,7 +150,7 @@ struct ContentView: View {
     for p in store.settings.personas {
       if let list = buckets.removeValue(forKey: p.id.uuidString), !list.isEmpty {
         groups.append(PersonaGroup(id: p.id.uuidString,
-                                   title: "\(p.normalized().emoji ?? "🗣") \(p.name)",
+                                   title: "\(p.displayEmoji) \(p.name)",
                                    conversations: list))
       }
     }
@@ -162,7 +162,7 @@ struct ContentView: View {
   }
 
   private func personaTag(_ p: Persona) -> some View {
-    Text("\(p.normalized().emoji ?? "🗣") \(p.name)")
+    Text("\(p.displayEmoji) \(p.name)")
       .font(.caption2)
       .padding(.horizontal, 5).padding(.vertical, 1)
       .background(Capsule().fill(Color.purple.opacity(0.16)))
@@ -523,7 +523,7 @@ struct ContentView: View {
                   // 이 답변을 만든 비서 — 대화 중 비서를 바꿔도 턴마다 귀속이 보인다.
                   if t.role == .assistant, let p = persona(for: t) {
                     HStack(spacing: 4) {
-                      Text(p.normalized().emoji ?? "🗣")
+                      Text(p.displayEmoji)
                       Text(p.name)
                     }
                     .font(.system(size: 10.5, weight: .medium))
@@ -757,6 +757,7 @@ struct ContentView: View {
         }
         }
 
+      networkRetryRow
       memoryRow
       attachmentRow
       attachNoticeRow
@@ -901,6 +902,27 @@ struct ContentView: View {
       }
     }
     .help(p.note ?? Lf("%@ — 마우스를 올리면 크게 봅니다", a.name))
+  }
+
+  /// 입력독 위 배너 — 연결이 끊겨 **다시 연결을 기다리는 중**임을 알린다(v0.29).
+  /// 대기 중에도 [중지]로 바로 빠져나올 수 있다.
+  @ViewBuilder private var networkRetryRow: some View {
+    if let status = store.networkRetryStatus {
+      HStack(spacing: 6) {
+        ProgressView().controlSize(.small)
+        Text(status).font(.system(size: 11)).lineLimit(2)
+        Spacer(minLength: 4)
+        Button(L("응답 중지")) { store.cancelReply() }
+          .buttonStyle(.plain)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundColor(.red)
+          .help(L("다시 연결을 멈추고 지금까지 받은 답변을 남깁니다"))
+      }
+      .padding(.horizontal, 10).padding(.vertical, 5)
+      .background(Capsule().fill(Color.blue.opacity(0.12)))
+      .overlay(Capsule().stroke(Color.blue.opacity(0.35), lineWidth: 1))
+      .padding(.horizontal, 12).padding(.bottom, 6)
+    }
   }
 
   /// 입력독 위 배너 — 자동 정리 상태(정리 중 / 요약됨 / 일시 중지 / 실패).
