@@ -110,11 +110,15 @@ struct ContentView: View {
   @State private var lastPinAt = Date.distantPast
   var initialTab: Int = 0
   var suppressArchiveLoad = false
+  /// QA 렌더 전용 — 첫 질문에 마우스를 올린 상태를 재현한다(호버 시 말풍선 폭 고정 확인).
+  var hoverFirstQuestion = false
 
   init(initialTab: Int = 0, initialInputHeight: CGFloat = 28,
-       initialArchiveQuery: String = "", suppressArchiveLoad: Bool = false) {
+       initialArchiveQuery: String = "", suppressArchiveLoad: Bool = false,
+       hoverFirstQuestion: Bool = false) {
     self.initialTab = initialTab
     self.suppressArchiveLoad = suppressArchiveLoad
+    self.hoverFirstQuestion = hoverFirstQuestion
     _tab = State(initialValue: initialTab)
     _inputHeight = State(initialValue: initialInputHeight)
     _archiveQuery = State(initialValue: initialArchiveQuery)
@@ -298,13 +302,17 @@ struct ContentView: View {
       DeleteConfirmSheet(
         heading: L("대화 기록을 삭제할까요?"),
         target: target.conversation.displayTitle,
-        message: target.conversation.turns.isEmpty
-          ? L("이 대화가 기록에서 삭제됩니다. 되돌릴 수 없습니다.")
-          : Lf("이 대화의 %d개 턴이 기록에서 삭제됩니다. 되돌릴 수 없습니다.",
-               target.conversation.turns.count),
+        message: target.conversation.id == store.conversation.id
+          ? L("진행 중 대화를 삭제합니다. 삭제 후 새 대화로 시작하며 되돌릴 수 없습니다.")
+          : (target.conversation.turns.isEmpty
+             ? L("이 대화가 기록에서 삭제됩니다. 되돌릴 수 없습니다.")
+             : Lf("이 대화의 %d개 턴이 기록에서 삭제됩니다. 되돌릴 수 없습니다.",
+                  target.conversation.turns.count)),
         confirmLabel: L("삭제")
       ) {
+        let wasCurrent = target.conversation.id == store.conversation.id
         store.deleteConversation(target.conversation)
+        if wasCurrent { tab = 0 }   // 새 대화 화면으로 — 삭제 후 빈 보관함에 남기지 않는다
       }
     }
     .sheet(isPresented: $showMemory) {
@@ -427,22 +435,25 @@ struct ContentView: View {
         headerIcon("chevron.left", help: L("대화로 돌아가기")) { tab = 0 }
       }
       if tab == 0 {
-        // 제목 = 첫 질문에서 자동 생성 · 클릭하면 바로 바꿀 수 있다.
-        Button {
-          renameTarget = RenameTarget(id: store.conversation.id,
-                                      title: store.conversation.displayTitle)
-        } label: {
-          Text(store.conversation.displayTitle)
-            .font(.system(size: 13.5, weight: .semibold))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            // 호버하면 밑줄 — 클릭해서 이름을 바꿀 수 있다는 표시
-            .underline(titleHover, color: .secondary)
-            .layoutPriority(0)
-        }
-        .buttonStyle(.plain)
-        .onHover { titleHover = $0 }
-        .help(L("제목 변경 — 클릭하여 이 대화의 이름을 바꿉니다"))
+        // 제목 = 첫 질문에서 자동 생성 · **두 번 클릭**하면 바로 바꿀 수 있다.
+        // 한 번 클릭은 창 이동(드래그)에 양보한다 — Button 이면 mouseDown 을 삼켜
+        // 제목을 잡고 창을 끌 수 없었다(2026-11-06 사용자 지적).
+        Text(store.conversation.displayTitle)
+          .font(.system(size: 13.5, weight: .semibold))
+          .lineLimit(1)
+          .truncationMode(.tail)
+          // 호버하면 밑줄 — 두 번 클릭해서 이름을 바꿀 수 있다는 표시
+          .underline(titleHover, color: .secondary)
+          .layoutPriority(0)
+          // 글자는 표시만 — 클릭·드래그는 뒤의 AppKit 뷰가 받는다.
+          .allowsHitTesting(false)
+          .background {
+            TitleDragArea(onDoubleClick: {
+              renameTarget = RenameTarget(id: store.conversation.id,
+                                          title: store.conversation.displayTitle)
+            }, onHover: { titleHover = $0 })
+          }
+        .help(L("제목 변경 — 두 번 클릭하여 이 대화의 이름을 바꿉니다 (한 번 클릭 후 끌면 창 이동)"))
       } else {
         Text(tab == 1 ? L("보관함") : L("설정"))
           .font(.system(size: 13.5, weight: .semibold))
@@ -709,6 +720,11 @@ struct ContentView: View {
           } else {
             jumpToBottom()
           }
+          // QA 렌더 — 첫 질문을 호버한 상태로 그려 말풍선 폭이 변하지 않는지 확인한다.
+          if hoverFirstQuestion,
+             let first = store.conversation.turns.first(where: { $0.role == .user }) {
+            hoveredTurn = first.id
+          }
         }
         }
 
@@ -729,28 +745,33 @@ struct ContentView: View {
     if t.role == .user {
       HStack(alignment: .bottom, spacing: 0) {
         Spacer(minLength: 48)
-        HStack(alignment: .center, spacing: 4) {
-          VStack(alignment: .trailing, spacing: 4) {
-            if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
-            if !t.text.isEmpty {
-              Text(t.text)
-                .font(.system(size: 13.5))
-                .lineSpacing(2)
-                .textSelection(.enabled)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(questionBubble)
-                .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(alignment: .trailing, spacing: 4) {
+          if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
+          if !t.text.isEmpty {
+            Text(t.text)
+              .font(.system(size: 13.5))
+              .lineSpacing(2)
+              .textSelection(.enabled)
+              .padding(.horizontal, 12)
+              .padding(.vertical, 8)
+              .background(questionBubble)
+              .fixedSize(horizontal: false, vertical: true)
           }
+        }
+        // `⋯` 는 **레이아웃 밖**에 띄운다 — HStack 에 넣으면 호버 때 말풍선 폭이 26pt 줄어
+        // 글자가 다시 접히고 높이가 변한다(2026-11-06 사용자 지적: 가로가 아니라 세로로 변함).
+        // 오른쪽 여백(20pt) 안쪽에 겹쳐 놓아 폭·줄바꿈이 그대로다.
+        .overlay(alignment: .trailing) {
           if hoveredTurn == t.id {
             questionMenu(t)
+              .offset(x: 16)
               .transition(.opacity)
           }
         }
-        .onHover { setHovered(t.id, $0) }
       }
       .frame(maxWidth: .infinity, alignment: .trailing)
+      .contentShape(Rectangle())
+      .onHover { setHovered(t.id, $0) }
       .contextMenu { questionActions(t) }
       .overlay {
         if focusedTurn == t.id {
@@ -1664,31 +1685,45 @@ struct ContentView: View {
       .padding(.vertical, 4)
   }
 
-  /// 진행 중 대화 한 줄 — 누르면 대화 탭으로 돌아간다.
+  /// 진행 중 대화 한 줄 — 누르면 대화 탭으로 돌아간다. 휴지통은 **삭제 후 새 대화**로 시작한다.
   private var archiveCurrentRow: some View {
-    Button { tab = 0 } label: {
-      VStack(alignment: .leading, spacing: 4) {
-        Text(store.conversation.displayTitle)
-          .font(.system(size: 12.5, weight: .semibold))
-          .lineLimit(1)
-        HStack(spacing: 6) {
-          if let p = store.settings.persona(personaID(for: store.conversation)) {
-            personaTag(p)
+    ZStack(alignment: .trailing) {
+      Button { tab = 0 } label: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(store.conversation.displayTitle)
+            .font(.system(size: 12.5, weight: .semibold))
+            .lineLimit(1)
+          HStack(spacing: 6) {
+            if let p = store.settings.persona(personaID(for: store.conversation)) {
+              personaTag(p)
+            }
+            Text(Lf("%d턴 · %@ · %@", store.conversation.turns.count,
+                    RelativeTime.text(for: store.conversation.updatedAt, now: nowTick),
+                    store.conversation.pinned ? L("보관") : L("자동 저장")))
+              .font(.system(size: 10)).foregroundColor(.secondary)
+              .help(Lf("마지막 대화: %@", RelativeTime.absolute(store.conversation.updatedAt)))
           }
-          Text(Lf("%d턴 · %@ · %@", store.conversation.turns.count,
-                  RelativeTime.text(for: store.conversation.updatedAt, now: nowTick),
-                  store.conversation.pinned ? L("보관") : L("자동 저장")))
-            .font(.system(size: 10)).foregroundColor(.secondary)
-            .help(Lf("마지막 대화: %@", RelativeTime.absolute(store.conversation.updatedAt)))
         }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .padding(.trailing, 30)   // 휴지통 자리
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.purple.opacity(0.22), lineWidth: 1))
+        .contentShape(Rectangle())
       }
-      .padding(.horizontal, 10).padding(.vertical, 8)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.05)))
-      .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.purple.opacity(0.22), lineWidth: 1))
-      .contentShape(Rectangle())
+      .buttonStyle(.plain)
+
+      Button { deleteTarget = DeleteTarget(conversation: store.conversation) } label: {
+        Image(systemName: "trash")
+          .font(.system(size: 11))
+          .foregroundColor(.red)
+          .frame(width: 22, height: 22)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.borderless)
+      .padding(.trailing, 8)
+      .help(L("진행 중 대화 삭제 — 삭제 후 새 대화로 시작"))
     }
-    .buttonStyle(.plain)
   }
 
   // MARK: - 설정 탭 (메뉴바 Hub 설정 탭과 동일한 뷰 — 단일 출처)
@@ -1939,6 +1974,56 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
 /// `fullSizeContentView` 창에서는 SwiftUI 콘텐츠가 타이틀바까지 올라오므로, 헤더의 글자·도구를
 /// 시스템 버튼과 같은 높이에 맞추려면 **실제 버튼 위치**를 알아야 한다. 타이틀바 높이는
 /// OS 버전에 따라 다르므로(28/32pt) 상수로 두지 않고 표준 버튼 프레임에서 계산한다.
+/// 제목 영역 드래그 — 한 번 누르고 끌면 **창 이동**, 두 번 누르면 이름 변경.
+///
+/// 제목을 SwiftUI `Button` 으로 두면 mouseDown 을 삼켜 창을 끌 수 없다
+/// (2026-11-06 사용자 지적: "제목을 클릭하면 바로 수정이라서 드래그가 먹히질 않는데").
+/// AppKit `performDrag(with:)` 로 창 이동을 직접 시작하고, 두 번째 클릭만 이름 변경에 쓴다.
+/// 호버 밑줄은 tracking area 로 SwiftUI 에 알려 준다.
+private struct TitleDragArea: NSViewRepresentable {
+  var onDoubleClick: () -> Void
+  var onHover: (Bool) -> Void = { _ in }
+
+  func makeNSView(context: Context) -> DragView {
+    let v = DragView()
+    v.onDoubleClick = onDoubleClick
+    v.onHover = onHover
+    return v
+  }
+
+  func updateNSView(_ v: DragView, context: Context) {
+    v.onDoubleClick = onDoubleClick
+    v.onHover = onHover
+  }
+
+  final class DragView: NSView {
+    var onDoubleClick: () -> Void = {}
+    var onHover: (Bool) -> Void = { _ in }
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+      super.updateTrackingAreas()
+      if let tracking { removeTrackingArea(tracking) }
+      let area = NSTrackingArea(rect: .zero,
+                                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                owner: self, userInfo: nil)
+      addTrackingArea(area)
+      tracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { onHover(false) }
+
+    override func mouseDown(with event: NSEvent) {
+      if event.clickCount >= 2 {
+        onDoubleClick()
+        return
+      }
+      window?.performDrag(with: event)
+    }
+  }
+}
+
 private struct TitlebarCenterReader: NSViewRepresentable {
   var onChange: (CGFloat) -> Void
 

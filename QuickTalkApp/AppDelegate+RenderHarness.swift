@@ -544,6 +544,24 @@ extension AppDelegate {
                        size: NSSize(width: 400, height: 560),
                        to: "\(dir)/\(chatName)\(CommandLine.arguments.contains("--demo-toolbar") ? "-toolbar" : "")-\(suffix).png")
       }
+      // QA(2026-11-06): 질문 호버 — `⋯` 가 말풍선 **폭을 줄이지 않는지** 일반/호버 두 장으로 비교.
+      if CommandLine.arguments.contains("--demo-question-hover") {
+        let backup = self.store.conversation
+        self.store.conversation = Conversation(title: "질문 호버 폭", turns: [
+          Turn(role: .user,
+               text: "rm ~/Library/LaunchAgents/homebrew.mxcl.postgresql@18.plist 실행했어"),
+          Turn(role: .assistant,
+               text: "삭제되었습니다. `launchctl list` 로 남은 항목이 없는지 확인했습니다.",
+               elapsedMs: 1_200)
+        ])
+        self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/question-normal-\(suffix).png")
+        self.renderPNG(AnyView(ContentView(hoverFirstQuestion: true).environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/question-hover-\(suffix).png")
+        self.store.conversation = backup
+      }
       if CommandLine.arguments.contains("--demo-settings-wide") {
         if CommandLine.arguments.contains("--demo-ping") {
           self.store.providerTestResult = Lf("응답: %@", "pong")
