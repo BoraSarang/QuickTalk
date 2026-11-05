@@ -382,7 +382,7 @@ final class UIStore: ObservableObject {
   /// 최근 클립보드 스트립 (PLAN_v0.12) — 만료 2분 · 최대 5개
   let clipboard = ClipboardService()
   // MARK: - QuickShelf 상태 (PLAN_v0.13)
-  @Published var shelfTab: ShelfTab = .clipboard
+  @Published var shelfTab: ShelfTab = .chats
   @Published var shelfFiles: [ShelfFile] = []
   @Published var shelfCaptures: [ShelfCapture] = []
   /// 호버 미리보기 대상(패널 왼쪽 별도 창)
@@ -885,6 +885,13 @@ final class UIStore: ObservableObject {
   func applyRenderOverride(autoAcceptAll: Bool) {
     suppressSettingsSave = true
     settings.agentPolicy.autoAcceptAll = autoAcceptAll
+    suppressSettingsSave = false
+  }
+
+  /// QA 렌더 전용 — 상단 도구를 항상 보이는 상태로 **메모리에서만** 재현한다(설정 저장 없음).
+  func applyRenderOverride(chatToolbarAlwaysVisible: Bool) {
+    suppressSettingsSave = true
+    settings.chatToolbarAlwaysVisible = chatToolbarAlwaysVisible
     suppressSettingsSave = false
   }
 

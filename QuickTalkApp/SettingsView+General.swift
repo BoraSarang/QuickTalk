@@ -39,6 +39,8 @@ extension SettingsView {
       if let loginItemError { caption(loginItemError) }
       toggleRow(L("대화 창을 항상 위에"), isOn: $store.settings.alwaysOnTop,
                 description: L("다른 앱 위에 고정합니다(대화 창 헤더의 📌와 같습니다). 설정 창은 그 위에 뜹니다. 끄면 일반 창처럼 뒤로 갑니다."))
+      toggleRow(L("대화 창 도구를 항상 보기"), isOn: $store.settings.chatToolbarAlwaysVisible,
+                description: L("기본은 마우스를 창 위쪽에 올리면 도구(📌·🧠·🔖·퀵셸프·⋯)가 나타납니다. 켜면 항상 보입니다."))
       valueRow(L("메뉴바 좌클릭"), L("Hub 팝오버 (실행·설정 탭)"))
       valueRow(L("메뉴바 우클릭"), L("컨텍스트 메뉴"))
     }

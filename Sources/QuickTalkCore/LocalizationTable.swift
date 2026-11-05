@@ -1547,5 +1547,23 @@ extension L10n {
     "%@ %@": "%@ %@",
     "비서 없음 — 눌러서 이 대화의 비서를 고릅니다": "No assistant — click to choose an assistant for this chat",
 
+    // v0.31 — 대화 창 재설계(호버 도구 · QuickShelf 대화 허브 · 입력독 ＋ 메뉴)
+    "퀵셸프 — 대화·클립보드·파일·캡처 허브를 창 안쪽에 띄웁니다 (%@)": "QuickShelf — show the chats, clipboard, files and capture hub inside the window (%@)",
+    "툴바 항상 보기": "Always show toolbar",
+    "도구 메뉴 — 보관함 · 새 대화 · 설정": "Tools menu — archive · new conversation · settings",
+    "웹 검색 — 이번 질문 켜짐": "Web search — on for this question",
+    "웹 검색 — 이번 질문만": "Web search — this question only",
+    "음성 입력 끄기": "Turn off voice input",
+    "도구 — 창 연결 · 웹 검색 · 음성 입력": "Tools — connect window · web search · voice input",
+    "대화 창 도구를 항상 보기": "Always show chat window tools",
+    "기본은 마우스를 창 위쪽에 올리면 도구(📌·🧠·🔖·퀵셸프·⋯)가 나타납니다. 켜면 항상 보입니다.": "By default the tools (📌 · 🧠 · 🔖 · QuickShelf · ⋯) appear when you point at the top of the window. Turn this on to keep them visible.",
+    "대화 검색": "Search chats",
+    "지금 대화는 보관함에 저장됩니다": "The current chat is saved to the archive",
+    "새 대화 시작 — 지금 대화는 보관함에 남습니다": "Start a new conversation — the current one stays in the archive",
+    "보관된 대화가 없습니다": "No archived chats",
+    "새 대화를 시작하면 여기에 쌓입니다": "New conversations will appear here",
+    "응답 중": "Replying",
+    "대화는 보낼 때마다 자동 저장됩니다 · 고르면 이 창이 닫힙니다": "Chats are saved automatically on every message · choosing one closes this panel",
+
   ]
 }

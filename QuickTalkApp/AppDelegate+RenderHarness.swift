@@ -17,8 +17,13 @@ extension AppDelegate {
       let suffix = "\(L10n.effective.rawValue)"
       // 렌더에서도 QuickShelf 탭을 고를 수 있게(`--shelf-tab=`)
       if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--shelf-tab=") }) {
-        let map: [String: ShelfTab] = ["clipboard": .clipboard, "files": .files, "capture": .capture]
+        let map: [String: ShelfTab] = ["chats": .chats, "clipboard": .clipboard,
+                                       "files": .files, "capture": .capture]
         if let tab = map[String(arg.dropFirst("--shelf-tab=".count))] { self.store.shelfTab = tab }
+      }
+      // v0.31 — 상단 도구를 항상 보이는 상태로 렌더(`--demo-toolbar`). 저장하지 않는다.
+      if CommandLine.arguments.contains("--demo-toolbar") {
+        self.store.applyRenderOverride(chatToolbarAlwaysVisible: true)
       }
       // 렌더에서 읽어주기 엔진도 고를 수 있게(`--tts-engine=apple|edge`) — 저장하지 않는다
       if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--tts-engine=") }),
@@ -288,9 +293,34 @@ extension AppDelegate {
                        size: HubMetrics.popoverSize,
                        to: "\(dir)/hub-\(suffix).png")
       }
+      // QuickShelf — v0.31부터 기본 탭이 **대화**다.
+      // QA 렌더에는 실제 기록 대신 예시를 써서 개인 대화가 문서에 남지 않게 한다(렌더 후 원래 값 복원).
+      var shelfArchiveBackup: [Conversation]?
+      var shelfConversationBackup: Conversation?
+      if self.store.shelfTab == .chats {
+        shelfArchiveBackup = self.store.archive
+        shelfConversationBackup = self.store.conversation
+        let now = Date()
+        self.store.conversation = Conversation(title: "부산 2박 3일 여행 일정", turns: [
+          Turn(role: .user, text: "부산 2박 3일 여행 일정을 짜줘"),
+          Turn(role: .assistant, text: "해운대와 감천문화마을을 중심으로 정리했습니다.")
+        ], updatedAt: now.addingTimeInterval(-3600))
+        self.store.archive = [self.store.conversation] + [
+          Conversation(title: "이번 주 논문 요약", turns: [
+            Turn(role: .user, text: "이 논문을 3줄로 요약해줘"),
+            Turn(role: .assistant, text: "핵심 기여는 세 가지입니다.")
+          ], updatedAt: now.addingTimeInterval(-7200)),
+          Conversation(title: "주간 경쟁사 동향", turns: [
+            Turn(role: .user, text: "경쟁사 동향을 표로 정리해줘"),
+            Turn(role: .assistant, text: "가격 변경이 두 곳 있었습니다.")
+          ], updatedAt: now.addingTimeInterval(-86400))
+        ]
+      }
       self.renderPNG(AnyView(ShelfView(store: self.store, chrome: .docked, onClose: {}, onSettings: {})),
                      size: NSSize(width: 300, height: 560),
-                     to: "\(dir)/shelf-\(suffix).png")
+                     to: "\(dir)/shelf-\(self.store.shelfTab == .chats ? "chats-" : "")\(suffix).png")
+      if let backup = shelfArchiveBackup { self.store.archive = backup }
+      if let backup = shelfConversationBackup { self.store.conversation = backup }
       self.renderPNG(AnyView(MarkdownText(text: Self.markdownSample).padding(14)),
                      size: NSSize(width: 420, height: 520),
                      to: "\(dir)/markdown-\(suffix).png")
@@ -472,9 +502,10 @@ extension AppDelegate {
           .flatMap { Int($0.dropFirst("--demo-draft-lines=".count)) } ?? 0
         let initialHeight = draftLines > 0 ? CGFloat((draftLines + 1) * 16 + 12) : 28
         let chatName = CommandLine.arguments.contains("--demo-agent") ? "chat-agent" : "chat"
+        // v0.31 — 실제 기본 창 크기(400×560)로 렌더한다.
         self.renderPNG(AnyView(ContentView(initialInputHeight: initialHeight).environmentObject(self.store)),
-                       size: NSSize(width: 460, height: 620),
-                       to: "\(dir)/\(chatName)-\(suffix).png")
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/\(chatName)\(CommandLine.arguments.contains("--demo-toolbar") ? "-toolbar" : "")-\(suffix).png")
       }
       if CommandLine.arguments.contains("--demo-settings-wide") {
         if CommandLine.arguments.contains("--demo-ping") {
@@ -602,6 +633,20 @@ extension AppDelegate {
                        to: "\(dir)/pill-height-fresh.png")
         NSLog("[PILL-HEIGHT] 새로 열기(inputHeight 0) → capsule=%.1f",
               PillMetrics.capsuleHeight(text: m.text, inputHeight: m.inputHeight))
+      }
+      // v0.31 UI 목업 — 실제 화면에 연결하지 않은 제안 시안(승인 전).
+      if CommandLine.arguments.contains("--demo-redesign") {
+        let chat = NSSize(width: 400, height: 560)
+        for (mode, name) in [(DesignMockView.Mode.idle, "mock-idle"),
+                             (.hover, "mock-hover"),
+                             (.tools, "mock-tools")] {
+          self.renderPNG(AnyView(DesignMockView(mode: mode, lang: suffix)),
+                         size: chat,
+                         to: "\(dir)/\(name)-\(suffix).png")
+        }
+        self.renderPNG(AnyView(ShelfMockView(lang: suffix)),
+                       size: NSSize(width: 300, height: 520),
+                       to: "\(dir)/mock-shelf-\(suffix).png")
       }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)

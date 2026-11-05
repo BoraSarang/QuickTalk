@@ -85,6 +85,12 @@ struct ContentView: View {
   @State private var showWindowPicker = false
   /// 헤더 제목에 마우스를 올리면 밑줄(편집 가능 표시)
   @State private var titleHover = false
+  /// v0.31 — 상단 도구가 지금 보이는가(마우스가 상단 40pt에 있으면 참).
+  @State private var toolbarHovered = false
+  /// 0.5초 뒤 숨기는 작업 — 다시 들어오면 취소한다.
+  @State private var toolbarHideWork: DispatchWorkItem?
+  /// 지금 마우스를 올린 턴 — 복사·읽어주기·질문 `⋯`를 그 턴에서만 보인다.
+  @State private var hoveredTurn: UUID?
   /// 상대 시간("5분 전")을 1분마다 다시 계산하기 위한 현재 시각 — 창을 오래 열어 두어도 표기가 낡지 않는다.
   @State private var nowTick = Date()
   /// 대화창이 맨 아래에 있는가 — 아니면 우하단에 "맨 아래로" 버튼을 띄운다.
@@ -269,8 +275,11 @@ struct ContentView: View {
           .accessibilityHidden(true)
       }
     }
-    // 가변 크기(PLAN_v0.12): 최소 420×420. 크기는 NSWindow가 기억한다.
-    .frame(minWidth: 420, idealWidth: 460, maxWidth: .infinity,
+    // v0.31 — fullSizeContentView 창에서 **타이틀바까지 콘텐츠가 이어진다**(시리식).
+    //   traffic light 자리는 headerRow 의 leading 76pt 로 비워 둔다.
+    .ignoresSafeArea(edges: .top)
+    // 가변 크기(PLAN_v0.12 · v0.31): 최소 380×420, 기본 400×560. 크기는 NSWindow가 기억한다.
+    .frame(minWidth: 380, idealWidth: 400, maxWidth: .infinity,
            minHeight: 420, idealHeight: 560, maxHeight: .infinity, alignment: .top)
     .sheet(item: $renameTarget) { target in
       RenameSheet(original: target.title) { newTitle in
@@ -321,7 +330,10 @@ struct ContentView: View {
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
       dismissHoverPreview()
     }
-    .onDisappear(perform: dismissHoverPreview)
+    .onDisappear {
+      dismissHoverPreview()
+      toolbarHideWork?.cancel()
+    }
   }
 
   private func dismissHoverPreview() {
@@ -377,62 +389,91 @@ struct ContentView: View {
     }
   }
 
-  // MARK: - 헤더
+  // MARK: - 헤더 (v0.31 — 타이틀바 = 대화 제목·비서, 도구는 호버)
+
+  /// 상단 도구를 보일지 — 설정에서 "항상 보기"를 켰거나 마우스가 상단에 있을 때.
+  private var showsToolbar: Bool {
+    store.settings.chatToolbarAlwaysVisible || toolbarHovered
+  }
+
+  /// 마우스가 상단을 벗어나면 **0.5초 뒤** 숨긴다(스치듯 지나갈 때 깜빡이지 않게).
+  private func setToolbarHover(_ hovering: Bool) {
+    toolbarHideWork?.cancel()
+    if hovering {
+      if !toolbarHovered { withAnimation(.easeOut(duration: 0.14)) { toolbarHovered = true } }
+      return
+    }
+    let work = DispatchWorkItem {
+      withAnimation(.easeOut(duration: 0.20)) { toolbarHovered = false }
+    }
+    toolbarHideWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+  }
 
   private var headerRow: some View {
-    HStack(spacing: 4) {
-      Circle().fill(Color.purple).frame(width: 10, height: 10)
+    HStack(spacing: 6) {
       if tab == 0 {
         // 제목 = 첫 질문에서 자동 생성 · 클릭하면 바로 바꿀 수 있다.
-        // ★ 기억 사용량(토큰)은 여기 두지 않는다 — 두 줄이 되면 탭(보관함·설정)마다 헤더 높이가
-        //   달라져 탭을 옮길 때 화면이 울렁인다(2026-10-22 사용자 지적). 대화 영역 위에 띄운다.
         Button {
           renameTarget = RenameTarget(id: store.conversation.id,
                                       title: store.conversation.displayTitle)
         } label: {
           Text(store.conversation.displayTitle)
-            .bold()
+            .font(.system(size: 13.5, weight: .semibold))
             .lineLimit(1)
-            .truncationMode(.middle)
-            .layoutPriority(1)
+            .truncationMode(.tail)
             // 호버하면 밑줄 — 클릭해서 이름을 바꿀 수 있다는 표시
             .underline(titleHover, color: .secondary)
+            .layoutPriority(0)
         }
         .buttonStyle(.plain)
         .onHover { titleHover = $0 }
         .help(L("제목 변경 — 클릭하여 이 대화의 이름을 바꿉니다"))
       } else {
         Text(tab == 1 ? L("보관함") : L("설정"))
-          .bold()
+          .font(.system(size: 13.5, weight: .semibold))
           .lineLimit(1)
-          .truncationMode(.middle)
+          .truncationMode(.tail)
       }
       if tab == 0 && store.conversation.pinned {
         Image(systemName: "bookmark.fill").font(.system(size: 10)).foregroundColor(.purple)
           .help(L("만료 없이 보관 중인 대화입니다"))
       }
-      // 비서 칩 — 비서를 1명 이상 만들었을 때만(없으면 지금과 완전히 동일한 화면).
+      // 비서 칩 — 도구가 떠 있는 동안에는 이모지만 남겨 제목 자리를 확보한다.
       if tab == 0 && !store.settings.personas.isEmpty {
-        PersonaChip()
+        PersonaChip(compact: showsToolbar)
       }
-      Spacer()
-      // 읽어주기 중이면 **어느 탭에서든** 멈출 수 있게 헤더에 중지 버튼
+      Spacer(minLength: 4)
+      // 읽어주기 중이면 **항상** 멈출 수 있게 둔다(도구를 찾아 헤매지 않게).
       if store.isSpeaking {
         headerIcon("stop.fill", tint: .red, help: L("읽어주기 중지")) { store.stopSpeaking() }
       }
-      // ★ 폭이 모자라면 **숨긴다** — Text 는 압축되면 한 글자씩 세로로 쌓여
-      //   헤더가 6줄로 커진다(2026-10-25 실측: 기본 460pt + 긴 제목에서 ⌘Space 세로 붕괴).
-      //   넓은 창이나 짧은 제목에서는 지금처럼 한 줄로 보인다.
-      ViewThatFits(in: .horizontal) {
-        Text(shortcutLabel)
-          .font(.caption)
-          .foregroundColor(.gray)
-          .lineLimit(1)
-          .fixedSize()
-        EmptyView()
+      if showsToolbar {
+        toolbarGroup
+          .transition(.opacity.combined(with: .move(edge: .trailing)))
       }
-      // 📌 = 창을 항상 위에(모든 탭 공통 — 탭이 아니라 창 속성이다).
-      // 기본은 꺼짐: 설정 창·시스템 권한 안내가 대화 창 뒤로 숨지 않게 한다.
+    }
+    .padding(.leading, 76)   // traffic light 자리
+    .padding(.trailing, 10)
+    .frame(height: 40)
+    .background {
+      LinearGradient(colors: [Color.primary.opacity(showsToolbar ? 0.055 : 0.02),
+                              Color.primary.opacity(0.008)],
+                     startPoint: .top, endPoint: .bottom)
+    }
+    .overlay(alignment: .bottom) {
+      Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+    }
+    .contentShape(Rectangle())
+    .onHover(perform: setToolbarHover)
+    .animation(.easeInOut(duration: 0.16), value: showsToolbar)
+  }
+
+  /// 평소에는 숨는 상단 도구 — 📌 항상 위 · 🧠 공통 메모리 · 🔖 보관 · ▤ 퀵셸프 · ⋯ 메뉴.
+  /// (새 대화·보관함은 QuickShelf/⋯ 로 옮겼다 — 사용자 요청 2026-11-05)
+  private var toolbarGroup: some View {
+    HStack(spacing: 0) {
+      // 📌 = 창을 항상 위에(창 속성).
       headerIcon(store.settings.alwaysOnTop ? "pin.fill" : "pin",
                  active: store.settings.alwaysOnTop,
                  help: store.settings.alwaysOnTop
@@ -441,51 +482,74 @@ struct ContentView: View {
         store.settings.alwaysOnTop.toggle()
       }
 
-      // 핀·새 대화는 하단 여백을 만들지 않도록 헤더 오른쪽으로 옮겼다(PLAN_v0.12 개정)
-      if tab == 0 {
-        // 🧠 = 공통 메모리 — **항상 보인다**(꺼져 있어도).
-        // 예전엔 전역에서 꺼져 있으면 아예 숨겼다 → 끈 뒤 켤 방법이 헤더에 없어서
-        // "껐는데 왜 안 보이지?"가 됐다(2026-10-22 사용자 지적). 꺼져 있으면 흐리게 두고
-        // 누르면 다시 켜게 한다.
-        let memoryOff = !store.commonMemoryActive
-        // ★ "brain.slash" 는 **존재하지 않는 SF Symbol** 이다(macOS 27.2 실측) —
-        //   Image(systemName:) 이 빈 뷰가 되어 아이콘이 아예 사라진다("회색으로도 안 보임").
-        //   이름은 "brain" 하나로 두고 **색**으로 상태를 구분한다(켜짐 보라 / 꺼짐 회색).
-        headerIcon("brain",
-                   tint: memoryOff ? .secondary : .purple,
-                   help: memoryOff
-                     ? (store.settings.globalMemoryEnabled
-                        ? L("이 대화에서는 공통 메모리를 쓰지 않습니다 — 눌러서 켜기")
-                        : L("공통 메모리가 꺼져 있습니다 — 눌러서 켜기"))
-                     : L("공통 메모리 사용 중 — 눌러서 이 대화에서만 끄기")) {
-          store.toggleCommonMemory()
-        }
-
-        // 🔖 = 이 대화를 만료 없이 보관(모든 대화는 자동 저장되고 보관일수 뒤 정리된다)
-        headerIcon(store.conversation.pinned ? "bookmark.fill" : "bookmark",
-                   active: store.conversation.pinned,
-                   help: store.conversation.pinned
-                     ? L("보관 해제 — 보관일수가 지나면 정리됩니다")
-                     : L("보관 — 이 대화를 만료 없이 보관함에 남깁니다")) { store.togglePin() }
-
-        headerIcon("square.and.pencil",
-                   help: L("새 대화 — 지금 대화는 보관함에 남고 새로 시작합니다")) { store.newConversation() }
-        Divider().frame(height: 14)
+      // 🧠 = 공통 메모리 — 꺼져 있으면 회색, 켜짐은 보라(존재하지 않는 brain.slash 대신 색으로 구분).
+      let memoryOff = !store.commonMemoryActive
+      headerIcon("brain",
+                 tint: memoryOff ? .secondary : .purple,
+                 help: memoryOff
+                   ? (store.settings.globalMemoryEnabled
+                      ? L("이 대화에서는 공통 메모리를 쓰지 않습니다 — 눌러서 켜기")
+                      : L("공통 메모리가 꺼져 있습니다 — 눌러서 켜기"))
+                   : L("공통 메모리 사용 중 — 눌러서 이 대화에서만 끄기")) {
+        store.toggleCommonMemory()
       }
+
+      // 🔖 = 이 대화를 만료 없이 보관
+      headerIcon(store.conversation.pinned ? "bookmark.fill" : "bookmark",
+                 active: store.conversation.pinned,
+                 help: store.conversation.pinned
+                   ? L("보관 해제 — 보관일수가 지나면 정리됩니다")
+                   : L("보관 — 이 대화를 만료 없이 보관함에 남깁니다")) { store.togglePin() }
+
       headerIcon("sidebar.right", active: store.shelfDocked,
                  help: store.shelfDocked
                    ? L("퀵셸프 접기 — 창 안 허브를 내립니다 (Esc)")
-                   : Lf("퀵셸프 — 클립보드·파일·캡처 허브를 창 안쪽에 띄웁니다 (%@)",
+                   : Lf("퀵셸프 — 대화·클립보드·파일·캡처 허브를 창 안쪽에 띄웁니다 (%@)",
                         ShortcutCombo.display(store.settings.shelfShortcut))) { toggleShelfDock() }
-      Divider().frame(height: 14)
-      headerIcon(tab == 0 ? "bubble.left.fill" : "bubble.left", active: tab == 0,
-                 help: L("대화")) { tab = 0 }
-      headerIcon(tab == 1 ? "archivebox.fill" : "archivebox", active: tab == 1,
-                 help: L("보관함")) { tab = 1 }
-      headerIcon(tab == 2 ? "gearshape.fill" : "gearshape", active: tab == 2,
-                 help: L("설정")) { tab = 2 }
-    }.padding(.horizontal, 12).padding(.vertical, 8)
+
+      toolbarMenu
+    }
+    .padding(.horizontal, 3)
+    .background(Capsule().fill(Color.primary.opacity(0.06)))
+    .overlay(Capsule().stroke(Color.primary.opacity(0.07), lineWidth: 1))
   }
+
+  /// ⋯ — 보관함·새 대화·설정·툴바 항상 보기. 호버를 모를 때의 안전한 출구.
+  private var toolbarMenu: some View {
+    Menu {
+      Button { showShelfChats() } label: {
+        Label(L("보관함"), systemImage: "archivebox")
+      }
+      Button { store.newConversation() } label: {
+        Label(L("새 대화"), systemImage: "square.and.pencil")
+      }
+      Divider()
+      Toggle(isOn: $store.settings.chatToolbarAlwaysVisible) {
+        Label(L("툴바 항상 보기"), systemImage: "pin.circle")
+      }
+      Button { openSettingsWindow() } label: {
+        Label(L("설정…"), systemImage: "gearshape")
+      }
+    } label: {
+      Image(systemName: "ellipsis")
+        .font(.system(size: 12, weight: .medium))
+        .foregroundColor(.primary)
+        .frame(width: 22, height: 22)
+        .contentShape(Rectangle())
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help(L("도구 메뉴 — 보관함 · 새 대화 · 설정"))
+  }
+
+  /// 상단 ⋯/퀵셸프에서 보관함을 연다 — QuickShelf 대화 탭.
+  private func showShelfChats() {
+    store.shelfTab = .chats
+    withAnimation(.easeInOut(duration: 0.18)) { store.shelfDocked = true }
+  }
+
 
   /// 헤더 아이콘 공통 모양 — 크기·여백·호버 툴팁을 한 곳에서 맞춘다.
   /// (핀·뇌·북마크·새 대화·퀵셸프·탭이 제각각 크기라 정리되지 않아 보이던 문제)
@@ -509,152 +573,12 @@ struct ContentView: View {
     VStack(spacing: 0) {
         ScrollViewReader { proxy in
           ScrollView {
-          VStack(alignment: .leading, spacing: 8) {
+          VStack(alignment: .leading, spacing: 12) {
             if store.conversation.turns.isEmpty && !store.isReplying {
               ChatBackground().id(store.settings.language)   // L10n은 전역 — 언어 변경 시 다시 그린다
             }
             ForEach(store.conversation.turns, id: \.id) { t in
-              HStack(alignment: .bottom) {
-                if t.role == .user {
-                  Spacer(minLength: 30)
-                }
-                // 보낸 메시지에 붙인 첨부를 그대로 보여준다(썸네일 + 호버 미리보기)
-                VStack(alignment: t.role == .user ? .trailing : .leading, spacing: 4) {
-                  // 이 답변을 만든 비서 — 대화 중 비서를 바꿔도 턴마다 귀속이 보인다.
-                  if t.role == .assistant, let p = persona(for: t) {
-                    HStack(spacing: 4) {
-                      Text(p.displayEmoji)
-                      Text(p.name)
-                    }
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .padding(.leading, 3)
-                  }
-                  if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
-                  // ★ 도구 실행 카드는 **답변보다 위**에 둔다 — 명령이 먼저 돌고 그 결과로 답하기 때문.
-                  //   답변 아래에 두면 "명령 → 응답" 순서와 화면 순서가 반대가 된다(2026-10-22 사용자 지적).
-                  //   (웹 검색 출처는 참고 자료라 아래에 두는 것이 자연스럽다 — 그대로 둔다)
-                  // 모델의 일정 제안 — 등록/취소를 이 자리에서 결정한다.
-                  if t.role == .assistant,
-                     let pending = store.pendingSchedule,
-                     pending.turnID == t.id,
-                     pending.conversationID == store.conversation.id {
-                    ScheduleProposalCard(pending: pending)
-                      .padding(.bottom, 2)
-                  }
-                  if t.role == .assistant,
-                     let events = t.agentEvents, !events.isEmpty {
-                    AgentCard(events: events,
-                              approval: approvalRequest(for: t),
-                              showExecution: store.settings.agentShowExecution,
-                              undoEntry: store.agentUndoEntry(for: events),
-                              undoMessage: store.agentUndoMessage(for: events),
-                              onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
-                              onAllowScope: { store.resolveAgentApproval(.allowScope) },
-                              onAllowApp: { store.resolveAgentApproval(.allowApp) },
-                              onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
-                              onDeny: { store.resolveAgentApproval(.deny) },
-                              onUndo: {
-                                if let id = store.agentUndoEventID(for: events) {
-                                  Task { await store.undoAgentWrite(eventID: id) }
-                                }
-                              },
-                              onCancel: { store.cancelAgentRun() },
-                              handoffNotice: t.id == store.agentTurnID ? store.agentHandoffNotice : nil,
-                              onTerminalHandoff: { store.handoffToTerminal($0) })
-                      .padding(.bottom, 2)
-                  }
-                  if !t.text.isEmpty {
-                    if t.role == .assistant {
-                      // AI 답변은 마크다운으로 그린다 — 제목·목록·코드·표·링크
-                      MarkdownText(text: t.text, sources: t.sources ?? [])
-                        .padding(9)
-                        .background(Color.primary.opacity(0.055))
-                        .cornerRadius(12)
-                    } else {
-                      Text(t.text).padding(8)
-                        .background(RoundedRectangle(cornerRadius: 12)
-                          .fill(Color.accentColor.opacity(0.16)))
-                        .overlay(RoundedRectangle(cornerRadius: 12)
-                          .stroke(Color.accentColor.opacity(0.22), lineWidth: 1))
-                        .cornerRadius(12).textSelection(.enabled)
-                    }
-                  }
-                  // 응답까지 걸린 시간(모델 호출 구간) — 새 기록에만 표시된다
-                  // 응답 시각 + 걸린 시간 — "5분 전 · 3.2초".
-                  // 왼쪽 상대 시간은 이 대화가 언제 오갔는지, 오른쪽은 모델 호출에 걸린 시간이다.
-                  if t.role == .assistant, let ms = t.elapsedMs {
-                    let when = t.createdAt.map { RelativeTime.text(for: $0, now: nowTick) }
-                    HStack(spacing: 0) {
-                      Text(([when, Self.elapsedLabel(ms)].compactMap { $0 })
-                        .joined(separator: " · "))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    }
-                    .padding(.leading, 3)
-                    .help(t.createdAt.map {
-                      Lf("응답 도착: %@ · 걸린 시간 %@", RelativeTime.absolute($0), Self.elapsedLabel(ms))
-                    } ?? L("응답까지 걸린 시간"))
-                  }
-                  // 웹 검색 출처 — 답변 아래 카드(클릭하면 기본 브라우저)
-                  if t.role == .assistant, let sources = t.sources, !sources.isEmpty {
-                    sourceCards(sources)
-                  }
-                  // 모델이 "검색할 수 없다"고 답했을 때 — 같은 질문을 검색 강제로 재시도
-                  if t.role == .assistant, store.shouldOfferWebRetry(t) {
-                    webRetryButton(t)
-                  }
-                }
-                // 내용 열은 **남는 폭을 정확히 차지**한다 — 긴 표·명령이 이상 폭(ideal width)을
-                // 주장하면 HStack 이 그 폭으로 높이를 재고, 실제로는 좁게 그려져 아래 턴과 겹쳤다.
-                .frame(maxWidth: t.role == .assistant ? .infinity : nil,
-                       alignment: .leading)
-                // 질문 메뉴는 말풍선 **오른쪽**에 두고 위·아래 중앙에 맞춘다.
-                // 26pt를 비워 두어 말풍선과 겹치지 않게 한다.
-                .padding(.trailing, t.role == .user ? 26 : 0)
-                .overlay {
-                  // 검색에서 찾은 턴 — 테두리가 몇 번 깜빡여 "여기"라고 알려 준다
-                  if focusedTurn == t.id {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                      .stroke(Color.purple, lineWidth: focusPulse ? 2.5 : 1)
-                      .opacity(focusPulse ? 1 : 0.25)
-                      .padding(-2)
-                      .allowsHitTesting(false)
-                  }
-                }
-                .contextMenu {
-                  if t.role == .user { questionActions(t) }
-                }
-                .id(t.id)
-                .overlay(alignment: .trailing) {
-                  if t.role == .user { questionMenu(t) }
-                }
-                if t.role == .assistant {
-                  HStack(spacing: 1) {
-                    // 복사는 **원문(마크다운 소스)** — 붙여넣으면 서식이 그대로 살아난다
-                    Button { copyReply(t.text, id: t.id) } label: {
-                      Image(systemName: copiedTurn == t.id ? "checkmark" : "doc.on.doc")
-                        .frame(width: 24, height: 24)
-                        .foregroundColor(copiedTurn == t.id ? .purple : .primary)
-                    }
-                    .help(copiedTurn == t.id ? L("복사됨") : L("응답 복사 (마크다운 원문)"))
-                    .buttonStyle(.borderless)
-                    // 읽어주기는 마크다운 기호를 걷어낸 평문으로(별표·백틱을 소리 내지 않게)
-                    // 재생 중에는 **중지 버튼**으로 바뀐다(한 번 더 누르면 멈춘다)
-                    Button { store.speak(MarkdownPlain.text(t.text), turnID: t.id) } label: {
-                      Image(systemName: store.speakingTurnID == t.id ? "stop.fill" : "speaker.wave.2")
-                        .frame(width: 24, height: 24)
-                        .foregroundColor(store.speakingTurnID == t.id ? .red : .primary)
-                    }
-                    .help(store.speakingTurnID == t.id ? L("읽어주기 중지") : L("읽어주기"))
-                    .buttonStyle(.borderless)
-                  }
-                  // 스트리밍 중인 답변에는 아직 복사·읽어주기를 노출하지 않는다.
-                  // (빈 자리는 유지해 답변이 끝날 때 아이콘이 생기며 말풍선이 밀리지 않게)
-                  .opacity(t.id == store.streamingTurnID || t.text.isEmpty ? 0 : 1)
-                  .allowsHitTesting(t.id != store.streamingTurnID && !t.text.isEmpty)
-                }
-              }
+              messageRow(t).id(t.id)
             }
             // 스트리밍 첫 글자가 오면 점 표시를 숨긴다(글자가 대신 보인다)
             if store.isReplying,
@@ -663,7 +587,8 @@ struct ContentView: View {
             }
             Color.clear.frame(height: 1).id(Self.bottomID)
           }
-          .padding(12)
+          .padding(.horizontal, 20)
+          .padding(.vertical, 12)
           // 토큰 칩이 위에 떠 있어도 첫 메시지를 가리지 않게 그만큼 비워 둔다(헤더 높이는 그대로).
           .padding(.top, showsMemoryChip ? 14 : 0)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -763,6 +688,179 @@ struct ContentView: View {
       attachNoticeRow
       slashPalette
       dockRow
+    }
+  }
+
+  // MARK: - 메시지 한 줄 (v0.31)
+
+  /// 응답은 **카드 없이 전체 폭**, 질문은 **꼬리 말풍선**.
+  /// 복사·읽어주기·질문 `⋯` 는 그 턴에 마우스를 올렸을 때만 보인다(시간은 항상).
+  @ViewBuilder private func messageRow(_ t: Turn) -> some View {
+    if t.role == .user {
+      HStack(alignment: .bottom, spacing: 0) {
+        Spacer(minLength: 48)
+        HStack(alignment: .center, spacing: 4) {
+          VStack(alignment: .trailing, spacing: 4) {
+            if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
+            if !t.text.isEmpty {
+              Text(t.text)
+                .font(.system(size: 13.5))
+                .lineSpacing(2)
+                .textSelection(.enabled)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(questionBubble)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+          if hoveredTurn == t.id {
+            questionMenu(t)
+              .transition(.opacity)
+          }
+        }
+        .onHover { setHovered(t.id, $0) }
+      }
+      .frame(maxWidth: .infinity, alignment: .trailing)
+      .contextMenu { questionActions(t) }
+      .overlay {
+        if focusedTurn == t.id {
+          RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .stroke(Color.purple, lineWidth: focusPulse ? 2.5 : 1)
+            .opacity(focusPulse ? 1 : 0.25)
+            .padding(-3)
+            .allowsHitTesting(false)
+        }
+      }
+    } else {
+      VStack(alignment: .leading, spacing: 6) {
+        // 이 답변을 만든 비서 — 대화 중 비서를 바꿔도 턴마다 귀속이 보인다.
+        if let p = persona(for: t) {
+          HStack(spacing: 4) {
+            Text(p.displayEmoji)
+            Text(p.name)
+          }
+          .font(.system(size: 10.5, weight: .medium))
+          .foregroundColor(.secondary)
+        }
+        if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
+        // ★ 도구 실행 카드는 **답변보다 위** — 명령이 먼저 돌고 그 결과로 답하기 때문.
+        if let pending = store.pendingSchedule,
+           pending.turnID == t.id,
+           pending.conversationID == store.conversation.id {
+          ScheduleProposalCard(pending: pending)
+            .padding(.bottom, 2)
+        }
+        if let events = t.agentEvents, !events.isEmpty {
+          AgentCard(events: events,
+                    approval: approvalRequest(for: t),
+                    showExecution: store.settings.agentShowExecution,
+                    undoEntry: store.agentUndoEntry(for: events),
+                    undoMessage: store.agentUndoMessage(for: events),
+                    onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
+                    onAllowScope: { store.resolveAgentApproval(.allowScope) },
+                    onAllowApp: { store.resolveAgentApproval(.allowApp) },
+                    onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
+                    onDeny: { store.resolveAgentApproval(.deny) },
+                    onUndo: {
+                      if let id = store.agentUndoEventID(for: events) {
+                        Task { await store.undoAgentWrite(eventID: id) }
+                      }
+                    },
+                    onCancel: { store.cancelAgentRun() },
+                    handoffNotice: t.id == store.agentTurnID ? store.agentHandoffNotice : nil,
+                    onTerminalHandoff: { store.handoffToTerminal($0) })
+            .padding(.bottom, 2)
+        }
+        if !t.text.isEmpty {
+          // AI 답변은 마크다운 그대로, **응답을 질문보다 크게**(15pt) 읽는다.
+          MarkdownText(text: t.text, sources: t.sources ?? [], baseSize: 15)
+            .foregroundColor(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        if let sources = t.sources, !sources.isEmpty { sourceCards(sources) }
+        if store.shouldOfferWebRetry(t) { webRetryButton(t) }
+        if !t.text.isEmpty && t.id != store.streamingTurnID {
+          answerFooter(t)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+      .onHover { setHovered(t.id, $0) }
+      .overlay {
+        if focusedTurn == t.id {
+          RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .stroke(Color.purple, lineWidth: focusPulse ? 2.5 : 1)
+            .opacity(focusPulse ? 1 : 0.25)
+            .padding(-3)
+            .allowsHitTesting(false)
+        }
+      }
+    }
+  }
+
+  /// 마우스를 올린 턴만 보조 동작을 노출한다(다른 턴으로 옮기면 이전 것은 즉시 숨김).
+  private func setHovered(_ id: UUID, _ hovering: Bool) {
+    if hovering {
+      if hoveredTurn != id { hoveredTurn = id }
+    } else if hoveredTurn == id {
+      hoveredTurn = nil
+    }
+  }
+
+  /// 응답 하단 한 줄 — 왼쪽은 상대 시간(항상), 오른쪽은 복사·읽어주기(호버 시에만).
+  @ViewBuilder private func answerFooter(_ t: Turn) -> some View {
+    HStack(spacing: 6) {
+      if let ms = t.elapsedMs {
+        let when = t.createdAt.map { RelativeTime.text(for: $0, now: nowTick) }
+        Text(([when, Self.elapsedLabel(ms)].compactMap { $0 }).joined(separator: " · "))
+          .font(.system(size: 10.5))
+          .foregroundColor(.secondary)
+          .lineLimit(1)
+          .help(t.createdAt.map {
+            Lf("응답 도착: %@ · 걸린 시간 %@", RelativeTime.absolute($0), Self.elapsedLabel(ms))
+          } ?? L("응답까지 걸린 시간"))
+      }
+      Spacer(minLength: 4)
+      if hoveredTurn == t.id {
+        HStack(spacing: 2) {
+          Button { copyReply(t.text, id: t.id) } label: {
+            Image(systemName: copiedTurn == t.id ? "checkmark" : "doc.on.doc")
+              .font(.system(size: 11, weight: .medium))
+              .frame(width: 22, height: 18)
+              .foregroundColor(copiedTurn == t.id ? .purple : .secondary)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .help(copiedTurn == t.id ? L("복사됨") : L("응답 복사 (마크다운 원문)"))
+          Button { store.speak(MarkdownPlain.text(t.text), turnID: t.id) } label: {
+            Image(systemName: store.speakingTurnID == t.id ? "stop.fill" : "speaker.wave.2")
+              .font(.system(size: 11, weight: .medium))
+              .frame(width: 22, height: 18)
+              .foregroundColor(store.speakingTurnID == t.id ? .red : .secondary)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .help(store.speakingTurnID == t.id ? L("읽어주기 중지") : L("읽어주기"))
+        }
+        .padding(.horizontal, 4)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+        .transition(.opacity)
+      }
+    }
+    .frame(height: 18)
+  }
+
+  /// 질문 말풍선 — 오른쪽 아래에 꼬리가 붙는다. 브랜드 보라(승인 목업과 같은 계열)를 쓴다.
+  private var questionBubble: some View {
+    ZStack(alignment: .bottomTrailing) {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(Color.purple.opacity(0.18))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+          .stroke(Color.purple.opacity(0.30), lineWidth: 1))
+      QuestionBubbleTail()
+        .fill(Color.purple.opacity(0.18))
+        .frame(width: 11, height: 9)
+        .offset(x: 5, y: 3)
     }
   }
 
@@ -1332,12 +1430,70 @@ struct ContentView: View {
       && !store.isReplying
   }
 
-  /// 입력 영역 오른쪽 여백 — 아래 버튼(창 연결·🌐·🎤·↑)이 글자를 가리지 않게, 켜진 버튼만큼 비운다.
-  private var composerTrailingPadding: CGFloat {
-    var p: CGFloat = 84
-    if store.settings.windowAttachmentEnabled { p += 32 }
-    if store.settings.webSearchEnabled { p += 32 }
-    return p
+  /// 입력 영역 오른쪽 여백 — 도구(＋)·전송 두 버튼이 글자를 가리지 않게 비운다.
+  private var composerTrailingPadding: CGFloat { 74 }
+
+  /// 도구 버튼이 지금 활성 상태인가 — 유지형(음성) 또는 이번 질문 한정(웹 검색).
+  private var composerToolActive: Bool { store.voiceRecording || store.forceWebSearch }
+
+  /// 활성 상태면 `＋` 대신 그 기능 아이콘으로 바뀐다(다시 누르면 메뉴에서 해제).
+  private var composerToolSymbol: String {
+    if store.voiceRecording { return "mic.fill" }
+    if store.forceWebSearch { return "globe" }
+    return "plus"
+  }
+
+  /// v0.31 — 입력독 오른쪽 도구 3개를 **＋ 하나**로 합친 메뉴.
+  /// 창 연결 = 1회성 · 웹 검색 = 이번 질문 한정 · 음성 입력 = 유지형.
+  private var composerToolMenu: some View {
+    Menu {
+      if store.settings.windowAttachmentEnabled {
+        Button { showWindowPicker = true } label: {
+          Label(L("창 연결"), systemImage: "macwindow.on.rectangle")
+        }
+        .disabled(store.isReplying)
+      }
+      if store.settings.webSearchEnabled {
+        Toggle(isOn: $store.forceWebSearch) {
+          Label(store.forceWebSearch ? L("웹 검색 — 이번 질문 켜짐") : L("웹 검색 — 이번 질문만"),
+                systemImage: "globe")
+        }
+        .disabled(store.isReplying)
+      }
+      if store.settings.windowAttachmentEnabled || store.settings.webSearchEnabled {
+        Divider()
+      }
+      Button { store.toggleVoice() } label: {
+        Label(store.voiceRecording ? L("음성 입력 끄기") : L("음성 입력"),
+              systemImage: store.voiceRecording ? "mic.fill" : "mic")
+      }
+    } label: {
+      ZStack(alignment: .topTrailing) {
+        Circle()
+          .fill(store.voiceRecording ? Color.red.opacity(0.16)
+                : store.forceWebSearch ? Color.purple.opacity(0.16)
+                : Color.primary.opacity(0.08))
+          .frame(width: 26, height: 26)
+          .overlay(
+            Image(systemName: composerToolSymbol)
+              .font(.system(size: 12, weight: .medium))
+              .foregroundColor(store.voiceRecording ? .red
+                               : store.forceWebSearch ? .purple : .primary)
+          )
+        if composerToolActive {
+          Circle()
+            .fill(store.voiceRecording ? Color.red : Color.purple)
+            .frame(width: 6, height: 6)
+            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1))
+        }
+      }
+      .contentShape(Circle())
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help(L("도구 — 창 연결 · 웹 검색 · 음성 입력"))
   }
 
   private var dockRow: some View {
@@ -1372,48 +1528,9 @@ struct ContentView: View {
       HStack(spacing: 6) {
         Spacer()
 
-        // 🪟 창 연결 — 이 창의 텍스트·스크린샷을 이번 질문의 참고 자료로 붙인다(읽기 전용).
-        if store.settings.windowAttachmentEnabled {
-          Button { showWindowPicker = true } label: {
-            Image(systemName: "macwindow.on.rectangle")
-              .font(.system(size: 12, weight: .medium))
-              .frame(width: 26, height: 26)
-              .foregroundColor(.primary)
-              .background(Circle().fill(Color.primary.opacity(0.08)))
-              .contentShape(Circle())
-          }
-          .buttonStyle(.plain)
-          .disabled(store.isReplying)
-          .help(L("창 연결 — 이 창의 글자와 스크린샷을 참고 자료로 (읽기 전용)"))
-        }
-
-        // 🌐 — 이번 질문만 웹 검색(자동 모드에서도 강제). 검색이 꺼져 있으면 숨긴다.
-        if store.settings.webSearchEnabled {
-          Button { store.forceWebSearch.toggle() } label: {
-            Image(systemName: "globe")
-              .font(.system(size: 12, weight: .medium))
-              .frame(width: 26, height: 26)
-              .foregroundColor(store.forceWebSearch ? .white : .primary)
-              .background(Circle().fill(store.forceWebSearch ? Color.purple : Color.primary.opacity(0.08)))
-              .contentShape(Circle())
-          }
-          .buttonStyle(.plain)
-          .disabled(store.isReplying)
-          .help(store.forceWebSearch
-                ? L("이번 질문은 웹 검색합니다 — 누르면 해제")
-                : L("이번 질문만 웹 검색 (🌐)"))
-        }
-
-        Button { store.toggleVoice() } label: {
-          Image(systemName: store.voiceRecording ? "mic.fill" : "mic")
-            .font(.system(size: 12, weight: .medium))
-            .frame(width: 26, height: 26)
-            .foregroundColor(store.voiceRecording ? .red : .primary)
-            .background(Circle().fill(Color.primary.opacity(store.voiceRecording ? 0.16 : 0.08)))
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help(store.voiceRecording ? L("녹음 중지") : Lf("음성 입력 (%@)", store.settings.voiceEngine.displayName))
+        // ＋ 도구 — 창 연결 · 웹 검색(이번 질문) · 음성 입력(유지형).
+        // 유지형이 켜져 있으면 버튼 아이콘이 그 기능으로 바뀌고 작은 점이 붙는다.
+        composerToolMenu
 
         Button { store.isReplying ? store.cancelReply() : store.send() } label: {
           // 응답 대기 중에는 전송 대신 **중지**(⏹) — 로컬 모델은 첫 토큰까지 수 분 걸릴 수 있다
@@ -1755,5 +1872,19 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       }
       onChange(distance, scrolledUp)
     }
+  }
+}
+
+/// 질문 말풍선의 꼬리 — 오른쪽 아래 모서리에서 자연스럽게 빠져나온다.
+struct QuestionBubbleTail: Shape {
+  func path(in rect: CGRect) -> Path {
+    var p = Path()
+    p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+    p.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.maxY),
+                   control: CGPoint(x: rect.maxX - 1, y: rect.minY + 1))
+    p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY * 0.55),
+                   control: CGPoint(x: rect.minX + 1, y: rect.maxY))
+    p.closeSubpath()
+    return p
   }
 }
