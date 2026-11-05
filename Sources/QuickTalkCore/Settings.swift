@@ -22,6 +22,26 @@ public enum NewWindowPosition: String, Codable, CaseIterable, Identifiable {
   }
 }
 
+/// 사고 과정(thinking 모델) 표시 방식 — v0.31, 사용자 선택.
+public enum ReasoningDisplayMode: String, Codable, CaseIterable, Identifiable, Equatable {
+  /// 항상 펼쳐서 보여 준다.
+  case always
+  /// 스트리밍 중에는 펼치고, 끝나면 한 줄로 접는다(기본).
+  case collapseWhenDone
+  /// 내용은 숨기고 "사고 과정 — 생각 중" 표시만 한다.
+  case indicatorOnly
+
+  public var id: String { rawValue }
+
+  public var displayName: String {
+    switch self {
+    case .always: return L("항상 보기")
+    case .collapseWhenDone: return L("끝나면 자동으로 접기")
+    case .indicatorOnly: return L("'생각 중' 표시만")
+    }
+  }
+}
+
 public struct QuickTalkSettings: Codable, Equatable {
   public var showMenuBarIcon: Bool = true
   public var showDockIcon: Bool = false
@@ -151,6 +171,8 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var agentPolicy: AgentPolicy = AgentPolicy()
   /// 도구 실행 카드에서 **실제 명령·출력**을 보여줄지(기본 켜짐). 끄면 한 줄 요약만 남는다.
   public var agentShowExecution: Bool = true
+  /// 사고 과정(thinking 모델) 표시 방식 — 기본은 "끝나면 자동으로 접기".
+  public var reasoningDisplay: ReasoningDisplayMode = .collapseWhenDone
   /// 실행 중 출력을 **실시간**으로 카드에 흘릴지(v0.20). 끄면 끝난 뒤 한 번에 보여 준다.
   public var agentStreamOutput: Bool = true
   /// 셸 실행 제한 시간(초, v0.20) — 10~600 범위로 자른다.
@@ -298,7 +320,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case webSearchDailyLimit, webSearchUsageDay, webSearchUsageCount, webSearchMode
     case autoCompact, compactKeepTurns
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
-    case agentToolsEnabled, agentPolicy, agentShowExecution, uiControlEnabled
+    case agentToolsEnabled, agentPolicy, agentShowExecution, reasoningDisplay, uiControlEnabled
     case agentStreamOutput, agentTimeoutSeconds
     case networkRetryEnabled, networkRetryIntervalSeconds, networkRetryMaxAttempts
     case personas, defaultPersonaID, defaultReportFolder, schedulerEnabled
@@ -375,6 +397,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     agentToolsEnabled = try c.decodeIfPresent(Bool.self, forKey: .agentToolsEnabled) ?? true
     uiControlEnabled = try c.decodeIfPresent(Bool.self, forKey: .uiControlEnabled) ?? false
     agentShowExecution = try c.decodeIfPresent(Bool.self, forKey: .agentShowExecution) ?? true
+    reasoningDisplay = Self.decodeEnum(ReasoningDisplayMode.self, c, .reasoningDisplay,
+                                       default: .collapseWhenDone)
     agentStreamOutput = try c.decodeIfPresent(Bool.self, forKey: .agentStreamOutput) ?? true
     agentTimeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .agentTimeoutSeconds) ?? 60
     // v0.29 — 없는 설정은 사용자 요구 기본값(5초 · 10회)으로 읽는다.
@@ -472,6 +496,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(agentToolsEnabled, forKey: .agentToolsEnabled)
     try c.encode(uiControlEnabled, forKey: .uiControlEnabled)
     try c.encode(agentShowExecution, forKey: .agentShowExecution)
+    try c.encode(reasoningDisplay, forKey: .reasoningDisplay)
     try c.encode(agentStreamOutput, forKey: .agentStreamOutput)
     try c.encode(agentTimeoutSeconds, forKey: .agentTimeoutSeconds)
     try c.encode(networkRetryEnabled, forKey: .networkRetryEnabled)

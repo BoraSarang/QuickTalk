@@ -563,25 +563,47 @@ extension AppDelegate {
         self.store.conversation = backup
       }
       // QA(2026-11-06): 사고 과정 — 접힌 상태 / 펼친 상태 두 장.
+      // 시간 순서(사고 → 도구 → 사고 → 도구 → 사고 → 답변)를 그대로 재현한다.
       if CommandLine.arguments.contains("--demo-reasoning") {
         let backup = self.store.conversation
-        let reasoning = """
-        사용자는 무료 모델만 원하므로 유료·유예 모델은 제외해야 한다.
-        1) OpenCode Zen 문서에서 무료 목록을 확인한다.
-        2) 모델 ID에 -free 가 붙은 것과 문서에 Free 로 표기된 것을 교차 확인한다.
-        3) 각 모델의 컨텍스트·용도를 표로 정리한다.
+        let stepOne = """
+        무료 목록은 공식 문서와 가격 페이지를 함께 봐야 한다.
+        문서에 Free 로 적힌 것과 모델 ID의 -free 표기를 교차 확인하자.
+        """
+        let stepTwo = """
+        문서의 이름과 실제 API 의 모델 ID 가 다를 수 있다.
+        목록 API 를 직접 불러 -free 가 붙은 것만 남기자.
+        """
+        let finalThought = """
+        확인한 6종을 컨텍스트·용도와 함께 표로 정리하고,
+        가격은 무료 한도까지만 적는다.
         """
         self.store.conversation = Conversation(title: "사고 과정", turns: [
           Turn(role: .user, text: "OpenCode Zen 무료 모델만 정리해 줘"),
           Turn(role: .assistant,
                text: "무료 모델은 문서 기준 6종입니다. 모델 ID에 `-free` 가 붙은 것만 골랐습니다.",
-               elapsedMs: 3_900, reasoning: reasoning)
+               elapsedMs: 12_900,
+               agentEvents: [
+                 AgentEvent(id: "demo-search", toolName: "web_search",
+                            title: "웹 검색 — OpenCode Zen free models",
+                            command: "OpenCode Zen free models",
+                            level: .read, risk: .normal, state: .done,
+                            output: "공식 문서 1건 · 가격 페이지 1건",
+                            reasoningBefore: stepOne),
+                 AgentEvent(id: "demo-shell", toolName: "shell",
+                            title: "셸 — 실제 모델 목록 확인",
+                            command: "curl -s https://opencode.ai/zen/v1/models | jq -r '.[].id'",
+                            level: .read, risk: .normal, state: .done,
+                            output: "6개 (-free)",
+                            reasoningBefore: stepTwo)
+               ],
+               reasoning: finalThought)
         ])
         self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
-                       size: NSSize(width: 400, height: 560),
+                       size: NSSize(width: 460, height: 700),
                        to: "\(dir)/reasoning-collapsed-\(suffix).png")
         self.renderPNG(AnyView(ContentView(expandReasoning: true).environmentObject(self.store)),
-                       size: NSSize(width: 400, height: 560),
+                       size: NSSize(width: 460, height: 700),
                        to: "\(dir)/reasoning-expanded-\(suffix).png")
         self.store.conversation = backup
       }

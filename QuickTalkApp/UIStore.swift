@@ -1829,14 +1829,14 @@ final class UIStore: ObservableObject {
         self.conversation = self.core.conversation
         self.streamingTurnID = aid
         // 사고 과정(thinking 모델) — 답변이 시작되기 전에도 화면이 "지금 고민 중"을 보여 준다.
-        // 완료되면 이 턴에 저장하고 화면의 임시 사본을 비운다.
+        // 스텝(모델 호출)마다 새 구간으로 쌓는다 — 도구 카드 앞에 그 구간을 붙이고 비운다.
+        // 완료되면 **마지막 구간**(최종 답변 직전의 사고)을 턴에 저장한다.
         self.liveReasoning = ""
-        var reasoningText = ""
         let appendReasoning: @MainActor (String) -> Void = { piece in
-          reasoningText += piece
-          if reasoningText.count > 24_000 { reasoningText = String(reasoningText.suffix(24_000)) }
           guard self.conversation.id == convID else { return }
-          self.liveReasoning = reasoningText
+          var text = self.liveReasoning + piece
+          if text.count > 24_000 { text = String(text.suffix(24_000)) }
+          self.liveReasoning = text
         }
         /// 말풍선에서 **모델 답변 앞**에 붙는 안내(검색 경고·첨부 경고) — 재시도로 지우지 않는다.
         var answerPrefix = ""
@@ -1914,8 +1914,9 @@ final class UIStore: ObservableObject {
                   flush(false)
                 },
                 // 스텝 시작 시점을 기억했다가, 도구 호출 예고·재시도 실패분을 지운다.
+                // 사고 과정도 스텝마다 새 구간 — 재시도한 실패 시도의 사고는 버린다.
                 onReasoning: appendReasoning,
-                onStepStart: { stepStartText = modelText },
+                onStepStart: { stepStartText = modelText; self.liveReasoning = "" },
                 onStepDiscard: { replaceAnswer(stepStartText) },
                 onRetry: { showRetry($0) })
               // 모델이 검색으로 확인한 출처가 있으면 답변에 남긴다.
@@ -1987,7 +1988,7 @@ final class UIStore: ObservableObject {
           }
           self.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
                                         sources: sources.isEmpty ? nil : sources,
-                                        reasoning: reasoningText.isEmpty ? nil : reasoningText)
+                                        reasoning: self.liveReasoning.isEmpty ? nil : self.liveReasoning)
           self.conversation = self.core.conversation
           self.liveReasoning = ""
           self.syncArchive()

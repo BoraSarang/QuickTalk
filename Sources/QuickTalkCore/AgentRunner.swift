@@ -37,15 +37,20 @@ public struct AgentEvent: Codable, Equatable, Identifiable {
   public var undoID: String?
   /// 앱이 실행하지 않고 **터미널로 넘길** 명령(v0.20) — 카드에 [터미널에서 열기]가 뜬다.
   public var terminalCommand: String?
+  /// 이 도구 호출 **직전** 모델의 사고 과정(thinking 모델, v0.31).
+  /// 사고 → 도구 → 사고 → 도구 순서를 화면에 그대로 그리기 위해 카드에 함께 남긴다.
+  /// 구버전 기록에는 없으므로 nil.
+  public var reasoningBefore: String?
 
   public init(id: String, toolName: String, title: String, command: String,
               level: AgentPermissionLevel, risk: AgentRiskLevel,
               state: State = .pending, output: String = "", elapsedMs: Int = 0,
-              undoID: String? = nil, terminalCommand: String? = nil) {
+              undoID: String? = nil, terminalCommand: String? = nil,
+              reasoningBefore: String? = nil) {
     self.id = id; self.toolName = toolName; self.title = title; self.command = command
     self.level = level; self.risk = risk; self.state = state
     self.output = output; self.elapsedMs = elapsedMs; self.undoID = undoID
-    self.terminalCommand = terminalCommand
+    self.terminalCommand = terminalCommand; self.reasoningBefore = reasoningBefore
   }
 }
 
