@@ -181,6 +181,7 @@ extension FoundationModels.GeneratedContent {
     case .string(let s): return s
     case .array(let items): return items.map { $0.jsonValue }
     case .structure(let props, _): return props.mapValues { $0.jsonValue }
+    @unknown default: return String(describing: kind)
     }
   }
 }
