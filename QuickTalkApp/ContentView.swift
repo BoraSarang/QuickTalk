@@ -439,14 +439,15 @@ struct ContentView: View {
         Image(systemName: "bookmark.fill").font(.system(size: 10)).foregroundColor(.purple)
           .help(L("만료 없이 보관 중인 대화입니다"))
       }
-      // 비서 칩 — 도구가 떠 있는 동안에는 이모지만 남겨 제목 자리를 확보한다.
-      if tab == 0 && !store.settings.personas.isEmpty {
-        PersonaChip(compact: showsToolbar)
-      }
       Spacer(minLength: 4)
       // 읽어주기 중이면 **항상** 멈출 수 있게 둔다(도구를 찾아 헤매지 않게).
       if store.isSpeaking {
         headerIcon("stop.fill", tint: .red, help: L("읽어주기 중지")) { store.stopSpeaking() }
+      }
+      // 비서 칩 — **오른쪽 정렬**(목업과 동일). 도구가 떠 있는 동안에는 이모지만 남겨
+      // 오른쪽 도구 줄과 제목 자리를 함께 확보한다.
+      if tab == 0 && !store.settings.personas.isEmpty {
+        PersonaChip(compact: showsToolbar)
       }
       if showsToolbar {
         toolbarGroup
