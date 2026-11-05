@@ -191,3 +191,14 @@
   `ScrollView`+`LazyVStack` 카드형 행(custom 디자인).
 - 검증·배포: `docs/qa/v0.31-archive-fix/README.md` · PR #99 → `bd0fc99` · SHA-256 `1f95612d…`.
 - **실측 완료(2026-11-05 23:53)**: A1(신호등 정렬)~A9(셸프 검색 점프) — 사용자 확인 "다 정상".
+
+### 7.2 수정 (2026-11-06 00:13) — 호버 폭 · 제목 드래그 · 진행 중 대화 삭제
+
+- **질문 호버**: `⋯` 를 말풍선 `HStack` 안에서 빼 `.overlay(alignment: .trailing)` + `offset(x: 16)` 로
+  오른쪽 20pt 여백 안쪽에 띄운다 → **폭·줄바꿈·높이가 호버 전후 동일**. 호버 판정은 행 전체.
+- **제목**: `TitleDragArea`(NSViewRepresentable) — 한 번 클릭 후 끌기 = `window.performDrag`,
+  **두 번 클릭** = 이름 변경 시트. `NSTrackingArea .inVisibleRect` 로 호버 밑줄, 글자는 히트 테스트 제외.
+- **진행 중 대화 삭제**: 보관함 "진행 중" 행에 🗑. 확인 후 `cancelReply()` → `core.reset()`
+  → 기본 비서 재적용 → 초안/첨부/검색 포커스 정리 → **대화 탭**으로 이동(새 대화).
+- 검증·배포: `docs/qa/v0.31-question-hover/README.md` · PR #102 → `da3ab52` · SHA-256 `7e90b38d…`.
+- **실측 완료(2026-11-06 00:17, 사용자 확인)**: 세 항목 모두 정상.
