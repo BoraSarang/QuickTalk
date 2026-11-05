@@ -421,13 +421,16 @@ final class PointerPillController {
         self.model.persona = settings.persona(store.conversation.personaID)
       }
       .store(in: &bag)
-    store.$conversation
-      .map(\.personaID)
-      .removeDuplicates()
+    // 대화방이 바뀌거나 비서가 바뀌면 pill 에 반영한다.
+    // (`conversation` 은 활성 세션의 계산 속성이라 objectWillChange 로 갱신을 받는다)
+    store.objectWillChange
       .receive(on: RunLoop.main)
-      .sink { [weak self] id in
+      .sink { [weak self] _ in
         guard let self, let store = self.store else { return }
-        self.model.persona = store.settings.persona(id)
+        let persona = store.settings.persona(store.conversation.personaID)
+        if self.model.persona?.id != persona?.id || self.model.persona?.name != persona?.name {
+          self.model.persona = persona
+        }
       }
       .store(in: &bag)
 

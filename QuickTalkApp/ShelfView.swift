@@ -304,7 +304,7 @@ struct ShelfView: View {
   }
 
   private func chatRow(_ c: Conversation, selected: Bool) -> some View {
-    let running = store.isReplying && store.conversation.id == c.id
+    let running = store.isSessionReplying(conversationID: c.id)
     let persona = store.settings.persona(personaID(for: c))
     return Button { openChat(c) } label: {
       HStack(spacing: 8) {

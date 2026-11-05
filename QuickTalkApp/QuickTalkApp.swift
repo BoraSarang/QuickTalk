@@ -164,6 +164,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runSearchAnswerSelfTestIfRequested() { return }
     // QA: `--agent-test=<질문>` — 도우미 도구 1회(모델 → 도구 실행 → 최종 답, 헤드리스)
     if runAgentSelfTestIfRequested() { return }
+    // QA: `--session-test` — 대화방별 상태 분리·백그라운드 응답 표시(헤드리스)
+    if runSessionSelfTestIfRequested() { return }
     // QA: `--compact-test[=<턴수>]` — 자동 대화 정리 1회(헤드리스)
     if runCompactSelfTestIfRequested() { return }
     // QA: `--compact-auto-test[=<턴수>]` — 자동 트리거(70%) 확인(헤드리스)
