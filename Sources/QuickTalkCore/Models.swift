@@ -67,16 +67,19 @@ public struct Turn: Codable, Equatable {
   /// 이 답변을 만든 비서(v0.27) — 대화 중 비서를 바꿔도 **턴마다 귀속**이 남는다.
   /// 구버전 기록에는 없으므로 nil 이며, 그때는 대화의 현재 비서로 표시한다.
   public var personaID: UUID?
+  /// 모델의 **사고 과정**(thinking 모델의 `reasoning_content`/`thinking`).
+  /// 답변과 분리해 접어 둔다 — 모델이 사고 내용을 보내지 않으면 nil(구버전 기록도 nil).
+  public var reasoning: String?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
               elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
               createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil,
-              personaID: UUID? = nil) {
+              personaID: UUID? = nil, reasoning: String? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
     self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
-    self.personaID = personaID
+    self.personaID = personaID; self.reasoning = reasoning
   }
 }
 

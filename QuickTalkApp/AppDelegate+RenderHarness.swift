@@ -562,6 +562,29 @@ extension AppDelegate {
                        to: "\(dir)/question-hover-\(suffix).png")
         self.store.conversation = backup
       }
+      // QA(2026-11-06): 사고 과정 — 접힌 상태 / 펼친 상태 두 장.
+      if CommandLine.arguments.contains("--demo-reasoning") {
+        let backup = self.store.conversation
+        let reasoning = """
+        사용자는 무료 모델만 원하므로 유료·유예 모델은 제외해야 한다.
+        1) OpenCode Zen 문서에서 무료 목록을 확인한다.
+        2) 모델 ID에 -free 가 붙은 것과 문서에 Free 로 표기된 것을 교차 확인한다.
+        3) 각 모델의 컨텍스트·용도를 표로 정리한다.
+        """
+        self.store.conversation = Conversation(title: "사고 과정", turns: [
+          Turn(role: .user, text: "OpenCode Zen 무료 모델만 정리해 줘"),
+          Turn(role: .assistant,
+               text: "무료 모델은 문서 기준 6종입니다. 모델 ID에 `-free` 가 붙은 것만 골랐습니다.",
+               elapsedMs: 3_900, reasoning: reasoning)
+        ])
+        self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/reasoning-collapsed-\(suffix).png")
+        self.renderPNG(AnyView(ContentView(expandReasoning: true).environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/reasoning-expanded-\(suffix).png")
+        self.store.conversation = backup
+      }
       if CommandLine.arguments.contains("--demo-settings-wide") {
         if CommandLine.arguments.contains("--demo-ping") {
           self.store.providerTestResult = Lf("응답: %@", "pong")

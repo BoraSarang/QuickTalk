@@ -112,9 +112,12 @@ public struct AgentRunner {
                   attachments: [OutgoingAttachment] = [],
                   retry: NetworkRetryPolicy = .standard,
                   onDelta: @escaping @MainActor (String) -> Void = { _ in },
+                  onReasoning: @escaping @MainActor (String) -> Void = { _ in },
                   onStepStart: @escaping @MainActor () -> Void = {},
                   onStepDiscard: @escaping @MainActor () -> Void = {},
                   onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void = { _ in }) async throws -> AgentRunResult {
+    // 사고 과정 델타 — 클라이언트가 도착하는 대로 흘려보낸다(화면 표시용).
+    client.onReasoning = onReasoning
     var messages: [AgentMessage] = history.map {
       AgentMessage(role: $0.role == .user ? .user : .assistant, content: $0.text)
     }

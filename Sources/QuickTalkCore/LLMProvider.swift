@@ -114,6 +114,12 @@ public protocol LLMClient {
   /// 기본 구현은 한 번에 받아 마지막에 한 번 전달한다(구현체가 있으면 토큰 단위).
   func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
               onDelta: @escaping @MainActor (String) -> Void) async throws -> String
+
+  /// 스트리밍 + **사고 과정**. thinking 모델이 보내는 추론 델타를 `onReasoning` 으로 흘린다.
+  /// 사고 과정을 보내지 않는 모델은 아무것도 부르지 않는다.
+  func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
+              onDelta: @escaping @MainActor (String) -> Void,
+              onReasoning: @escaping @MainActor (String) -> Void) async throws -> String
 }
 
 public extension LLMClient {
@@ -127,6 +133,14 @@ public extension LLMClient {
     let full = try await send(prompt: prompt, history: history, attachments: attachments)
     await onDelta(full)
     return full
+  }
+
+  /// 사고 과정을 모르는 구현체 — 답변만 흘린다.
+  func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
+              onDelta: @escaping @MainActor (String) -> Void,
+              onReasoning: @escaping @MainActor (String) -> Void) async throws -> String {
+    try await stream(prompt: prompt, history: history, attachments: attachments,
+                     onDelta: onDelta)
   }
 }
 
@@ -235,6 +249,13 @@ public struct OpenAIClient: LLMClient {
   /// 프록시가 스트리밍을 무시하고 일반 JSON을 주면(Content-Type이 event-stream이 아님) 한 번에 전달한다.
   public func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
                      onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
+    try await stream(prompt: prompt, history: history, attachments: attachments,
+                     onDelta: onDelta, onReasoning: { _ in })
+  }
+
+  public func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
+                     onDelta: @escaping @MainActor (String) -> Void,
+                     onReasoning: @escaping @MainActor (String) -> Void) async throws -> String {
     let hasImage = attachments.contains { $0.hasImage }
     let req = try makeRequest(prompt: prompt, history: history, attachments: attachments, stream: true)
     let (bytes, resp) = try await URLSession.shared.bytes(for: req)
@@ -269,8 +290,10 @@ public struct OpenAIClient: LLMClient {
       case .delta(let d):
         full += d
         await onDelta(d)
-      case .toolCallDelta, .reasoning:
-        continue        // 도구 호출·사고 내용은 도구 없는 경로에서는 무시한다
+      case .reasoning(let r):
+        await onReasoning(r)      // 사고 과정 — 답변 본문과 분리해 흘려보낸다
+      case .toolCallDelta:
+        continue        // 도구 호출 조각은 도구 없는 경로에서 무시한다
       case .ignore:
         continue
       }
@@ -409,7 +432,8 @@ public struct OpenAIClient: LLMClient {
   /// - 도구가 없으면 `toolCalls` 는 비어 있고, 호출이 있으면 본문이 비어 있을 수 있다.
   public func streamWithTools(messages: [[String: Any]],
                               tools: [[String: Any]],
-                              onDelta: @escaping @MainActor (String) -> Void) async throws
+                              onDelta: @escaping @MainActor (String) -> Void,
+                              onReasoning: @escaping @MainActor (String) -> Void = { _ in }) async throws
     -> (text: String, toolCalls: [AgentToolCall], reasoning: String?) {
     var req = try makeMessageRequest(messages: messages, tools: tools, stream: true)
     req.timeoutInterval = 60
@@ -431,6 +455,7 @@ public struct OpenAIClient: LLMClient {
         await onDelta(d)
       case .reasoning(let r):
         reasoning += r
+        await onReasoning(r)
       case .toolCallDelta(let index, let id, let name, let args):
         var entry = calls[index] ?? (id: "", name: "", args: "")
         if let id, !id.isEmpty { entry.id = id }
@@ -529,6 +554,13 @@ public struct OllamaClient: LLMClient {
   /// 스트리밍 — Ollama는 줄 단위 JSON(NDJSON)으로 `message.content` 델타를 보낸다.
   public func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
                      onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
+    try await stream(prompt: prompt, history: history, attachments: attachments,
+                     onDelta: onDelta, onReasoning: { _ in })
+  }
+
+  public func stream(prompt: String, history: [Turn], attachments: [OutgoingAttachment],
+                     onDelta: @escaping @MainActor (String) -> Void,
+                     onReasoning: @escaping @MainActor (String) -> Void) async throws -> String {
     let hasImage = attachments.contains { $0.hasImage }
     let req = try makeRequest(prompt: prompt, history: history, attachments: attachments, stream: true)
     let (bytes, resp) = try await URLSession.shared.bytes(for: req)
@@ -549,10 +581,15 @@ public struct OllamaClient: LLMClient {
       let line = raw.trimmingCharacters(in: .whitespaces)
       guard !line.isEmpty, let data = line.data(using: .utf8),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-      if let msg = obj["message"] as? [String: Any],
-         let d = msg["content"] as? String, !d.isEmpty {
-        full += d
-        await onDelta(d)
+      if let msg = obj["message"] as? [String: Any] {
+        if let think = (msg["thinking"] as? String) ?? (msg["reasoning_content"] as? String),
+           !think.isEmpty {
+          await onReasoning(think)
+        }
+        if let d = msg["content"] as? String, !d.isEmpty {
+          full += d
+          await onDelta(d)
+        }
       }
       if (obj["done"] as? Bool) == true { break }
     }
@@ -569,7 +606,8 @@ public struct OllamaClient: LLMClient {
   /// Ollama 는 NDJSON 한 줄에 `message.content` 과 `message.tool_calls` 가 함께 온다.
   public func streamWithTools(messages: [[String: Any]],
                               tools: [[String: Any]],
-                              onDelta: @escaping @MainActor (String) -> Void) async throws
+                              onDelta: @escaping @MainActor (String) -> Void,
+                              onReasoning: @escaping @MainActor (String) -> Void = { _ in }) async throws
     -> (text: String, toolCalls: [AgentToolCall], reasoning: String?) {
     var body: [String: Any] = ["model": model, "messages": messages, "stream": true]
     if !tools.isEmpty {
@@ -591,11 +629,17 @@ public struct OllamaClient: LLMClient {
     }
     var full = ""
     var calls: [AgentToolCall] = []
+    var think = ""
     for try await raw in bytes.lines {
       let line = raw.trimmingCharacters(in: .whitespaces)
       guard !line.isEmpty, let data = line.data(using: .utf8),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
       if let msg = obj["message"] as? [String: Any] {
+        if let piece = (msg["thinking"] as? String) ?? (msg["reasoning_content"] as? String),
+           !piece.isEmpty {
+          think += piece
+          await onReasoning(piece)
+        }
         if let d = msg["content"] as? String, !d.isEmpty {
           full += d
           await onDelta(d)
@@ -620,7 +664,7 @@ public struct OllamaClient: LLMClient {
       }
       if (obj["done"] as? Bool) == true { break }
     }
-    return (full, calls, nil)
+    return (full, calls, think.isEmpty ? nil : think)
   }
 
   static func failure(data: Data, status: Int, hasImage: Bool, bodyText: String?) -> QuickTalkError {

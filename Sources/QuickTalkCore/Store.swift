@@ -102,10 +102,12 @@ public final class ConversationStore {
   }
 
   /// 스트리밍 완료 — 응답 시간을 기록하고 대화 수정 시각을 갱신한다.
-  public func finishAssistantTurn(_ id: UUID, elapsedMs: Int? = nil, sources: [TurnSource]? = nil) {
+  public func finishAssistantTurn(_ id: UUID, elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
+                                  reasoning: String? = nil) {
     guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }
     if let elapsedMs { conversation.turns[i].elapsedMs = elapsedMs }
     if let sources { conversation.turns[i].sources = sources }
+    if let reasoning, !reasoning.isEmpty { conversation.turns[i].reasoning = reasoning }
     conversation.updatedAt = Date()
   }
   public func togglePin() { conversation.pinned.toggle() }

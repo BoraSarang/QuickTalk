@@ -64,6 +64,33 @@ final class StreamingTests: XCTestCase {
     XCTAssertEqual(store.conversation.turns.last?.text, "바뀜")
   }
 
+  // MARK: - 사고 과정(thinking 모델)
+
+  func testFinishTurnStoresReasoning() {
+    let store = ConversationStore()
+    let id = store.beginAssistantTurn()
+    store.appendStreaming("답변", to: id)
+    store.finishAssistantTurn(id, elapsedMs: 900, reasoning: "먼저 조건을 확인한다")
+    XCTAssertEqual(store.conversation.turns.last?.reasoning, "먼저 조건을 확인한다")
+  }
+
+  func testReasoningIsOptionalInOldRecords() throws {
+    // 구버전 history.json — `reasoning` 키가 없다. 디코딩이 깨지면 대화가 통째로 사라진다.
+    let json = #"{"id":"11111111-1111-1111-1111-111111111111","role":"assistant","text":"옛 답변","attachments":[],"status":"done"}"#
+    let turn = try JSONDecoder().decode(Turn.self, from: Data(json.utf8))
+    XCTAssertNil(turn.reasoning)
+
+    let encoded = try JSONEncoder().encode(turn)
+    let again = try JSONDecoder().decode(Turn.self, from: encoded)
+    XCTAssertNil(again.reasoning)
+  }
+
+  func testReasoningRoundTrips() throws {
+    let turn = Turn(role: .assistant, text: "답", reasoning: "사고")
+    let again = try JSONDecoder().decode(Turn.self, from: JSONEncoder().encode(turn))
+    XCTAssertEqual(again.reasoning, "사고")
+  }
+
   // MARK: - 재시도 사다리
 
   @MainActor

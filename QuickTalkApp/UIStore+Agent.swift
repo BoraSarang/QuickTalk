@@ -249,6 +249,7 @@ extension UIStore {
                     attachments: [OutgoingAttachment] = [],
                     retry: NetworkRetryPolicy = .standard,
                     onDelta: @escaping @MainActor (String) -> Void,
+                    onReasoning: @escaping @MainActor (String) -> Void = { _ in },
                     onStepStart: @escaping @MainActor () -> Void = {},
                     onStepDiscard: @escaping @MainActor () -> Void = {},
                     onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void = { _ in }) async throws -> String {
@@ -268,6 +269,7 @@ extension UIStore {
                                       tools: tools, attachments: attachments,
                                       retry: retry,
                                       onDelta: onDelta,
+                                      onReasoning: onReasoning,
                                       onStepStart: onStepStart,
                                       onStepDiscard: onStepDiscard,
                                       onRetry: onRetry)

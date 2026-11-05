@@ -15,6 +15,7 @@ import FoundationModels
 // MARK: - OpenAI 호환 (원격 · Ollama 의 /v1 경로도 동일 형식)
 
 final class OpenAICompatibleAgentClient: AgentClient {
+  var onReasoning: (@MainActor (String) -> Void)?
   private let client: OpenAIClient
   private let systemPrompt: String
 
@@ -38,7 +39,10 @@ final class OpenAICompatibleAgentClient: AgentClient {
     }
     let result = try await client.streamWithTools(messages: payload,
                                                   tools: AgentTool.schemaArray(tools),
-                                                  onDelta: onDelta)
+                                                  onDelta: onDelta,
+                                                  onReasoning: { [onReasoning] piece in
+      onReasoning?(piece)
+    })
     if !result.toolCalls.isEmpty {
       return .toolCalls(result.toolCalls, reasoning: result.reasoning)
     }
@@ -61,6 +65,7 @@ final class OpenAICompatibleAgentClient: AgentClient {
 /// Ollama는 `/api/chat` 를 쓴다(프록시가 아니라 로컬 서버).
 /// `tools` 를 받고 `message.tool_calls` 로 되돌린다(인자는 **객체**로 온다 — 문자열이 아니라).
 final class OllamaAgentClient: AgentClient {
+  var onReasoning: (@MainActor (String) -> Void)?
   private let host: URL
   private let model: String
   private let systemPrompt: String
@@ -85,7 +90,8 @@ final class OllamaAgentClient: AgentClient {
       payload.append(dict)
     }
     let result = try await OllamaClient(host: host, model: model)
-      .streamWithTools(messages: payload, tools: AgentTool.schemaArray(tools), onDelta: onDelta)
+      .streamWithTools(messages: payload, tools: AgentTool.schemaArray(tools), onDelta: onDelta,
+                       onReasoning: { [onReasoning] piece in onReasoning?(piece) })
     if !result.toolCalls.isEmpty {
       return .toolCalls(result.toolCalls, reasoning: result.reasoning)
     }
@@ -183,6 +189,8 @@ extension FoundationModels.GeneratedContent {
 /// Apple FM 에이전트 클라이언트 — 도구 세 개(shell·read_file·list_dir)를 FoundationModels 에 넘긴다.
 @available(macOS 26.0, *)
 final class AppleFMAgentClient: AgentClient {  private let executor: any AgentToolExecutor
+  /// Apple FM 은 사고 과정을 노출하지 않는다(계약만 채운다).
+  var onReasoning: (@MainActor (String) -> Void)?
   private let systemPrompt: String
   private let tools: [AgentTool]
 
