@@ -1,6 +1,6 @@
 # PLAN v0.29 — 연결 끊김 이어쓰기 · 예고 답변 방지 · 비서 상태 표시 (macOS)
 
-> 작성 2026-11-05 KST · 상태 **구현·병합 `eec75df`**(사용자 실측·배포 대기)
+> 작성 2026-11-05 KST · 상태 **구현·병합 `eec75df`·배포 완료**(사용자 실측 대기)
 > 지원 언어: 한국어·영어 (`Sources/QuickTalkCore/LocalizationTable.swift`, 기존 `L()` 경로)
 > 관련: `PLAN_v0.28_persona-picker_macos.md` (비서 선택 UI), `PLAN_v0.18_agent-runtime_macos.md` (에이전트 루프)
 
@@ -97,3 +97,12 @@
 - R3 도구 질문이 "확인하겠습니다"로 끝나지 않고 실제 값으로 끝남.
 - R4 비서에게 리포트 저장 → 설정된 리포트 폴더에 생성.
 - R5 비서 메뉴에서 `비서 없음` ↔ 선택 비서가 분명히 구분됨.
+
+## 7. 병합·배포
+
+- **PR #90 → squash merge `eec75df`** (2026-11-05).
+- 기록 PR #91 → `ab4f37e`.
+- **배포 2026-11-05 20:36** — `~/Applications/QuickTalk.app` 교체, 직전 v0.28 번들은 `~/Applications/.QuickTalk.old`.
+- `codesign --verify --strict --deep` OK · Release 빌드 산출물과 `diff -rq` 동일.
+- SHA-256(실행 파일) `35a5ba0a8a01cabccabded641eddeb105d3f6a2dca075f104259b15cd1f6d9e7`.
+- **앱 재실행 필요** — 실행 중이던 이전 빌드는 종료·재실행해야 새 프롬프트·재시도 코드가 적용된다.
