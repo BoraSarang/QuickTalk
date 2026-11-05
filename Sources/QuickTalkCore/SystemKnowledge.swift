@@ -13,13 +13,23 @@ import Foundation
 
 public enum SystemKnowledge {
   /// 모델에게 주는 앱 지식 블록.
-  public static func text(settings: QuickTalkSettings) -> String {
+  /// - `persona`: 지금 대화의 비서(없으면 nil). 있으면 **그 비서의 리포트 폴더·쓰기 권한**을 알려 준다.
+  public static func text(settings: QuickTalkSettings, persona: Persona? = nil) -> String {
     let home = NSHomeDirectory()
     var lines: [String] = []
     lines.append("이것은 QuickTalk 이라는 macOS 메뉴바 앱이다. 사용자가 지금 이 앱으로 묻고 있다.")
     lines.append("- 저장 위치: \(home)/Library/Application Support/QuickTalk")
     lines.append("  · 대화 기록: history.json · 공통 메모리: memory.json · 설정: settings.json")
     lines.append("  · 실행 감사 기록: agent-audit.jsonl · 되돌리기 스냅샷: undo/ · 휴지통: trash/")
+
+    // 리포트 폴더 — 앱이 실제로 쓰기를 허용하는 **한 곳**을 경로로 알려 준다.
+    // (예전에는 이 줄이 없어 모델이 읽기 전용 폴더를 추측하고 "쓰기가 막혔다"고 답했다)
+    lines.append(reportFolderText(settings: settings, persona: persona))
+
+    // 지금 대화의 비서
+    if let persona, persona.isValid {
+      lines.append("- 지금 대화의 비서: \(persona.normalized().name)")
+    }
 
     // 지금 쓰는 AI
     if let p = settings.activeProvider {
@@ -71,6 +81,24 @@ public enum SystemKnowledge {
 
     lines.append("- 앱에 이미 있는 기능은 다시 설치하거나 만들지 말고, 설정 경로만 안내한다.")
     lines.append("- 설정 파일을 직접 고치지 말고 설정 화면을 안내한다.")
+    return lines.joined(separator: "\n")
+  }
+
+  /// 모델이 **실제로 쓸 수 있는** 리포트 폴더를 알려 주는 블록.
+  /// 비서가 자기 폴더를 지정했으면 그 폴더, 아니면 설정의 기본 폴더다.
+  public static func reportFolderText(settings: QuickTalkSettings,
+                                      persona: Persona?) -> String {
+    let p = persona?.normalized()
+    let raw = p?.reportFolder ?? settings.reportFolderPath
+    // 비서 폴더에도 `~` 를 쓸 수 있다 — 모델에게는 **실제 경로**를 준다.
+    let folder = (raw as NSString).expandingTildeInPath
+    var lines = ["[리포트 폴더]", "- 쓰기 가능한 경로: \(folder)"]
+    if let p, !p.tools.write {
+      lines.append("- 이 비서는 파일 쓰기가 꺼져 있다. 리포트 파일을 만들지 말고 답변으로만 전달한다.")
+    } else {
+      lines.append("- 리포트 파일은 이 폴더 안에만 만든다. 다른 경로를 추측하지 않는다.")
+      lines.append("- 하위 폴더로 정리해도 된다. 사용자가 다른 위치를 요구하면 승인 카드를 거쳐 그 경로에 쓴다.")
+    }
     return lines.joined(separator: "\n")
   }
 }

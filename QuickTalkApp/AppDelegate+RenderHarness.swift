@@ -106,11 +106,31 @@ extension AppDelegate {
       // QA: v0.28 비서 선택 — 빈 대화의 입력독 버튼과 아이콘 그리드(저장 없음).
       if CommandLine.arguments.contains("--demo-persona-chat")
           || CommandLine.arguments.contains("--demo-persona-editor")
-          || CommandLine.arguments.contains("--demo-persona-chip") {
+          || CommandLine.arguments.contains("--demo-persona-chip")
+          || CommandLine.arguments.contains("--demo-persona-menu")
+          || CommandLine.arguments.contains("--demo-composer-text") {
         let persona = Persona(name: "테크충",
                               role: "IT, AI, Mac, iPad 등에 전문적인 비서",
                               emoji: "🦾")
         self.store.applyRenderOverride(personas: [persona])
+        // QA: v0.29 비서 메뉴 — "지금: …" 머리줄과 체크 표시가 **펼친 상태**로 보이게 그린다.
+        if CommandLine.arguments.contains("--demo-persona-menu") {
+          self.store.conversation = Conversation(personaID: persona.id)
+          self.renderPNG(AnyView(
+            VStack(alignment: .leading, spacing: 0) {
+              PersonaMenuItems().environmentObject(self.store)
+            }
+            .padding(10)
+            .frame(width: 280, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10,
+                                         style: .continuous)
+              .fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+              .stroke(Color.primary.opacity(0.15), lineWidth: 1))
+            .padding(12)),
+            size: NSSize(width: 320, height: 250),
+            to: "\(dir)/persona-menu-\(suffix).png")
+        }
         if CommandLine.arguments.contains("--demo-persona-chip") {
           self.store.conversation = Conversation(personaID: persona.id)
           self.renderPNG(AnyView(
@@ -130,6 +150,14 @@ extension AppDelegate {
                          size: NSSize(width: 460, height: 620),
                          to: "\(dir)/persona-chat-\(suffix).png")
         }
+        // QA: v0.29 입력독 세로 정렬 — **실제로 입력한 글자**가 아이콘 줄과 같은 중심에 오는지.
+        if CommandLine.arguments.contains("--demo-composer-text") {
+          self.store.conversation = Conversation(personaID: persona.id)
+          self.store.draft = "입력한 글자가 아이콘 줄과 같은 높이에 있어야 합니다"
+          self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                         size: NSSize(width: 460, height: 620),
+                         to: "\(dir)/composer-text-\(suffix).png")
+        }
         if CommandLine.arguments.contains("--demo-persona-editor") {
           self.renderPNG(AnyView(
             PersonaEditorSheet(persona: persona, isNew: false,
@@ -138,6 +166,26 @@ extension AppDelegate {
             size: NSSize(width: 540, height: 700),
             to: "\(dir)/persona-editor-\(suffix).png")
         }
+      }
+      // QA: v0.29 연결 끊김 배너 — 부분 답변 + [중지]가 함께 보이는지(저장 없음).
+      if CommandLine.arguments.contains("--demo-retry-banner") {
+        var conv = Conversation(title: "디스크 용량 확인")
+        conv.turns = [
+          Turn(role: .user, text: "내 맥 디스크 얼마나 남았는지 확인해 줘"),
+          Turn(role: .assistant,
+               text: "확인했습니다. 루트 볼륨(/)은 전체 494 GiB 중 521 GiB가 남아 있고, 사용 가능한 공간은 71 GiB입니다. 이제 다른 볼륨도 확인하겠습니다.")
+        ]
+        self.store.conversation = conv
+        self.store.isReplying = true
+        self.store.streamingTurnID = conv.turns.last?.id
+        self.store.networkRetryStatus = UIStore.retryStatusText(
+          NetworkRetryProgress(attempt: 3, maxAttempts: 10, waitSeconds: 5))
+        self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                       size: NSSize(width: 460, height: 620),
+                       to: "\(dir)/retry-banner-\(suffix).png")
+        self.store.networkRetryStatus = nil
+        self.store.isReplying = false
+        self.store.streamingTurnID = nil
       }
       // QA: v0.27 일정 도구 — 목록·편집기·확인 카드(등록/변경/삭제)를 **저장 없이** 그린다.
       if CommandLine.arguments.contains(where: { $0.hasPrefix("--demo-schedule") }) {

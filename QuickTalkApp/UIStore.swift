@@ -354,6 +354,9 @@ final class UIStore: ObservableObject {
   @Published var compactMessage: String?
   /// 지금 토큰을 받고 있는 어시스턴트 턴 — 첫 글자가 오면 점 표시를 숨기고 자동 스크롤한다
   @Published var streamingTurnID: UUID?
+  /// 연결이 끊겨 다시 연결을 기다리는 중이면 상태 문구 — 입력독 위 배너에 표시한다(v0.29).
+  /// nil 이면 대기 중이 아니다. [중지]는 기존 응답 중지 버튼이 그대로 담당한다.
+  @Published var networkRetryStatus: String?
   /// QA 렌더에서 설정을 바꿀 때 저장을 막는다
   private var suppressSettingsSave = false
   private var replyStartedAt: Date?
@@ -1566,6 +1569,7 @@ final class UIStore: ObservableObject {
           self.replyStartedAt = nil
           self.streamingTurnID = nil
           self.isSearching = false
+          self.networkRetryStatus = nil
           self.replyTask = nil
         }
         // 첨부 "내용"은 여기서 읽는다 — 텍스트 파일은 본문 인라인, 이미지는 data URL로 실린다
@@ -1610,9 +1614,14 @@ final class UIStore: ObservableObject {
         let conversationPrefix = Self.memoryPromptPrefix(self.conversation)
         // 비서 — 대화마다 고른 성격·말투를 **프롬프트 앞**에 붙인다.
         // 도구가 꺼진 일반 클라이언트에도 적용되도록 시스템 프롬프트가 아니라 여기에 둔다.
-        let personaHeader = self.settings.persona(self.conversation.personaID)
+        let conversationPersona = self.settings.persona(self.conversation.personaID)
+        let personaHeader = conversationPersona
           .map { PersonaPrompt.header($0) + "\n\n" } ?? ""
-        let memoryPrefix = personaHeader + globalMemory.text + conversationPrefix
+        // 비서가 자기 **쓰기 가능한 리포트 폴더**를 알아야 엉뚱한 곳을 뒤지지 않는다(v0.29).
+        // 도구 경로든 일반 경로든 같은 블록이 프롬프트 앞에 들어간다.
+        let reportFolderBlock = SystemKnowledge.reportFolderText(
+          settings: ws, persona: conversationPersona) + "\n\n"
+        let memoryPrefix = reportFolderBlock + personaHeader + globalMemory.text + conversationPrefix
         if !globalMemory.isEmpty {
           NSLog("[QuickTalk] 공통 메모리 %d개 주입 (약 %d토큰)",
                 globalMemory.included.count, globalMemory.tokens)
@@ -1794,17 +1803,26 @@ final class UIStore: ObservableObject {
         let aid = self.core.beginAssistantTurn()
         self.conversation = self.core.conversation
         self.streamingTurnID = aid
+        /// 말풍선에서 **모델 답변 앞**에 붙는 안내(검색 경고·첨부 경고) — 재시도로 지우지 않는다.
+        var answerPrefix = ""
         // 첨부 경고(줄임·미전송)는 델타보다 먼저 붙인다 — 기존 `reply`와 같은 순서
         if let searchNote {
           self.core.appendStreaming(searchNote + "\n\n", to: aid)
           self.conversation = self.core.conversation
+          answerPrefix += searchNote + "\n\n"
         }
         let warnings = AttachmentLoader.warnings(outgoing)
         if !warnings.isEmpty {
           self.core.appendStreaming(warnings, to: aid)
           self.conversation = self.core.conversation
+          answerPrefix += warnings
         }
         var buffer = ""
+        /// 모델이 실제로 내보낸 답변만 따로 센다 — 재시도·이어쓰기의 기준점.
+        var modelText = ""
+        /// 에이전트 스텝 시작 시점의 답변 — 도구 호출 예고를 지울 때 되돌린다.
+        var stepStartText = ""
+        let retryPolicy = ws.networkRetryPolicy
         var lastFlush = Date.distantPast
         let flush: (Bool) -> Void = { force in
           guard force || Date().timeIntervalSince(lastFlush) >= 0.08 else { return }
@@ -1815,6 +1833,17 @@ final class UIStore: ObservableObject {
           lastFlush = Date()
           self.conversation = self.core.conversation
         }
+        /// 재시도·이어쓰기 후 말풍선을 **중복 없는 답변**으로 다시 맞춘다.
+        let replaceAnswer: (String) -> Void = { text in
+          modelText = text
+          buffer = ""
+          guard self.conversation.id == convID else { return }
+          self.core.setAssistantText(answerPrefix + text, id: aid)
+          self.conversation = self.core.conversation
+        }
+        let showRetry: (NetworkRetryProgress?) -> Void = { progress in
+          self.networkRetryStatus = progress.map { Self.retryStatusText($0) }
+        }
         do {
           guard let p = self.settings.activeProvider else {
             throw QuickTalkError.providerNotConfigured()
@@ -1823,9 +1852,11 @@ final class UIStore: ObservableObject {
           if let precomputedAnswer {
             // 툴 콜링이 검색 없이 답한 경우 — 그대로 표시한다(스트리밍 없음).
             reply = precomputedAnswer
+            modelText = precomputedAnswer
             self.core.appendStreaming(precomputedAnswer, to: aid)
             self.conversation = self.core.conversation
-          } else if let agentClient = self.makeAgentClientIfEnabled(provider: p) {
+          } else if let agentClient = self.makeAgentClientIfEnabled(provider: p,
+                                                                    persona: conversationPersona) {
             // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
             // 웹 검색도 **같은 루프**에 넣는다(v0.23) — 모델이 답을 모르면 `web_search` 를 고른다.
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
@@ -1836,19 +1867,27 @@ final class UIStore: ObservableObject {
               includingUI: settings.uiControlEnabled && p.type != .appleFM,
               includingSchedule: true)
             do {
-              reply = try await self.runAgentTurn(client: agentClient, prompt: modelPrompt,
-                                                  history: finalHistory, turnID: aid,
-                                                  tools: agentTools,
-                                                  attachments: outgoing,
-                                                  onDelta: { delta in
-                                                    buffer += delta
-                                                    flush(false)
-                                                  })
+              reply = try await self.runAgentTurn(
+                client: agentClient, prompt: modelPrompt,
+                history: finalHistory, turnID: aid,
+                tools: agentTools,
+                attachments: outgoing,
+                retry: retryPolicy,
+                onDelta: { delta in
+                  modelText += delta
+                  buffer += delta
+                  flush(false)
+                },
+                // 스텝 시작 시점을 기억했다가, 도구 호출 예고·재시도 실패분을 지운다.
+                onStepStart: { stepStartText = modelText },
+                onStepDiscard: { replaceAnswer(stepStartText) },
+                onRetry: { showRetry($0) })
               // 모델이 검색으로 확인한 출처가 있으면 답변에 남긴다.
               if !self.agentSearchSources.isEmpty { sources = self.agentSearchSources }
             } catch {
               // 도구를 모르는 서버(400 등)면 도구 없는 일반 경로로 되돌린다.
-              if buffer.isEmpty, WebToolError.isToolUnsupported(error) {
+              // **아직 글자가 없을 때만** — 부분 답변이 있으면 그 답을 지키고 오류를 알린다.
+              if modelText.isEmpty, WebToolError.isToolUnsupported(error) {
                 NSLog("[QuickTalk] E-MAC-TOOL-0001 도구 미지원 → 일반 경로로 폴백")
                 // 이 턴은 사전 검색을 건너뛰었으므로, 폴백에서 **검색을 잃지 않도록** 한 번 주입한다.
                 var fallbackPrompt = modelPrompt
@@ -1863,24 +1902,35 @@ final class UIStore: ObservableObject {
                   fallbackPrompt = memoryPrefix + context + "\n\n질문: " + prompt
                   sources = WebSearchContext.sources(from: results, limit: searchLimits.resultCount)
                 }
-                reply = try await Self.streamReplyWithFallback(
+                reply = try await Self.streamReplyResuming(
                   settings: self.settings, provider: p, prompt: fallbackPrompt,
-                  history: finalHistory, attachments: outgoing,
-                  onDelta: { delta in buffer += delta; flush(false) })
+                  history: finalHistory, attachments: outgoing, policy: retryPolicy,
+                  onDelta: { delta in
+                    modelText += delta
+                    buffer += delta
+                    flush(false)
+                  },
+                  onReplace: { replaceAnswer($0) },
+                  onRetry: { showRetry($0) })
               } else {
                 throw error
               }
             }
           } else {
-            reply = try await Self.streamReplyWithFallback(
+            reply = try await Self.streamReplyResuming(
               settings: self.settings, provider: p, prompt: modelPrompt,
               history: finalHistory,
               attachments: outgoing,
+              policy: retryPolicy,
               onDelta: { delta in
+                modelText += delta
                 buffer += delta
                 flush(false)
-              })
+              },
+              onReplace: { replaceAnswer($0) },
+              onRetry: { showRetry($0) })
           }
+          self.networkRetryStatus = nil
           flush(true)
           guard self.conversation.id == convID else { return }
           let current = self.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
@@ -1889,9 +1939,13 @@ final class UIStore: ObservableObject {
           if isError {
             // 재시도 사다리가 델타 대신 오류 문자열을 돌려준 경우
             self.core.setAssistantText(current.isEmpty ? reply : current + "\n\n" + reply, id: aid)
+          } else if reply != modelText, !reply.isEmpty {
+            // 에이전트가 스트리밍 없이 만든 최종 답(최대 스텝 안전망·재촉 답변)을 반영한다.
+            // 예전에는 이미 글자가 있으면 이 값을 버려 "확인하겠습니다"가 답으로 남았다.
+            self.core.setAssistantText(answerPrefix + reply, id: aid)
           } else if current.isEmpty {
             // 스트리밍을 지원하지 않는 경로(기본 구현) — 한 번에 채운다
-            self.core.setAssistantText(reply, id: aid)
+            self.core.setAssistantText(answerPrefix + reply, id: aid)
           }
           self.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
                                         sources: sources.isEmpty ? nil : sources)
@@ -1902,6 +1956,7 @@ final class UIStore: ObservableObject {
           self.lastAICall = isError ? .failed(Self.errorCode(in: reply)) : .ok
           self.lastAIErrorDetail = isError ? Self.errorSummary(in: reply) : nil
         } catch {
+          self.networkRetryStatus = nil
           // 사용자가 [중지]를 누른 경우 — 오류가 아니다. 부분 출력은 남기고 안내만 덧붙인다.
           if Task.isCancelled || error is CancellationError
               || (error as? URLError)?.code == .cancelled {
@@ -1964,6 +2019,7 @@ final class UIStore: ObservableObject {
     replyStartedAt = nil
     streamingTurnID = nil
     isSearching = false
+    networkRetryStatus = nil
   }
 
   // MARK: - 대화 기억 정리 (T-71)
@@ -2566,14 +2622,94 @@ final class UIStore: ObservableObject {
        primaryName, fallbackName, ProviderFallback.reason(for: error))
   }
 
+  /// 재시도 배너 문구 — 설정 연동(초·횟수)을 사용자에게 그대로 보여 준다.
+  static func retryStatusText(_ progress: NetworkRetryProgress) -> String {
+    Lf("연결 끊김 — %d초 후 다시 연결합니다 (%d/%d)",
+       progress.waitSeconds, progress.attempt, progress.maxAttempts)
+  }
+
+  /// 스트리밍 + **연결 끊김 대기·이어쓰기** (v0.29).
+  ///
+  /// - 첫 글자 전에 끊기면 같은 요청을 다시 보낸다.
+  /// - 글자가 나온 뒤 끊기면 **이미 쓴 부분을 보존**하고 "이어서 쓰기" 요청을 보낸다.
+  ///   돌아온 글은 겹치는 경계를 지워 합친다(`NetworkRetry.mergeContinuation`).
+  /// - `policy` 횟수를 모두 쓰면 마지막 오류를 그대로 던진다(부분 답변은 호출부가 남긴다).
+  ///
+  /// `onReplace` 는 말풍선을 **중복 없는 현재 답변**으로 다시 맞출 때 부른다.
+  @MainActor
+  static func streamReplyResuming(settings: QuickTalkSettings,
+                                  provider: LLMProviderConfig,
+                                  prompt: String,
+                                  history: [Turn],
+                                  attachments: [OutgoingAttachment],
+                                  policy: NetworkRetryPolicy,
+                                  onDelta: @escaping @MainActor (String) -> Void,
+                                  onReplace: @escaping @MainActor (String) -> Void,
+                                  onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void)
+    async throws -> String {
+    var answer = ""
+    var failures = 0
+    while true {
+      var attempt = ""
+      do {
+        let request = answer.isEmpty
+          ? prompt
+          : NetworkRetry.continuationPrompt(original: prompt, partial: answer)
+        let text = try await streamReplyWithFallback(
+          settings: settings, provider: provider, prompt: request,
+          history: history, attachments: attachments,
+          allowFallback: answer.isEmpty,
+          onDelta: { delta in
+            attempt += delta
+            onDelta(delta)
+          })
+        answer = NetworkRetry.mergeContinuation(answer, text.isEmpty ? attempt : text)
+        onRetry(nil)
+        onReplace(answer)
+        return answer
+      } catch {
+        if Task.isCancelled || error is CancellationError { throw error }
+        // 실패한 시도에서 이미 받은 글자는 버리지 않는다.
+        if !attempt.isEmpty {
+          answer = NetworkRetry.mergeContinuation(answer, attempt)
+          onReplace(answer)
+        }
+        guard policy.canRetry(afterFailures: failures),
+              NetworkRetry.isRetryable(error) else {
+          onRetry(nil)
+          throw error
+        }
+        failures += 1
+        let progress = NetworkRetryProgress(attempt: failures,
+                                            maxAttempts: policy.maxAttempts,
+                                            waitSeconds: policy.intervalSeconds)
+        onRetry(progress)
+        NSLog("[QuickTalk] 연결 끊김 — %d/%d회, %d초 후 %@",
+              failures, policy.maxAttempts, policy.intervalSeconds,
+              answer.isEmpty ? "같은 요청 재전송" : "이어쓰기")
+        do {
+          try await Task.sleep(nanoseconds: UInt64(policy.interval * 1_000_000_000))
+        } catch {
+          onRetry(nil)
+          throw error
+        }
+        onRetry(nil)
+      }
+    }
+  }
+
   /// 주 모델 → (일시 오류면) **예비 모델 1회**. 이미 글자가 화면에 나간 뒤에는 전환하지 않는다.
   /// 예비 모델의 첫 글자가 올 때 안내를 붙인다 — 예비도 실패하면 안내만 남지 않게.
+  ///
+  /// - `allowFallback`: false 면 예비 모델로 넘어가지 않는다. **부분 답변이 이미 있는**
+  ///   재시도 경로에서 다른 모델의 답이 겹치는 것을 막는다.
   @MainActor
   static func streamReplyWithFallback(settings: QuickTalkSettings,
                                       provider primary: LLMProviderConfig,
                                       prompt: String,
                                       history: [Turn],
                                       attachments: [OutgoingAttachment],
+                                      allowFallback: Bool = true,
                                       onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
     do {
       return try await streamReply(provider: primary, prompt: prompt, history: history,
@@ -2581,7 +2717,7 @@ final class UIStore: ObservableObject {
     } catch {
       let primaryError = error
       let primaryCode = AIErrorText.code(for: primaryError)
-      guard let fb = settings.fallbackProvider,
+      guard allowFallback, let fb = settings.fallbackProvider,
             ProviderFallback.isUsable(fb, keyExists: { SecretStore.has(account: $0) }),
             ProviderFallback.allowed(after: primaryError) else { throw primaryError }
       NSLog("[WARN] E-MAC-FALLBACK-0001 주 모델 실패(%@) → 예비 모델 1회 시도", primaryCode)

@@ -152,6 +152,12 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var agentStreamOutput: Bool = true
   /// 셸 실행 제한 시간(초, v0.20) — 10~600 범위로 자른다.
   public var agentTimeoutSeconds: Int = 60
+  /// 응답 도중 연결이 끊기면 자동으로 다시 연결한다(v0.29, 기본 켜짐).
+  public var networkRetryEnabled: Bool = true
+  /// 다시 연결까지 기다리는 시간(초) — 기본 5초.
+  public var networkRetryIntervalSeconds: Int = 5
+  /// 최대 재시도 횟수 — 기본 10회(0 = 재시도하지 않음).
+  public var networkRetryMaxAttempts: Int = 10
 
   // 비서·예약 (PLAN_v0.26) — **비어 있으면 지금과 완전히 동일**하게 동작한다.
   /// 사용자가 만든 비서 목록. 0명이면 채팅에 비서 UI가 나타나지 않는다.
@@ -230,6 +236,13 @@ public struct QuickTalkSettings: Codable, Equatable {
   /// 새 대화에 적용할 비서 — 기본값은 nil(비서 없음).
   public var defaultPersona: Persona? { persona(defaultPersonaID) }
 
+  /// 지금 설정의 연결 끊김 재시도 정책 — UI·에이전트가 같은 값을 쓴다.
+  public var networkRetryPolicy: NetworkRetryPolicy {
+    NetworkRetryPolicy(enabled: networkRetryEnabled,
+                       intervalSeconds: networkRetryIntervalSeconds,
+                       maxAttempts: networkRetryMaxAttempts)
+  }
+
   /// 리포트 폴더의 실제 경로. 비어 있으면 기본값으로 돌아간다.
   public var reportFolderPath: String {
     let raw = defaultReportFolder.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -283,6 +296,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
     case agentToolsEnabled, agentPolicy, agentShowExecution, uiControlEnabled
     case agentStreamOutput, agentTimeoutSeconds
+    case networkRetryEnabled, networkRetryIntervalSeconds, networkRetryMaxAttempts
     case personas, defaultPersonaID, defaultReportFolder, schedulerEnabled
     case notificationsEnabled, notifyOnApproval, quietHoursEnabled
     case quietHoursFromMinute, quietHoursToMinute
@@ -357,6 +371,12 @@ public struct QuickTalkSettings: Codable, Equatable {
     agentShowExecution = try c.decodeIfPresent(Bool.self, forKey: .agentShowExecution) ?? true
     agentStreamOutput = try c.decodeIfPresent(Bool.self, forKey: .agentStreamOutput) ?? true
     agentTimeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .agentTimeoutSeconds) ?? 60
+    // v0.29 — 없는 설정은 사용자 요구 기본값(5초 · 10회)으로 읽는다.
+    networkRetryEnabled = try c.decodeIfPresent(Bool.self, forKey: .networkRetryEnabled) ?? true
+    networkRetryIntervalSeconds = min(60, max(1,
+      try c.decodeIfPresent(Int.self, forKey: .networkRetryIntervalSeconds) ?? 5))
+    networkRetryMaxAttempts = min(50, max(0,
+      try c.decodeIfPresent(Int.self, forKey: .networkRetryMaxAttempts) ?? 10))
     if let stored = try? c.decodeIfPresent(AgentPolicy.self, forKey: .agentPolicy) {
       agentPolicy = stored
     } else {
@@ -447,6 +467,9 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(agentShowExecution, forKey: .agentShowExecution)
     try c.encode(agentStreamOutput, forKey: .agentStreamOutput)
     try c.encode(agentTimeoutSeconds, forKey: .agentTimeoutSeconds)
+    try c.encode(networkRetryEnabled, forKey: .networkRetryEnabled)
+    try c.encode(networkRetryIntervalSeconds, forKey: .networkRetryIntervalSeconds)
+    try c.encode(networkRetryMaxAttempts, forKey: .networkRetryMaxAttempts)
     try c.encode(agentPolicy, forKey: .agentPolicy)
     try c.encode(personas, forKey: .personas)
     try c.encodeIfPresent(defaultPersonaID, forKey: .defaultPersonaID)

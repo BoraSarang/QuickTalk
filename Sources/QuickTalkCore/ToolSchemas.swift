@@ -438,6 +438,9 @@ public enum AgentInstructions {
     답할 때
     - 실행한 결과를 그대로 옮기지 말고, **사용자에게 필요한 정보**를 중심으로 말한다.
     - 도구를 실행했다면 **그 결과의 숫자·사실로 답한다.** 결과를 쓰지 않으면 다시 확인한다.
+    - **예고로 끝내지 않는다.** "확인하겠습니다", "다시 조회하겠습니다"처럼 앞으로 할 일만
+      쓰고 끝내면 사용자는 결과를 받지 못한 것이다. 도구를 이미 실행했다면 지금 바로 결과를 쓰고,
+      더 확인할 것이 있으면 **같은 턴에서 도구를 호출한 뒤** 결과까지 쓴다.
     - 숫자는 단위와 함께 적는다(예: 521 GiB 남음, 2.25 Mbps, 32 GiB 중 11 GiB 사용).
     - 확인이 필요하면 왜 필요한지 한 줄로 밝힌다.
     """
@@ -452,9 +455,23 @@ public enum AgentInstructions {
     - 답에는 실행 결과의 숫자와 사실을 쓴다.
     """
 
+  /// 도구를 빼고 최종 답변만 요구할 때 쓰는 마지막 지시(에이전트 러너).
+  /// "확인하겠습니다" 예고로 끝나는 답을 **실제 결과**로 바꾸는 장치다.
+  public static var finalAnswerNudge: String {
+    // 모델 지시문이라 UI 번역표를 거치지 않는다(L 어휘가 늘면 번역표만 커진다).
+    """
+    지금까지의 도구 실행 결과가 위에 있습니다. 이제 **최종 답변만** 작성하세요.
+    - "확인하겠습니다", "다시 조회하겠습니다" 같은 예고·약속으로 끝내지 마세요.
+    - 도구를 더 호출하지 마세요. 이미 확인한 값만으로 답하세요.
+    - 확인한 실제 값·수치·결론을 사용자가 바로 읽을 수 있게 정리하세요.
+    - 확인한 것이 없으면 "확인하지 못했습니다"와 그 이유를 한 줄로 쓰세요.
+    """
+  }
+
   /// 앱 자신에 대한 지식 — 모델이 자기 앱과 겹치는 일을 하지 않도록 주입한다.
   /// v0.22부터는 **실제 설정값**을 넣는다(`SystemKnowledge`).
-  public static func selfKnowledge(settings: QuickTalkSettings) -> String {
-    SystemKnowledge.text(settings: settings)
+  public static func selfKnowledge(settings: QuickTalkSettings,
+                                   persona: Persona? = nil) -> String {
+    SystemKnowledge.text(settings: settings, persona: persona)
   }
 }

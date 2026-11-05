@@ -208,7 +208,8 @@ extension UIStore {
     case .appleFM:
       base = AgentInstructions.compactText
     case .ollama, .openAICompatible:
-      base = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings)
+      base = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings,
+                                                                              persona: persona)
     }
     // 전역 안전 규칙은 지우지 않고 **앞에 정체성만** 붙인다(`PersonaPrompt`).
     let instructions = PersonaPrompt.compose(persona, base: base)
@@ -246,7 +247,11 @@ extension UIStore {
                     turnID: UUID,
                     tools: [AgentTool] = AgentToolCatalog.all,
                     attachments: [OutgoingAttachment] = [],
-                    onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
+                    retry: NetworkRetryPolicy = .standard,
+                    onDelta: @escaping @MainActor (String) -> Void,
+                    onStepStart: @escaping @MainActor () -> Void = {},
+                    onStepDiscard: @escaping @MainActor () -> Void = {},
+                    onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void = { _ in }) async throws -> String {
     let executor = AgentExecutor(store: self)
     agentExecutor = executor
     agentEvents = []
@@ -261,7 +266,11 @@ extension UIStore {
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 12)
     let result = try await runner.run(prompt: prompt, history: history,
                                       tools: tools, attachments: attachments,
-                                      onDelta: onDelta)
+                                      retry: retry,
+                                      onDelta: onDelta,
+                                      onStepStart: onStepStart,
+                                      onStepDiscard: onStepDiscard,
+                                      onRetry: onRetry)
     // 모델이 `web_search` 로 확인한 출처 — 답변 아래 출처 카드로 남긴다.
     agentSearchSources = executor.turnSources
     NSLog("[QuickTalk] 에이전트 종료 — 스텝 %d · 실행 %d건 · 검색 출처 %d · 거부 %@",
@@ -274,12 +283,14 @@ extension UIStore {
   }
 
   /// 도구를 쓸 수 있는 클라이언트를 만든다(도구 사용이 꺼져 있으면 nil).
+  /// `persona` 를 넘기면 그 비서의 정체성·리포트 폴더·쓰기 권한이 지시문에 들어간다.
   @MainActor
-  func makeAgentClientIfEnabled(provider: LLMProviderConfig) -> AgentClient? {
+  func makeAgentClientIfEnabled(provider: LLMProviderConfig,
+                                persona: Persona? = nil) -> AgentClient? {
     guard settings.agentToolsEnabled else { return nil }
     let executor = AgentExecutor(store: self)
     agentExecutor = executor
-    return makeAgentClient(provider: provider, executor: executor)
+    return makeAgentClient(provider: provider, executor: executor, persona: persona)
   }
 
   /// 도구를 **실제로** 쓸 수 있는가 — `makeAgentClient` 와 같은 조건(모델·주소·키).

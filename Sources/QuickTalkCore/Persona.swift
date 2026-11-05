@@ -145,6 +145,19 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
     return parts.isEmpty ? L("비서") : parts.joined(separator: " · ")
   }
 
+  /// 화면에 보여 줄 아이콘 — 사용자가 비워 두었으면 **ID 기반으로 서로 다른 기본 아이콘**을 준다.
+  /// (예전에는 모두 🗣로 보여 어떤 비서를 골랐는지 구분되지 않았다)
+  public var displayEmoji: String {
+    if let emoji = normalized().emoji, !emoji.isEmpty { return emoji }
+    let palette = Self.iconChoices
+    guard !palette.isEmpty else { return "🤖" }
+    let bytes = id.uuid
+    let sum = [bytes.0, bytes.1, bytes.2, bytes.3, bytes.4, bytes.5,
+               bytes.6, bytes.7, bytes.8, bytes.9, bytes.10, bytes.11,
+               bytes.12, bytes.13, bytes.14, bytes.15].reduce(0) { $0 + Int($1) }
+    return palette[sum % palette.count]
+  }
+
   // MARK: - 문자열 정리
 
   private static func clean(_ raw: String, limit: Int, fallback: String = "") -> String {
