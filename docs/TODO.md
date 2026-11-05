@@ -13,7 +13,7 @@
 - **마크다운**: `AccentPalette` 적응형 강조색(다크 `#CCC0FF` ≈11:1 · 라이트 `#6647D1` ≈6.2:1).
 - **검증**: `swift test` **840/840**(6 skip) · Debug/Release BUILD SUCCEEDED · 렌더 `docs/qa/v0.31-archive-fix/` · `docs/qa/markdown-contrast-2026-11-05/`.
 - **병합·배포**: **PR #99 → `bd0fc99`** · **2026-11-05 23:46** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `1f95612d…` · **재실행 필요**.
-- **다음**: A1~A9 실측 → 실패 항목 수정. 통과 후 v0.31 Q1~Q7 → 다중 대화 6a.
+- **실측 완료(2026-11-05 23:53, 사용자 확인: 전부 정상)**: A1~A9 — 신호등 정렬·보관함 검색/변경/삭제/비서 그룹·‹ 복귀·셸프 하단·`⌘1`/허브/pill. **다음**: v0.31 Q1~Q7 → 다중 대화 6a.
 
 ## 구현 완료 (2026-11-05) — v0.31 시리식 대화 창 · QuickShelf 대화 허브
 

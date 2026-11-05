@@ -17,9 +17,9 @@
 - **목록 구현**: `List` → `ScrollView`+`LazyVStack` 카드형 행. 오프스크린 렌더에서 SwiftUI `List` 행이 전혀 그려지지 않아 QA 가 불가능했고, design_profile=custom 과도 맞는다. 행 선택 시 검색어를 넘겨 해당 턴으로 스크롤·강조.
 - **마크다운 대비**(같은 PR 에 포함): 고정 `#7A5CFF`(다크 3.9:1·라이트 4.4:1) → `AccentPalette` 다크 `#CCC0FF`(≈11:1)·라이트 `#6647D1`(≈6.2:1). QuickShelf 강조 문구도 같은 토큰으로 통합.
 - **검증(오프스크린)**: `swift test` **840/840**(6 skip) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 커버리지(신규 4키) · 렌더 `docs/qa/v0.31-archive-fix/`(한/영 · 라이트/다크 · 검색) · `docs/qa/markdown-contrast-2026-11-05/`.
-- **배포**: **2026-11-05 23:46** `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음** — 기존 번들 삭제 → 새 번들 한 번에 이동, `~/Applications/` 에 `QuickTalk.app` 하나만) · `codesign --verify --strict --deep` OK · 설치본 SHA-256 `1f95612d4bafd0465e2048493d35aa1e6ebb88d81df2323c14696539f55cd132`(35MB) · **실행 중 PID 1877 은 이전 빌드 → 완전 종료 후 재실행 필요**.
-- **실측 대기(A1~A9)**: `docs/qa/v0.31-archive-fix/README.md` — ① 제목/도구와 신호등의 세로 중심 ② `⋯`→보관함 ③ 검색→턴 이동 ④ 변경/삭제 시트 ⑤ 비서별 그룹 ⑥ ‹ 복귀 ⑦ 셸프 하단 "보관함 전체 열기" ⑧ `⌘1`·허브·pill 라우팅 ⑨ 셸프 검색어 점프. **신호등은 오프스크린 렌더에 없어 A1 은 실앱에서만 확인 가능.**
-- **다음**: A1~A9 실측 결과 수령 → 실패 항목 재현·수정. 통과하면 v0.31 Q1~Q7 확인 후 다중 대화 **6a**(`UIStore` → 대화별 `ChatSession` 분리).
+- **배포**: **2026-11-05 23:46** `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음** — 기존 번들 삭제 → 새 번들 한 번에 이동, `~/Applications/` 에 `QuickTalk.app` 하나만) · `codesign --verify --strict --deep` OK · 설치본 SHA-256 `1f95612d4bafd0465e2048493d35aa1e6ebb88d81df2323c14696539f55cd132`(35MB) · **23:53 재실행(PID 14039 = 새 빌드)**.
+- **실측 완료(2026-11-05 23:53, 사용자 확인 "다 정상")**: A1~A9 전부 — 신호등과 제목/도구의 세로 중심 · `⋯`→보관함 · 검색→해당 턴 이동 · 변경/삭제 시트 · 비서별 그룹 · ‹ 복귀 · 셸프 하단 "보관함 전체 열기" · `⌘1`/허브/pill 라우팅 · 셸프 검색어 점프.
+- **다음**: v0.31 Q1~Q7(호버 도구·말풍선·`＋` 메뉴·셸프 대화 탭·창 크기·도구 항상 보기) 확인 → 다중 대화 **6a**(`UIStore` → 대화별 `ChatSession` 분리, PLAN §5.2).
 
 ### 2026-11-05 인계 (4) — v0.31 **시리식 대화 창** **병합·배포·재실행 완료** (실측 대기)
 
