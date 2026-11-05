@@ -3,6 +3,30 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-06 KST
 
+## 구현 완료 (2026-11-06) — v0.31 다중 대화방 (대화별 세션 + 동시 응답, 6a/6b)
+
+`docs/qa/v0.31-multi-conversation/README.md` · PLAN §7.3 — **구현·검증·병합·배포 완료 · 실측 대기(M1~M8).**
+
+- **계기**: PLAN_v0.31 §5 — 사용자 *"한 번에 한 대화만"* 지적.
+- **6a 분리**: `ChatSession`(대화방 1개)이 입력 초안·첨부·응답 중·스트리밍 턴·사고 과정·재시도 상태·도구 카드·승인·중지 손잡이·되돌리기·일정 제안과 `ConversationStore` 를 **방마다** 보관. `UIStore` 는 `sessions` + `activeSessionID` 만 들고 기존 프로퍼티는 활성 세션 계산 속성으로 유지(뷰 변경 최소화, `objectWillChange` 중계).
+- **6b 동시 응답**: 응답 Task 가 시작 시 그 방의 세션을 잡고 글자·사고·도구 카드·저장을 그 세션에만 쓴다. `AgentExecutor(session:)` 가 카드·승인·셸 손잡이를 방별 라우팅(예약 실행은 기존 컨텍스트). QuickShelf·보관함의 "응답 중" 점은 `isSessionReplying(conversationID:)`.
+- **검증**: `swift test` **856/856**(6 skip) · Debug/Release BUILD SUCCEEDED · `--session-test` **PASS** 9항목.
+- **병합·배포**: **PR #108 → `3c46d14`** · **2026-11-06 01:37** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `45618fcb…`(37MB).
+- **다음**: 실측 M1~M8(동시 응답·방별 점·전환 복귀) 확인.
+
+## 구현 완료 (2026-11-06) — v0.31 사고·도구 타임라인 · 사고 과정 표시 설정 · `⋯` 클릭 수정
+
+`docs/qa/v0.31-reasoning/README.md` · `docs/qa/v0.31-question-hover/README.md` — **구현·검증·병합·배포 완료 · 실측 대기(R1~R9, H1~H5).**
+
+- **계기**: 사용자 *"질문 → 도구 → 추론 → 쉘 → 추론 → 응답"* 순서 요구 + `⋯` 클릭 불가.
+- **타임라인**: 사고 과정을 스텝(모델 호출) 단위 구간으로 나눠 `AgentEvent.reasoningBefore` 에 저장, 마지막 사고는 `Turn.reasoning`. 구버전 기록은 도구 카드 한 장(하위 호환). 검색 출처는 답변 하단 유지.
+- **표시 방식 설정**: `항상 보기` / `끝나면 자동으로 접기`(기본) / `'생각 중' 표시만` — 직접 누른 펼침·접힘이 우선.
+- **자동 스크롤**: `agentFollowToken` 에 사고 글자 수 포함.
+- **`⋯` 클릭**: 메뉴를 행 프레임 안으로(오른쪽 20pt 포함), 클릭 영역 32×24, 0.5초 유예 숨김.
+- **검증**: `swift test` **856/856**(6 skip, 신규 7) · Debug/Release BUILD SUCCEEDED · 렌더 2종 갱신.
+- **병합·배포**: **PR #107 → `c678ade`** · **2026-11-06 01:18** 교체(**백업 없음**) · SHA-256 `22b39fe1…`(36MB).
+- **다음**: 실측 R1~R9·H1~H5 확인.
+
 ## 구현 완료 (2026-11-06) — v0.31 질문 호버 폭 · 제목 드래그 · 진행 중 대화 삭제
 
 `docs/qa/v0.31-question-hover/README.md` · `docs/qa/v0.31-archive-fix/README.md` — **구현·검증·병합·배포·실측 완료.**
