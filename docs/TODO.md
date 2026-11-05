@@ -3,6 +3,18 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-05 KST
 
+## 구현 완료 (2026-11-05) — v0.31 보관함 복원 · 타이틀바 정렬 · 마크다운 강조색
+
+`docs/qa/v0.31-archive-fix/README.md` — **구현·검증·병합·배포 완료 · 실측 대기(A1~A9).**
+
+- **계기**: v0.31 배포 후 사용자 지적 — *"타이틀과 시스템 버튼과의 정렬이 깨졌는데?"*, *"보관함에 있던 기능들은 다 어디갔어? 검색·삭제·비서별 구분…"*. 보관함을 QuickShelf 목록으로만 대체해 관리 기능이 사라진 것처럼 보였고, 헤더 중심(20pt)이 신호등 중심(16pt)보다 4pt 낮았다.
+- **타이틀바**: `TitlebarCenterReader`(NSViewRepresentable)가 `closeButton` 프레임에서 중심을 실측 → 헤더 내용을 상단 32pt 띠에 정렬. 외곽 40pt 는 호버·구분선용.
+- **보관함**: 창 안 탭 복원(검색·이름 변경·삭제·비서별 그룹) + ‹ 복귀. 진입점 통일 — `⋯` · QuickShelf 하단 "보관함 전체 열기" · `⌘1` · 허브 · pill. `List` → `ScrollView`+`LazyVStack` 카드형 행.
+- **마크다운**: `AccentPalette` 적응형 강조색(다크 `#CCC0FF` ≈11:1 · 라이트 `#6647D1` ≈6.2:1).
+- **검증**: `swift test` **840/840**(6 skip) · Debug/Release BUILD SUCCEEDED · 렌더 `docs/qa/v0.31-archive-fix/` · `docs/qa/markdown-contrast-2026-11-05/`.
+- **병합·배포**: **PR #99 → `bd0fc99`** · **2026-11-05 23:46** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `1f95612d…` · **재실행 필요**.
+- **다음**: A1~A9 실측 → 실패 항목 수정. 통과 후 v0.31 Q1~Q7 → 다중 대화 6a.
+
 ## 구현 완료 (2026-11-05) — v0.31 시리식 대화 창 · QuickShelf 대화 허브
 
 `docs/plans/PLAN_v0.31_chat-ui_macos.md` — **구현·검증·병합·배포·재실행 완료 · 실측 대기.**
