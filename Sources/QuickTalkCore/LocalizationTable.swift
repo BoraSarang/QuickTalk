@@ -1335,6 +1335,7 @@ extension L10n {
     "승인하면 이어서 실행합니다. 알림을 눌러 확인하세요.": "Approve to continue. Open the notification to review.",
 
     "비서를 만들지 않으면 지금과 똑같이 동작합니다. 대화마다 비서를 고를 수 있고, 고르지 않으면 기본(비서 없음)입니다.": "If you do not create an assistant, nothing changes. You can pick one per conversation; leaving it unset means Default (no assistant).",
+    "아이콘은 목록·답변·알림에 같은 표시로 쓰입니다.": "The icon appears in lists, replies, and notifications.",
     "비서를 삭제할까요?": "Delete this assistant?",
     "예약 작업은 지워지지 않고 기본(비서 없음)으로 실행됩니다. 지난 리포트 파일도 그대로 남습니다.": "Its scheduled tasks are kept and run as Default (no assistant). Past report files stay.",
     "새 비서": "New assistant",
@@ -1449,6 +1450,9 @@ extension L10n {
 
     "열기": "Open",
     "리포트: %@": "Report: %@",
+    "접기": "Collapse",
+    "전체 보기 · %d자": "Show all · %d chars",
+    "스트리밍 추가 텍스트": "streamed text",
     "대화를 열어 승인하거나 거부하세요.": "Open the chat to approve or deny.",
     "10분 안에 승인하지 않아 취소되었습니다. 다시 실행하세요.": "Canceled because it was not approved within 10 minutes. Run it again.",
     "%@ — 승인 대기 만료": "%@ — Approval expired",

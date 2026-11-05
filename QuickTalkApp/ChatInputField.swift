@@ -23,6 +23,9 @@ struct ChatInputField: NSViewRepresentable {
   var onCommandReturn: (() -> Void)?
   /// Esc — 지정하면 취소 동작을 맡는다(pill: 닫기)
   var onCancel: (() -> Void)?
+  /// ⌘V — 클립보드의 이미지·파일을 첨부로 붙일 수 있으면 `true`.
+  /// `false` 면 AppKit 기본 붙여넣기(텍스트)로 넘긴다.
+  var onPasteAttachments: (() -> Bool)?
   /// 전송 요청 — 확정된 현재 문자열을 함께 넘긴다(IME 조합 확정분 포함)
   var onSubmit: (String) -> Void
 
@@ -80,6 +83,10 @@ struct ChatInputField: NSViewRepresentable {
     tv.textContainer?.lineFragmentPadding = 2
     tv.string = text
     tv.onScroll = { [weak coordinator = context.coordinator] dy in coordinator?.scroll(by: dy) }
+    // ⌘V — 첨부(이미지·파일)가 있으면 입력창에 글자를 넣지 않고 첨부로 보낸다.
+    tv.onPasteAttachments = { [weak coordinator = context.coordinator] in
+      coordinator?.parent.onPasteAttachments?() ?? false
+    }
     // 폭이 확정된 뒤에 한 번 더 측정한다(초기 폭 0 상태에서 재는 것을 막는다)
     tv.onWidthSettled = { [weak coordinator = context.coordinator, weak tv] in
       guard let tv else { return }
@@ -125,10 +132,18 @@ struct ChatInputField: NSViewRepresentable {
 
   final class ChatTextView: NSTextView {
     var onScroll: ((CGFloat) -> Void)?
+    /// ⌘V — 첨부로 처리했으면 `true`
+    var onPasteAttachments: (() -> Bool)?
     /// **폭이 정해지면** 알려준다 — 측정은 폭이 잡힌 뒤에야 정확하다
     /// (SwiftUI 는 update 시점의 view 폭이 0일 수 있다 — pill 입력창이 여기에 걸렸었다)
     var onWidthSettled: (() -> Void)?
     private var lastWidth: CGFloat = 0
+
+    /// ⌘V — 이미지·파일이 클립보드에 있으면 첨부로 붙이고, 텍스트는 기본 동작으로 넘긴다.
+    override func paste(_ sender: Any?) {
+      if onPasteAttachments?() == true { return }
+      super.paste(sender)
+    }
 
     override func layout() {
       super.layout()

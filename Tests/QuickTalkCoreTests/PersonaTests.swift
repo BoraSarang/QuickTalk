@@ -154,6 +154,20 @@ final class PersonaTests: XCTestCase {
     let data = try JSONEncoder().encode(p)
     XCTAssertEqual(try JSONDecoder().decode(Persona.self, from: data), p)
   }
+
+  // MARK: - 아이콘 프리셋 (v0.28)
+
+  func testIconChoicesAreSingleDistinctSymbols() {
+    let icons = Persona.iconChoices
+    XCTAssertTrue((10...20).contains(icons.count), "10~20개를 나열한다")
+    XCTAssertEqual(Set(icons).count, icons.count, "중복 아이콘은 없다")
+    for icon in icons {
+      XCTAssertFalse(icon.isEmpty)
+      XCTAssertEqual(icon.count, 1, "\(icon) 은(는) 한 글자여야 한다")
+      XCTAssertEqual(Persona(name: "돌쇠", emoji: icon).normalized().emoji, icon,
+                     "\(icon) 은(는) 정규화 후에도 그대로 남는다")
+    }
+  }
 }
 
 private extension Persona {
