@@ -1402,13 +1402,24 @@ final class UIStore: ObservableObject {
   }
 
   func deleteConversation(_ c: Conversation) {
+    let deletingCurrent = conversation.id == c.id
+    // 진행 중 응답이 있으면 먼저 멈춘다 — 취소하지 않으면 지운 대화의 답변이
+    // 새 대화에 이어 붙는다(2026-11-06, 진행 중 대화 삭제 추가).
+    if deletingCurrent { cancelReply() }
     archive.removeAll { $0.id == c.id }
     try? PersistenceService.save(archive)
-    // 현재 대화를 지웠다면 그 자리에서 비운다(syncArchive로 되살아나지 않게)
-    if conversation.id == c.id {
+    // 현재 대화를 지웠다면 그 자리에서 **새 대화**로 비운다(syncArchive로 되살아나지 않게).
+    if deletingCurrent {
+      stopSpeaking()
       core.reset()
+      if let id = settings.defaultPersonaID, settings.persona(id) != nil {
+        core.setPersonaID(id)
+      }
       conversation = core.conversation
       draft = ""; attached.removeAll()
+      compactMessage = nil
+      searchFocus = nil
+      pendingSchedule = nil
     }
   }
 

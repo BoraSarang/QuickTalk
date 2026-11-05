@@ -12,6 +12,7 @@
 | `light/archive-ko.png` | 보관함(라이트) | 400×560 |
 | `en/archive-en.png` | 보관함(영어) | 400×560 |
 | `search/archive-search-ko.png` | `부산` 검색 결과 | 460×620 |
+| `current-delete-ko.png` | 진행 중 대화 행에 **🗑 삭제**(삭제 후 새 대화) | 400×560 |
 | `shelf-chats-ko.png` / `light/…` / `en/…` | QuickShelf 대화 탭 — 하단 "보관함 전체 열기" | 300×560 |
 
 ```bash
@@ -34,6 +35,7 @@ BIN=build-debug/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTalk
 | A2 | 보관함 진입: `⋯` → "보관함 — 검색·삭제" | 창 안 보관함 탭이 열림 |
 | A3 | 보관함 상단 검색창 | 제목·본문 검색, 결과 행 선택 시 해당 턴으로 스크롤·강조 |
 | A4 | 행의 `변경` / `🗑` | 제목 변경 시트 · 삭제 확인 시트(되돌릴 수 없음 안내) |
+| A4-1 | **진행 중** 행의 `🗑` | 확인 후 그 대화를 지우고 **새 대화 화면**으로 이동 |
 | A5 | 비서별 그룹 | "기본" 먼저, 그 다음 설정 순서 · 행에 비서 이모지/이름 |
 | A6 | 보관함·설정에서 `‹` | 대화 탭으로 복귀 |
 | A7 | QuickShelf 대화 탭 하단 | "보관함 전체 열기 — 검색·삭제·이름 변경" → 창 안 보관함 |
