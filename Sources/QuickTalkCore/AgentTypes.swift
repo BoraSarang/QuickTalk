@@ -200,6 +200,9 @@ public enum AgentStep: Equatable {
 
 /// 프로바이더 중립 에이전트 클라이언트 — 3종(Apple FM·Ollama·OpenAI 호환)이 각각 구현한다.
 public protocol AgentClient: AnyObject {
+  /// thinking 모델의 **사고 과정 델타**를 받는 자리 — 화면이 "지금 무엇을 고민하는지" 보여 준다.
+  /// 사고 과정을 보내지 않는 구현체는 그대로 nil(호출되지 않는다).
+  var onReasoning: (@MainActor (String) -> Void)? { get set }
   /// 도구를 넘겨 한 스텝 진행한다. 도구 호출이 없으면 `.finalAnswer`.
   /// `onDelta` 로 **최종 답변을 토큰 단위로** 흘려보낼 수 있다(스트리밍 유지).
   /// `attachments` 는 마지막 사용자 메시지에 첨부 이미지·문서를 붙이는 데 쓴다.

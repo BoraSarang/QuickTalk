@@ -85,6 +85,8 @@ struct ContentView: View {
   @State private var showWindowPicker = false
   /// 헤더 제목에 마우스를 올리면 밑줄(편집 가능 표시)
   @State private var titleHover = false
+  /// 펼쳐 둔 **사고 과정** 블록 — 완료 뒤에도 눌러서 다시 볼 수 있다.
+  @State private var expandedReasoning: Set<UUID> = []
   /// v0.31 — 상단 도구가 지금 보이는가(마우스가 상단 40pt에 있으면 참).
   @State private var toolbarHovered = false
   /// 시스템 신호등(traffic light)의 **세로 중심**(창 위에서부터의 거리).
@@ -112,13 +114,16 @@ struct ContentView: View {
   var suppressArchiveLoad = false
   /// QA 렌더 전용 — 첫 질문에 마우스를 올린 상태를 재현한다(호버 시 말풍선 폭 고정 확인).
   var hoverFirstQuestion = false
+  /// QA 렌더 전용 — 사고 과정 블록을 펼친 상태로 그린다.
+  var expandReasoning = false
 
   init(initialTab: Int = 0, initialInputHeight: CGFloat = 28,
        initialArchiveQuery: String = "", suppressArchiveLoad: Bool = false,
-       hoverFirstQuestion: Bool = false) {
+       hoverFirstQuestion: Bool = false, expandReasoning: Bool = false) {
     self.initialTab = initialTab
     self.suppressArchiveLoad = suppressArchiveLoad
     self.hoverFirstQuestion = hoverFirstQuestion
+    self.expandReasoning = expandReasoning
     _tab = State(initialValue: initialTab)
     _inputHeight = State(initialValue: initialInputHeight)
     _archiveQuery = State(initialValue: initialArchiveQuery)
@@ -725,6 +730,11 @@ struct ContentView: View {
              let first = store.conversation.turns.first(where: { $0.role == .user }) {
             hoveredTurn = first.id
           }
+          // QA 렌더 — 사고 과정 블록을 펼친 상태로 그린다.
+          if expandReasoning,
+             let answer = store.conversation.turns.first(where: { $0.role == .assistant && $0.reasoning != nil }) {
+            expandedReasoning.insert(answer.id)
+          }
         }
         }
 
@@ -794,6 +804,7 @@ struct ContentView: View {
           .foregroundColor(.secondary)
         }
         if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
+        reasoningBlock(t)
         // ★ 도구 실행 카드는 **답변보다 위** — 명령이 먼저 돌고 그 결과로 답하기 때문.
         if let pending = store.pendingSchedule,
            pending.turnID == t.id,
@@ -1290,6 +1301,60 @@ struct ContentView: View {
 
   /// 응답 대기 표시 — 자체 점 애니메이션(네이티브 인디케이터 대신) + 경과·모델 라벨
   /// 검색 중에는 점 대신 🌐와 "웹에서 찾는 중…"을 보여 준다.
+  /// 사고 과정 — thinking 모델이 답을 쓰기 전에 보내는 추론.
+  ///
+  /// 답이 3분 넘게 걸릴 때 화면이 멈춘 것처럼 보이지 않게 **도착하는 대로** 보여 준다.
+  /// 스트리밍 중에는 자동으로 펼치고, 완료 뒤에는 한 줄로 접어 둔다(눌러서 다시 본다).
+  @ViewBuilder private func reasoningBlock(_ t: Turn) -> some View {
+    let live = t.id == store.streamingTurnID && store.isReplying
+    let text = live ? store.liveReasoning : (t.reasoning ?? "")
+    if !text.isEmpty {
+      let expanded = live || expandedReasoning.contains(t.id)
+      VStack(alignment: .leading, spacing: 5) {
+        Button {
+          guard !live else { return }
+          if expandedReasoning.contains(t.id) { expandedReasoning.remove(t.id) }
+          else { expandedReasoning.insert(t.id) }
+        } label: {
+          HStack(spacing: 5) {
+            if live {
+              Image(systemName: "brain")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.purple)
+            } else {
+              Image(systemName: "chevron.right")
+                .font(.system(size: 8.5, weight: .semibold))
+                .rotationEffect(.degrees(expanded ? 90 : 0))
+            }
+            Text(live ? L("사고 과정 — 생각 중") : L("사고 과정"))
+              .font(.system(size: 10.5, weight: .medium))
+            Spacer(minLength: 0)
+          }
+          .foregroundColor(.secondary)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(live ? L("모델이 지금 고민하는 내용입니다") : L("사고 과정 펼치기/접기"))
+
+        if expanded {
+          Text(text)
+            .font(.system(size: 11.5))
+            .lineSpacing(2)
+            .foregroundColor(.secondary)
+            .textSelection(.enabled)
+            .padding(.leading, 10)
+            .overlay(alignment: .leading) {
+              Rectangle().fill(Color.secondary.opacity(0.20)).frame(width: 1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .transition(.opacity)
+        }
+      }
+      .padding(.bottom, 2)
+    }
+  }
+
   private var replyingBubble: some View {
     HStack {
       HStack(spacing: 9) {

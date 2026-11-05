@@ -298,6 +298,7 @@ final class NetworkRetryTests: XCTestCase {
 
 /// 정해진 결과(성공·실패)를 차례로 돌려주고, 각 호출마다 델타를 흘려보낸다.
 private final class ScriptedAgentClient: AgentClient {
+  var onReasoning: (@MainActor (String) -> Void)?
   private let outcomes: [Result<AgentStep, Error>]
   private let deltas: [String]
   private var index = 0

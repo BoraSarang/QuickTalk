@@ -69,9 +69,11 @@ public enum AttachmentRetry {
                             history: [Turn],
                             attachments: [OutgoingAttachment],
                             model: String,
-                            onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
+                            onDelta: @escaping @MainActor (String) -> Void,
+                            onReasoning: @escaping @MainActor (String) -> Void = { _ in }) async throws -> String {
     guard !attachments.isEmpty else {
-      return try await client.stream(prompt: prompt, history: history, attachments: [], onDelta: onDelta)
+      return try await client.stream(prompt: prompt, history: history, attachments: [],
+                                     onDelta: onDelta, onReasoning: onReasoning)
     }
     var emitted = false
     let tracked: @MainActor (String) -> Void = { d in
@@ -80,7 +82,8 @@ public enum AttachmentRetry {
     }
     do {
       return try await client.stream(prompt: prompt, history: history,
-                                     attachments: attachments, onDelta: tracked)
+                                     attachments: attachments, onDelta: tracked,
+                                     onReasoning: onReasoning)
     } catch QuickTalkError.serverFailure(let f) {
       NSLog("[WARN] %@ 서버 실패 — %@ (HTTP %d, 모델=%@)",
             f.code, f.label, f.httpStatus, model)

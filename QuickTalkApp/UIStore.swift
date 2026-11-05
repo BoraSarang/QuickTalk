@@ -354,6 +354,9 @@ final class UIStore: ObservableObject {
   @Published var compactMessage: String?
   /// 지금 토큰을 받고 있는 어시스턴트 턴 — 첫 글자가 오면 점 표시를 숨기고 자동 스크롤한다
   @Published var streamingTurnID: UUID?
+  /// 지금 도착 중인 **사고 과정**(thinking 모델) — 답변이 시작되기 전에도 "지금 고민 중"을 보여 준다.
+  /// 완료되면 턴(`Turn.reasoning`)에 저장하고 비운다.
+  @Published var liveReasoning: String = ""
   /// 연결이 끊겨 다시 연결을 기다리는 중이면 상태 문구 — 입력독 위 배너에 표시한다(v0.29).
   /// nil 이면 대기 중이 아니다. [중지]는 기존 응답 중지 버튼이 그대로 담당한다.
   @Published var networkRetryStatus: String?
@@ -1825,6 +1828,16 @@ final class UIStore: ObservableObject {
         let aid = self.core.beginAssistantTurn()
         self.conversation = self.core.conversation
         self.streamingTurnID = aid
+        // 사고 과정(thinking 모델) — 답변이 시작되기 전에도 화면이 "지금 고민 중"을 보여 준다.
+        // 완료되면 이 턴에 저장하고 화면의 임시 사본을 비운다.
+        self.liveReasoning = ""
+        var reasoningText = ""
+        let appendReasoning: @MainActor (String) -> Void = { piece in
+          reasoningText += piece
+          if reasoningText.count > 24_000 { reasoningText = String(reasoningText.suffix(24_000)) }
+          guard self.conversation.id == convID else { return }
+          self.liveReasoning = reasoningText
+        }
         /// 말풍선에서 **모델 답변 앞**에 붙는 안내(검색 경고·첨부 경고) — 재시도로 지우지 않는다.
         var answerPrefix = ""
         // 첨부 경고(줄임·미전송)는 델타보다 먼저 붙인다 — 기존 `reply`와 같은 순서
@@ -1901,6 +1914,7 @@ final class UIStore: ObservableObject {
                   flush(false)
                 },
                 // 스텝 시작 시점을 기억했다가, 도구 호출 예고·재시도 실패분을 지운다.
+                onReasoning: appendReasoning,
                 onStepStart: { stepStartText = modelText },
                 onStepDiscard: { replaceAnswer(stepStartText) },
                 onRetry: { showRetry($0) })
@@ -1933,7 +1947,8 @@ final class UIStore: ObservableObject {
                     flush(false)
                   },
                   onReplace: { replaceAnswer($0) },
-                  onRetry: { showRetry($0) })
+                  onRetry: { showRetry($0) },
+                  onReasoning: appendReasoning)
               } else {
                 throw error
               }
@@ -1950,7 +1965,8 @@ final class UIStore: ObservableObject {
                 flush(false)
               },
               onReplace: { replaceAnswer($0) },
-              onRetry: { showRetry($0) })
+              onRetry: { showRetry($0) },
+              onReasoning: appendReasoning)
           }
           self.networkRetryStatus = nil
           flush(true)
@@ -1970,8 +1986,10 @@ final class UIStore: ObservableObject {
             self.core.setAssistantText(answerPrefix + reply, id: aid)
           }
           self.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
-                                        sources: sources.isEmpty ? nil : sources)
+                                        sources: sources.isEmpty ? nil : sources,
+                                        reasoning: reasoningText.isEmpty ? nil : reasoningText)
           self.conversation = self.core.conversation
+          self.liveReasoning = ""
           self.syncArchive()
           // 답변을 마친 뒤 **백그라운드로** 정리한다 — 현재 답변 지연을 만들지 않는다.
           if !isError { self.startAutoCompact(convID: convID) }
@@ -2011,6 +2029,7 @@ final class UIStore: ObservableObject {
           self.syncArchive()
           self.lastAICall = .failed(code)
           self.lastAIErrorDetail = AIErrorText.shortDetail(for: error)
+          self.liveReasoning = ""
         }
       }
     } catch {
@@ -2042,6 +2061,7 @@ final class UIStore: ObservableObject {
     streamingTurnID = nil
     isSearching = false
     networkRetryStatus = nil
+    liveReasoning = ""
   }
 
   // MARK: - 대화 기억 정리 (T-71)
@@ -2667,7 +2687,8 @@ final class UIStore: ObservableObject {
                                   policy: NetworkRetryPolicy,
                                   onDelta: @escaping @MainActor (String) -> Void,
                                   onReplace: @escaping @MainActor (String) -> Void,
-                                  onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void)
+                                  onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void,
+                                  onReasoning: @escaping @MainActor (String) -> Void = { _ in })
     async throws -> String {
     var answer = ""
     var failures = 0
@@ -2684,7 +2705,8 @@ final class UIStore: ObservableObject {
           onDelta: { delta in
             attempt += delta
             onDelta(delta)
-          })
+          },
+          onReasoning: onReasoning)
         answer = NetworkRetry.mergeContinuation(answer, text.isEmpty ? attempt : text)
         onRetry(nil)
         onReplace(answer)
@@ -2732,10 +2754,12 @@ final class UIStore: ObservableObject {
                                       history: [Turn],
                                       attachments: [OutgoingAttachment],
                                       allowFallback: Bool = true,
-                                      onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
+                                      onDelta: @escaping @MainActor (String) -> Void,
+                                      onReasoning: @escaping @MainActor (String) -> Void = { _ in }) async throws -> String {
     do {
       return try await streamReply(provider: primary, prompt: prompt, history: history,
-                                   attachments: attachments, onDelta: onDelta)
+                                   attachments: attachments, onDelta: onDelta,
+                                   onReasoning: onReasoning)
     } catch {
       let primaryError = error
       let primaryCode = AIErrorText.code(for: primaryError)
@@ -2762,7 +2786,8 @@ final class UIStore: ObservableObject {
               onDelta(note)
             }
             onDelta(delta)
-          })
+          },
+          onReasoning: onReasoning)
         // 델타를 한 번도 내보내지 않는 클라이언트도 안내를 잃지 않게 반환값에도 붙인다
         // (스트리밍 경로에서는 화면 텍스트와 같은 값이 된다).
         return note + text
@@ -2783,7 +2808,8 @@ final class UIStore: ObservableObject {
   @MainActor
   static func streamReply(provider p: LLMProviderConfig, prompt: String, history: [Turn],
                           attachments: [OutgoingAttachment],
-                          onDelta: @escaping @MainActor (String) -> Void) async throws -> String {
+                          onDelta: @escaping @MainActor (String) -> Void,
+                          onReasoning: @escaping @MainActor (String) -> Void = { _ in }) async throws -> String {
     switch p.type {
     case .appleFM:
       let skipped = attachments.filter { $0.hasImage }
@@ -2805,7 +2831,7 @@ final class UIStore: ObservableObject {
       return try await AttachmentRetry.stream(client: OllamaClient(host: host, model: p.model),
                                               prompt: prompt, history: history,
                                               attachments: attachments, model: p.model,
-                                              onDelta: onDelta)
+                                              onDelta: onDelta, onReasoning: onReasoning)
     case .openAICompatible:
       guard !p.model.isEmpty else {
         throw QuickTalkError.detailed(L("모델이 비어 있습니다. 설정 > AI에서 모델을 지정해 주세요."),
@@ -2823,7 +2849,7 @@ final class UIStore: ObservableObject {
       return try await AttachmentRetry.stream(client: OpenAIClient(baseURL: base, apiKey: key, model: p.model),
                                               prompt: prompt, history: history,
                                               attachments: attachments, model: p.model,
-                                              onDelta: onDelta)
+                                              onDelta: onDelta, onReasoning: onReasoning)
     }
   }
 

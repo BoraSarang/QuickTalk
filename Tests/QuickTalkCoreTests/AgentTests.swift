@@ -632,6 +632,7 @@ final class AgentTests: XCTestCase {
 
 /// 정해진 스텝을 차례로 돌려주는 클라이언트.
 private final class MockAgentClient: AgentClient {
+  var onReasoning: (@MainActor (String) -> Void)?
   let steps: [AgentStep]
   var receivedMessages: [[AgentMessage]] = []
   private var index = 0
