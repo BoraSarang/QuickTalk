@@ -1347,19 +1347,12 @@ struct ContentView: View {
         ChatInputField(text: $store.draft, height: $inputHeight,
                        isBusy: store.isReplying,
                        focusToken: store.composerFocusToken,
+                       placeholder: L("무엇이든 물어보세요"),
                        onPasteAttachments: { store.pasteAttachmentFromPasteboard() }) { value in
           store.draft = value
           store.send()
         }
         .frame(height: inputHeight)
-        if store.draft.isEmpty {
-          Text(L("무엇이든 물어보세요"))
-            .font(.system(size: 13)).foregroundColor(Color.secondary.opacity(0.75))
-            // 여백은 **컨테이너가 이미 준 안쪽 여백**이므로 다시 더하지 않는다(캐럿과 같은 x에서 시작)
-            .padding(.leading, ChatInputField.horizontalPadding + 2)
-            .padding(.top, ChatInputField.verticalPadding)
-            .allowsHitTesting(false)
-        }
       }
       // 비서가 있으면 왼쪽 아래 버튼(26pt)만큼 글자 시작점을 비운다 — 없으면 기존과 동일.
       .padding(.leading, store.settings.personas.isEmpty ? 14 : 48)

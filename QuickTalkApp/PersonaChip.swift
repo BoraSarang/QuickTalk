@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// 비서 선택 메뉴 내용 — 헤더 칩과 입력독 버튼이 **같은 목록**을 쓴다.
+/// 비서 선택 목록 — 헤더 칩·입력독·⌘Space pill 이 **같은 목록**을 쓴다.
 /// 목록 맨 위는 `비서 없음` = 지금과 같은 동작. 지금 선택된 항목은 **체크 + "(지금)"** 으로 분명히 보인다.
-struct PersonaMenuItems: View {
-  @EnvironmentObject var store: UIStore
-
-  private var current: Persona? { store.settings.persona(store.conversation.personaID) }
+struct PersonaMenuList: View {
+  let personas: [Persona]
+  let current: Persona?
+  let onSelect: (UUID?) -> Void
 
   var body: some View {
     // 메뉴를 열자마자 현재 상태를 한 줄로 읽을 수 있게 한다.
@@ -15,22 +15,35 @@ struct PersonaMenuItems: View {
       .font(.caption)
     Divider()
     Button {
-      store.selectPersona(nil)
+      onSelect(nil)
     } label: {
       Label(current == nil ? L("비서 없음 (지금)") : L("비서 없음"),
             systemImage: current == nil ? "checkmark.circle.fill" : "circle")
     }
     Divider()
-    ForEach(store.settings.personas) { persona in
+    ForEach(personas) { persona in
       let selected = current?.id == persona.id
       Button {
-        store.selectPersona(persona.id)
+        onSelect(persona.id)
       } label: {
         Label(selected
               ? Lf("%@ %@ (지금)", persona.displayEmoji, persona.name)
               : Lf("%@ %@", persona.displayEmoji, persona.name),
               systemImage: selected ? "checkmark.circle.fill" : "circle")
       }
+    }
+  }
+}
+
+/// 비서 선택 메뉴 내용 — 헤더 칩과 입력독 버튼이 **같은 목록**을 쓴다.
+struct PersonaMenuItems: View {
+  @EnvironmentObject var store: UIStore
+
+  private var current: Persona? { store.settings.persona(store.conversation.personaID) }
+
+  var body: some View {
+    PersonaMenuList(personas: store.settings.personas, current: current) { id in
+      store.selectPersona(id)
     }
     Divider()
     Button {

@@ -19,6 +19,9 @@ struct ChatInputField: NSViewRepresentable {
   var focusToken: UUID?
   /// 폰트 — pill 은 더 큰 폰트를 넘긴다(줄 높이도 이 값으로 계산한다)
   var font: NSFont = ChatInputField.defaultFont
+  /// 비어 있을 때 NSTextView 가 **직접** 그리는 안내 문구.
+  /// (SwiftUI `Text` 오버레이는 글자 기준선이 캐럿과 어긋나 아래로 치우쳐 보였다)
+  var placeholder: String?
   /// ⌘Return — 지정하면 Enter 대신 이 동작을 맡는다(pill: 대화 창 열기)
   var onCommandReturn: (() -> Void)?
   /// Esc — 지정하면 취소 동작을 맡는다(pill: 닫기)
@@ -82,6 +85,7 @@ struct ChatInputField: NSViewRepresentable {
     tv.textContainer?.heightTracksTextView = true      // 레이아웃을 상자 높이 안으로 제한
     tv.textContainer?.lineFragmentPadding = 2
     tv.string = text
+    tv.placeholder = placeholder
     tv.onScroll = { [weak coordinator = context.coordinator] dy in coordinator?.scroll(by: dy) }
     // ⌘V — 첨부(이미지·파일)가 있으면 입력창에 글자를 넣지 않고 첨부로 보낸다.
     tv.onPasteAttachments = { [weak coordinator = context.coordinator] in
@@ -99,8 +103,13 @@ struct ChatInputField: NSViewRepresentable {
   func updateNSView(_ tv: ChatTextView, context: Context) {
     context.coordinator.parent = self
     context.coordinator.textView = tv
+    if tv.placeholder != placeholder {
+      tv.placeholder = placeholder
+      tv.needsDisplay = true
+    }
     if tv.string != text, !tv.hasMarkedText() {
       tv.string = text
+      tv.needsDisplay = true      // 안내 문구 표시/숨김
       tv.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
       // 값을 직접 넣은 경우엔 textDidChange 가 오지 않는다 → 여기서 다시 잰다.
       // (pill 처럼 "나중에 채워 넣는" 입력창의 높이가 1줄로 남던 문제)
@@ -132,12 +141,36 @@ struct ChatInputField: NSViewRepresentable {
 
   final class ChatTextView: NSTextView {
     var onScroll: ((CGFloat) -> Void)?
+    /// 비어 있을 때 그리는 안내 문구(캐럿과 같은 기준선)
+    var placeholder: String? {
+      didSet { needsDisplay = true }
+    }
     /// ⌘V — 첨부로 처리했으면 `true`
     var onPasteAttachments: (() -> Bool)?
     /// **폭이 정해지면** 알려준다 — 측정은 폭이 잡힌 뒤에야 정확하다
     /// (SwiftUI 는 update 시점의 view 폭이 0일 수 있다 — pill 입력창이 여기에 걸렸었다)
     var onWidthSettled: (() -> Void)?
     private var lastWidth: CGFloat = 0
+
+    /// 안내 문구는 **입력창 자신이** 그린다 — 별도 SwiftUI `Text` 로 겹치면
+    /// 글꼴 기준선이 캐럿과 달라져 아래로 치우쳐 보인다(2026-11-05 사용자 재보고).
+    override func draw(_ dirtyRect: NSRect) {
+      super.draw(dirtyRect)
+      guard string.isEmpty, !hasMarkedText(), let placeholder, !placeholder.isEmpty else { return }
+      let attributes: [NSAttributedString.Key: Any] = [
+        .font: font ?? NSFont.systemFont(ofSize: 13),
+        .foregroundColor: NSColor.placeholderTextColor
+      ]
+      let padding = textContainer?.lineFragmentPadding ?? 0
+      (placeholder as NSString).draw(
+        at: NSPoint(x: textContainerInset.width + padding, y: textContainerInset.height),
+        withAttributes: attributes)
+    }
+
+    override func didChangeText() {
+      super.didChangeText()
+      needsDisplay = true      // 안내 문구를 지운다/다시 그린다
+    }
 
     /// ⌘V — 이미지·파일이 클립보드에 있으면 첨부로 붙이고, 텍스트는 기본 동작으로 넘긴다.
     override func paste(_ sender: Any?) {

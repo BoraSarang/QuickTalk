@@ -807,11 +807,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     switch outcome {
     case .send(let text):
       store.startShortcutSession()
+      PointerPillController.shared.reapplyPersonaIfNeeded()
       store.draft = text
       showPanel(tab: 0, anchor: anchor)
       store.send()
     case .openChat(let draft):
       store.startShortcutSession()
+      PointerPillController.shared.reapplyPersonaIfNeeded()
       store.draft = draft
       showPanel(tab: 0, anchor: anchor)
     case .resume(let conversation):

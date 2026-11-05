@@ -8,3 +8,6 @@ DerivedData/
 *.profraw
 docs/qa/*-debug/
 build-release/
+
+# QA 렌더용 디버그 빌드
+build-debug/
