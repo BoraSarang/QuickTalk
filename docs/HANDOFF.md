@@ -16,7 +16,8 @@
 - **무엇(리포트 폴더)**: `SystemKnowledge.reportFolderText` 가 비서/기본 리포트 폴더(`~` 확장)와 쓰기 꺼짐 상태를 프롬프트에 넣는다. 일반 대화·도구 경로 모두 같은 블록을 쓴다.
 - **무엇(비서·입력독)**: `Persona.displayEmoji`(ID 기반 안정 기본 아이콘, `🗣` 일괄 표시 제거) · 메뉴 `지금: …` 머리줄 + `checkmark.circle.fill` · 칩/독 체크 배지 · 입력독 글자 중심 = 아이콘 줄 중심(실측 1176.5 vs 1175.5).
 - **검증(오프스크린)**: `swift test` **840/840**(6 skip, 신규 26) · Debug/Release `xcodebuild` **BUILD SUCCEEDED** · 번역 커버리지 통과(신규 17키) · 렌더 `docs/qa/resume-continuity-2026-11-05/`(한/영 8장).
-- **배포**: 2026-11-05 20:36 `~/Applications/QuickTalk.app` 교체(직전 v0.28 은 `~/Applications/.QuickTalk.old` 보관) · `codesign --verify --strict --deep` OK · 빌드 산출물과 `diff -rq` 동일 · SHA-256 `35a5ba0a8a01cabccabded641eddeb105d3f6a2dca075f104259b15cd1f6d9e7` · **앱 재실행 필요**.
+- **배포**: 2026-11-05 20:36 `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음** — v0.28 번들은 바로 삭제, `.QuickTalk.old` 를 만들지 않는다) · `codesign --verify --strict --deep` OK · 빌드 산출물과 `diff -rq` 동일 · SHA-256 `35a5ba0a8a01cabccabded641eddeb105d3f6a2dca075f104259b15cd1f6d9e7` · **앱 재실행 필요**.
+- **규칙 위반·정정(2026-11-05)**: 이 배포에서 실수로 `~/Applications/.QuickTalk.old`(v0.28 복제본, 33MB)를 만들었다. 사용자 지적으로 **즉시 삭제**(현재 `~/Applications/` 에 `QuickTalk.app` 하나만 존재). 원인은 §4 [HARD] 규칙을 배포 절차에서 확인하지 않은 것 — `AGENTS.local.md` §4 에 금지 이름 목록·고정 절차(빌드·서명 확인 → 종료 요청 → 기존 번들 삭제 → 새 번들 한 번에 이동 → 검증)를 추가했다. 앞으로 백업은 git 커밋 되돌리기 + 재빌드로만 한다.
 - **실측 대기(R1~R5)**: ① 응답 도중 Wi-Fi 차단 → 5초×10회 대기 후 부분 답변 유지·중복 없이 이어쓰기 ② 대기 중 [응답 중지] → 즉시 멈추고 받은 답변 유지 ③ 도구 질문이 예고로 끝나지 않고 실제 값으로 종료 ④ 비서에게 리포트 저장 → 설정된 폴더에 생성 ⑤ 비서 메뉴에서 `비서 없음` ↔ 선택 비서 구분.
 
 ### 2026-11-05 인계 — v0.28 비서 선택 + **대화 겹침·스크롤 수정** 병합·배포 완료 (실측 대기)
