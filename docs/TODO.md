@@ -3,6 +3,18 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-05 KST
 
+## 구현 완료 (2026-11-05) — v0.29 연결 끊김 이어쓰기 · 예고 답변 방지 · 비서 리포트 폴더
+
+`docs/plans/PLAN_v0.29_resume-continuity_macos.md` — **구현 완료 · 병합·배포 완료 · 실측 대기.**
+
+- **연결 끊김**: `NetworkRetry` — 기본 **5초 × 10회**(1~60초·0~50회 설정) · 첫 글자 전 같은 요청 재전송, 글자 뒤 **부분 답변 보존 + 이어쓰기** · 겹침 병합(8자, 완전 중복 폐기) · 대기 배너 + [응답 중지] · 취소·401·403·400/422는 즉시 실패.
+- **예고 답변**: `AgentRunner` 스텝별 예고·실패분 폐기 → 빈/예고 답변이면 도구 없이 `finalAnswerNudge` 1회 → 그래도 실패하면 지금까지의 도구 결과로 안전망 답변.
+- **리포트 폴더**: `SystemKnowledge.reportFolderText` — 비서/기본 폴더(`~` 확장)와 쓰기 꺼짐 상태를 일반·도구 프롬프트 모두에 주입.
+- **비서/입력독**: `displayEmoji`(안정 기본 아이콘) · 메뉴 `지금: …`+체크 · 칩/독 체크 배지 · 입력독 글자 중심 정렬.
+- **검증**: `swift test` **840/840**(6 skip, 신규 26) · Debug/Release BUILD SUCCEEDED · 번역 17키 · 렌더 `docs/qa/resume-continuity-2026-11-05/`.
+- **병합/배포**: PR #90 → `eec75df` · 기록 PR #91 → `ab4f37e` · 2026-11-05 20:36 `~/Applications/QuickTalk.app` 교체(직전 v0.28 은 `.QuickTalk.old`) · `codesign --verify --strict --deep` OK · `diff -rq` 동일 · SHA-256 `35a5ba0a…` · **앱 재실행 필요**.
+- **실측 대기**: R1~R5(PLAN §6).
+
 ## 구현 완료 (2026-11-05) — v0.28 비서 선택 상시 노출 · 아이콘 그리드 · 대화 겹침/스크롤 수정
 
 `docs/plans/PLAN_v0.28_persona-picker_macos.md` — **구현 완료 · 배포 완료 · 실측 대기.**
