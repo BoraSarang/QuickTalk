@@ -829,6 +829,46 @@ extension AppDelegate {
     return true
   }
 
+  /// QA: `--session-test` — 대화방 세션 분리(6a)와 백그라운드 응답 표시(6b)를 확인한다.
+  /// 실제 기록 파일은 건드리지 않는다(억제 플래그). 결과는 `[SESSION-TEST]` 로그 한 줄.
+  func runSessionSelfTestIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--session-test") else { return false }
+    let s = store
+    s.suppressArchiveSaveForSelfTest = true
+    var results: [String] = []
+
+    // 1번 방: 질문 1개 + 초안 + 응답 중 상태를 만든다.
+    try? s.core.submit(text: "첫 번째 방 질문", attachments: [])
+    s.conversation = s.core.conversation
+    s.draft = "첫 방 초안"
+    s.isReplying = true
+    let firstConv = s.conversation
+    let firstID = firstConv.id
+
+    // 새 방으로 전환 — 입력·응답 상태가 따라오면 안 된다.
+    s.newConversation()
+    results.append("new-id=\(s.conversation.id != firstID ? "PASS" : "FAIL")")
+    results.append("draft-isolation=\(s.draft.isEmpty ? "PASS" : "FAIL")")
+    results.append("busy-isolation=\(!s.isReplying ? "PASS" : "FAIL")")
+    results.append("core-isolation=\(s.core.conversation.id == s.conversation.id ? "PASS" : "FAIL")")
+    results.append("first-busy=\(s.isSessionReplying(conversationID: firstID) ? "PASS" : "FAIL")")
+
+    s.draft = "둘째 방 초안"
+
+    // 1번 방으로 복귀 — 초안·응답 중 상태가 그대로 살아 있어야 한다.
+    s.openConversation(firstConv)
+    results.append("return-id=\(s.conversation.id == firstID ? "PASS" : "FAIL")")
+    results.append("return-draft=\(s.draft == "첫 방 초안" ? "PASS" : "FAIL")")
+    results.append("return-busy=\(s.isReplying ? "PASS" : "FAIL")")
+    results.append("return-turns=\(s.conversation.turns.count == firstConv.turns.count ? "PASS" : "FAIL")")
+
+    let failed = results.filter { $0.hasSuffix("FAIL") }
+    NSLog("[SESSION-TEST] %@ %@", failed.isEmpty ? "PASS" : "FAIL",
+          results.joined(separator: " "))
+    NSApp.terminate(nil)
+    return true
+  }
+
   /// QA: `--provider=applefm|ollama|remote` — 실검증에서 활성 프로바이더만 메모리에서 바꾼다.
   func applyProviderOverrideForSelfTest() {
     guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--provider=") }) else { return }

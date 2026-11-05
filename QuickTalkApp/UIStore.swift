@@ -37,35 +37,92 @@ struct PendingAttachment: Identifiable, Equatable {
 }
 
 final class UIStore: ObservableObject {
-  @Published var conversation = Conversation()
+  // MARK: - 대화방별 세션 (v0.31 6a)
+  /// 지금 화면에 보이는 대화방. 실행·입력 상태는 모두 그 방의 `ChatSession` 에 있다.
+  /// (예약 실행과 같은 방식으로 대화별 상태를 분리해, 다음 단계에서 동시 응답을 켠다)
+  @Published private var activeSessionID = UUID()
+  private var sessions: [UUID: ChatSession] = [:]
+  private var sessionObservers: [UUID: AnyCancellable] = [:]
+
+  /// 활성 대화방 — 없으면 만든다(앱 시작·QA 렌더에서도 안전).
+  var activeSession: ChatSession {
+    if let s = sessions[activeSessionID] { return s }
+    let s = ChatSession(conversation: Conversation())
+    sessions[s.id] = s
+    observe(s)
+    activeSessionID = s.id
+    return s
+  }
+
+  /// 화면이 보는 대화 — 활성 세션의 대화.
+  var conversation: Conversation {
+    get { activeSession.conversation }
+    set { activeSession.conversation = newValue }
+  }
+  /// 활성 세션의 대화 저장소. 예약 실행은 별도 저장소를 그대로 쓴다.
+  var core: ConversationStore { activeSession.core }
+
+  /// 그 대화방이 지금 응답 중인가 — 목록에서 **다른 방의 응답 중 점**을 그릴 때 쓴다.
+  func isSessionReplying(conversationID: UUID) -> Bool {
+    sessions[conversationID]?.isReplying ?? false
+  }
+
+  var draft: String {
+    get { activeSession.draft }
+    set { activeSession.draft = newValue }
+  }
+  var attached: [PendingAttachment] {
+    get { activeSession.attached }
+    set { activeSession.attached = newValue }
+  }
+  /// 입력독 🌐 — **이번 질문만** 검색을 강제한다(전송 후 자동 해제)
+  var forceWebSearch: Bool {
+    get { activeSession.forceWebSearch }
+    set { activeSession.forceWebSearch = newValue }
+  }
+  /// 응답 대기 상태 — 입력독에 "응답 중" 표시를 띄우고 중복 전송을 막는다
+  var isReplying: Bool {
+    get { activeSession.isReplying }
+    set { activeSession.isReplying = newValue }
+  }
+  // MARK: - 웹 검색 (PLAN_v0.14)
+  /// 검색 결과를 기다리는 중 — 응답 말풍선 대신 "웹에서 찾는 중…"을 보여 준다
+  var isSearching: Bool {
+    get { activeSession.isSearching }
+    set { activeSession.isSearching = newValue }
+  }
+  // MARK: - 도우미 도구 (PLAN_v0.18)
+  /// 실행 카드 — 지금 답변에 붙는 도구 실행 기록
+  var agentEvents: [AgentEvent] {
+    get { activeSession.agentEvents }
+    set { activeSession.agentEvents = newValue }
+  }
+  /// 에이전트가 `web_search` 로 확인한 출처 — 답변 아래 출처 카드에 쓴다(v0.23).
+  var agentSearchSources: [TurnSource] {
+    get { activeSession.agentSearchSources }
+    set { activeSession.agentSearchSources = newValue }
+  }
+  /// 승인을 기다리는 요청 — 카드에 [허용] 버튼이 뜬다
+  var agentApproval: AgentApprovalRequest? {
+    get { activeSession.agentApproval }
+    set { activeSession.agentApproval = newValue }
+  }
+  /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
+  var agentTurnID: UUID? {
+    get { activeSession.agentTurnID }
+    set { activeSession.agentTurnID = newValue }
+  }
+
   @Published var settings = QuickTalkSettings() {
     didSet { saveSettings() }
   }
-  @Published var draft = ""
-  @Published var attached: [PendingAttachment] = []
   @Published var voiceRecording = false
-  /// 응답 대기 상태 — 입력독에 "응답 중" 표시를 띄우고 중복 전송을 막는다
-  @Published var isReplying = false
-  // MARK: - 웹 검색 (PLAN_v0.14)
-  /// 검색 결과를 기다리는 중 — 응답 말풍선 대신 "웹에서 찾는 중…"을 보여 준다
-  @Published var isSearching = false
-  /// 입력독 🌐 — **이번 질문만** 검색을 강제한다(전송 후 자동 해제)
-  @Published var forceWebSearch = false
   /// 설정 › AI의 [검색 테스트] 결과(건수·지연 또는 오류 코드)
   @Published var webSearchTestResult = ""
   @Published var webSearchTesting = false
   /// 설정 › AI의 [답변 API 테스트] 결과
   @Published var answerTestResult = ""
   @Published var answerTesting = false
-  // MARK: - 도우미 도구 (PLAN_v0.18)
-  /// 실행 카드 — 지금 답변에 붙는 도구 실행 기록
-  @Published var agentEvents: [AgentEvent] = []
-  /// 에이전트가 `web_search` 로 확인한 출처 — 답변 아래 출처 카드에 쓴다(v0.23).
-  var agentSearchSources: [TurnSource] = []
-  /// 승인을 기다리는 요청 — 카드에 [허용] 버튼이 뜬다
-  @Published var agentApproval: AgentApprovalRequest?
-  /// 실행 카드가 붙은 턴 — 그 턴 아래에 카드를 그린다
-  @Published var agentTurnID: UUID?
   /// 승인된 쓰기 폴더 — **대화별**로 유지되고 7일 뒤 만료된다("이 폴더 허용", v0.19 → 2026-10-29).
   /// 대화 기록과 함께 저장하므로 앱을 다시 켜도 남는다.
   var activeWriteScopeGrants: [WriteScopeGrant] {
@@ -75,8 +132,14 @@ final class UIStore: ObservableObject {
   }
   /// 이번 대화에서 지금 유효한 승인 쓰기 폴더.
   /// ★ 예약 실행 중에는 그 실행의 범위를 쓴다(현재 대화를 건드리지 않는다).
-  var approvedWriteScopes: [String] {
-    scheduledRun?.writeScopes ?? activeWriteScopeGrants.map(\.path)
+  var approvedWriteScopes: [String] { approvedWriteScopes(for: activeSession) }
+
+  func approvedWriteScopes(for session: ChatSession) -> [String] {
+    if let scheduledRun { return scheduledRun.writeScopes }
+    return (session.conversation.approvedWriteScopes ?? [])
+      .filter { $0.isActive() }
+      .sorted { $0.expiresAt < $1.expiresAt }
+      .map(\.path)
   }
   /// 승인된 화면 조작 앱 — 대화별 7일(PLAN_v0.25 Phase 2).
   var activeUiAppGrants: [UiAppGrant] {
@@ -91,25 +154,37 @@ final class UIStore: ObservableObject {
   /// 실제 적용 정책 — 전역 설정 위에 **이 대화의 오버라이드**를 얹는다(v0.22).
   /// 치명적 차단·상승 권한 제한은 전역 값 그대로다.
   /// 예약 실행은 대화 오버라이드를 쓰지 않는다(사용자가 그 자리에 없으므로 전역 정책만).
-  var effectiveAgentPolicy: AgentPolicy {
+  var effectiveAgentPolicy: AgentPolicy { effectiveAgentPolicy(for: activeSession) }
+
+  /// 그 대화방의 실제 정책 — 백그라운드 응답이 다른 방의 오버라이드를 쓰지 않게 한다.
+  func effectiveAgentPolicy(for session: ChatSession) -> AgentPolicy {
     if let scheduledRun { return scheduledRun.policy }
-    return (conversation.agentOverride ?? AgentOverride()).merged(into: settings.agentPolicy)
+    return (session.conversation.agentOverride ?? AgentOverride()).merged(into: settings.agentPolicy)
   }
   /// 실행 카드(eventID)별 되돌리기 스냅샷 — 이번 실행에서 만든 것만 카드에 보인다
-  @Published var agentUndoEntries: [String: UndoEntry] = [:]
+  var agentUndoEntries: [String: UndoEntry] {
+    get { activeSession.agentUndoEntries }
+    set { activeSession.agentUndoEntries = newValue }
+  }
   /// 되돌리기 결과 안내(카드 아래 한 줄)
-  @Published var agentUndoMessages: [String: String] = [:]
+  var agentUndoMessages: [String: String] {
+    get { activeSession.agentUndoMessages }
+    set { activeSession.agentUndoMessages = newValue }
+  }
   /// 진행 중인 셸 실행의 중지 손잡이(v0.20) — 카드 [중단] 버튼이 쓴다.
   /// 예약 실행 중이면 그 실행의 손잡이로 갈라진다.
   var agentRunHandle: SandboxCancellation? {
-    get { scheduledRun?.runHandle ?? currentRunHandle }
+    get { scheduledRun?.runHandle ?? activeSession.currentRunHandle }
     set {
-      if let scheduledRun { scheduledRun.runHandle = newValue } else { currentRunHandle = newValue }
+      if let scheduledRun { scheduledRun.runHandle = newValue }
+      else { activeSession.currentRunHandle = newValue }
     }
   }
-  private var currentRunHandle: SandboxCancellation?
   /// 터미널 인계 결과 안내(실패 사유 등) — 카드 아래 한 줄.
-  @Published var agentHandoffNotice: String?
+  var agentHandoffNotice: String? {
+    get { activeSession.agentHandoffNotice }
+    set { activeSession.agentHandoffNotice = newValue }
+  }
   /// 실행 기록을 턴에 저장한다 — 대화 기록(history.json)에 함께 남아 다음에 다시 보인다.
   func appendAgentEventToTurn(_ event: AgentEvent, turnID: UUID) {
     core.appendAgentEvent(event, to: turnID)
@@ -123,7 +198,10 @@ final class UIStore: ObservableObject {
   }
 
   /// 도구 실행기 — 정책 판단·사용자 확인·감사 기록
-  var agentExecutor: AgentExecutor?
+  var agentExecutor: AgentExecutor? {
+    get { activeSession.agentExecutor }
+    set { activeSession.agentExecutor = newValue }
+  }
   /// 도구 필요 판정 캐시 — 같은 질문이면 10분간 모델을 다시 부르지 않는다.
   var agentDecisionCache: [String: (needed: Bool, at: Date)] = [:]
   let agentDecisionTTL: TimeInterval = 600
@@ -203,16 +281,22 @@ final class UIStore: ObservableObject {
 
   /// 이 앱(화면 조작)이 지금 유효하게 승인됐는가 — 예약 실행이면 그 대화의 승인.
   func hasUiAppGrant(bundleID: String) -> Bool {
+    hasUiAppGrant(bundleID: bundleID, session: activeSession)
+  }
+
+  func hasUiAppGrant(bundleID: String, session: ChatSession) -> Bool {
     if let scheduledRun {
       return scheduledRun.uiGrants.contains { $0.bundleID == bundleID && $0.isActive() }
     }
-    return conversation.hasActiveUiAppGrant(bundleID: bundleID)
+    return session.conversation.hasActiveUiAppGrant(bundleID: bundleID)
   }
 
   /// 이 실행 카드가 이미 있는가 — 예약 실행이면 그 컨텍스트를 본다.
-  func hasAgentEvent(id: String) -> Bool {
+  func hasAgentEvent(id: String) -> Bool { hasAgentEvent(id: id, session: activeSession) }
+
+  func hasAgentEvent(id: String, session: ChatSession) -> Bool {
     if let scheduledRun { return scheduledRun.events.contains { $0.id == id } }
-    return agentEvents.contains { $0.id == id }
+    return session.agentEvents.contains { $0.id == id }
   }
 
   // MARK: - 일정 제안 확인 카드 (v0.26 4단계)
@@ -220,7 +304,10 @@ final class UIStore: ObservableObject {
   /// `/할일` 시트 표시 — 슬래시 명령과 헤더가 함께 쓴다.
   @Published var showTaskList = false
   /// 모델이 제안한 예약 작업 — 사용자가 [등록]을 눌러야 실제로 저장된다.
-  @Published var pendingSchedule: ScheduleConfirmation?
+  var pendingSchedule: ScheduleConfirmation? {
+    get { activeSession.pendingSchedule }
+    set { activeSession.pendingSchedule = newValue }
+  }
   private var scheduleContinuation: CheckedContinuation<Bool, Never>?
   private var scheduleTimer: Timer?
 
@@ -353,20 +440,35 @@ final class UIStore: ObservableObject {
   /// 정리 실패·안내 문구(자동 정리 중에는 조용히, 수동은 사유 표시).
   @Published var compactMessage: String?
   /// 지금 토큰을 받고 있는 어시스턴트 턴 — 첫 글자가 오면 점 표시를 숨기고 자동 스크롤한다
-  @Published var streamingTurnID: UUID?
+  var streamingTurnID: UUID? {
+    get { activeSession.streamingTurnID }
+    set { activeSession.streamingTurnID = newValue }
+  }
   /// 지금 도착 중인 **사고 과정**(thinking 모델) — 답변이 시작되기 전에도 "지금 고민 중"을 보여 준다.
   /// 완료되면 턴(`Turn.reasoning`)에 저장하고 비운다.
-  @Published var liveReasoning: String = ""
+  var liveReasoning: String {
+    get { activeSession.liveReasoning }
+    set { activeSession.liveReasoning = newValue }
+  }
   /// 연결이 끊겨 다시 연결을 기다리는 중이면 상태 문구 — 입력독 위 배너에 표시한다(v0.29).
   /// nil 이면 대기 중이 아니다. [중지]는 기존 응답 중지 버튼이 그대로 담당한다.
-  @Published var networkRetryStatus: String?
+  var networkRetryStatus: String? {
+    get { activeSession.networkRetryStatus }
+    set { activeSession.networkRetryStatus = newValue }
+  }
   /// QA 렌더에서 설정을 바꿀 때 저장을 막는다
   private var suppressSettingsSave = false
   /// QA 오프스크린 렌더 중인가 — 실제 기록(history.json)을 화면에 끌어오지 않게 한다.
   private(set) var isRenderHarness = false
-  private var replyStartedAt: Date?
+  var replyStartedAt: Date? {
+    get { activeSession.replyStartedAt }
+    set { activeSession.replyStartedAt = newValue }
+  }
   /// 진행 중인 응답 Task — 로컬 모델은 첫 토큰까지 수 분 걸릴 수 있어 **사용자가 중지**할 수 있다.
-  private var replyTask: Task<Void, Never>?
+  var replyTask: Task<Void, Never>? {
+    get { activeSession.replyTask }
+    set { activeSession.replyTask = newValue }
+  }
   /// 질문 수정/다시 응답으로 입력창을 채웠을 때 포커스를 되돌리기 위한 토큰
   @Published var composerFocusToken: UUID?
 
@@ -435,10 +537,19 @@ final class UIStore: ObservableObject {
   @Published var shelfDocked = false
   private var whisperRecorder: AVAudioRecorder?
   private var bag = Set<AnyCancellable>()
-  private let core = ConversationStore()
   private let settingsKey = "QuickTalk.settings"
 
+  /// 세션(대화방)의 변경을 UIStore 변경으로 전달한다 — 뷰는 UIStore만 관찰한다.
+  private func observe(_ session: ChatSession) {
+    sessionObservers[session.id] = session.objectWillChange
+      .sink { [weak self] _ in self?.objectWillChange.send() }
+  }
+
   init() {
+    let first = ChatSession(conversation: Conversation())
+    sessions[first.id] = first
+    activeSessionID = first.id
+    observe(first)
     if let data = UserDefaults.standard.data(forKey: settingsKey),
        let loaded = try? JSONDecoder().decode(QuickTalkSettings.self, from: data) {
       // 구버전 기본값(Ctrl+Space) 마이그레이션: 미변경 유저는 Cmd+Space로 승격
@@ -1190,14 +1301,41 @@ final class UIStore: ObservableObject {
   func newConversation() {
     stopSpeaking()
     syncArchive()
-    core.reset()
     // 새 대화의 기본 비서 — 설정 › 비서의 `defaultPersonaID`(없으면 기본).
+    var fresh = Conversation()
     if let id = settings.defaultPersonaID, settings.persona(id) != nil {
-      core.setPersonaID(id)
+      fresh.personaID = id
     }
-    conversation = core.conversation
-    draft = ""; attached.removeAll()
+    activateSession(fresh)
     compactMessage = nil
+  }
+
+  /// 대화방으로 전환한다 — 방마다 입력·실행 상태가 따로 남는다(v0.31 6a).
+  /// 같은 방을 다시 열면 **진행 중인 상태를 덮어쓰지 않는다**(응답 중인 방 보호).
+  private func activateSession(_ c: Conversation) {
+    if let existing = sessions[c.id] {
+      if !existing.isReplying {
+        existing.core.open(c)
+        existing.conversation = existing.core.conversation
+      }
+      activeSessionID = existing.id
+      observe(existing)
+    } else {
+      let session = ChatSession(conversation: c)
+      sessions[session.id] = session
+      observe(session)
+      activeSessionID = session.id
+    }
+    // 빈 임시 방(앱 시작 기본)은 남겨 두지 않는다.
+    let empties = sessions.filter { $0.key != activeSessionID
+      && $0.value.conversation.turns.isEmpty
+      && !$0.value.conversation.pinned
+      && !$0.value.isReplying
+      && $0.value.draft.isEmpty }
+    for key in empties.keys {
+      sessions.removeValue(forKey: key)
+      sessionObservers.removeValue(forKey: key)
+    }
   }
 
   /// 이 대화의 비서를 바꾼다 — 목록 맨 위는 `기본(비서 없음)`.
@@ -1286,8 +1424,7 @@ final class UIStore: ObservableObject {
   func restoreLastConversation() {
     guard conversation.turns.isEmpty,
           let latest = ConversationHistory.mostRecent(archive) else { return }
-    core.open(latest)
-    conversation = core.conversation
+    activateSession(latest)
     NSLog("[QuickTalk] 마지막 대화 복원 — %d턴 pinned=%@",
           conversation.turns.count, conversation.pinned ? "Y" : "N")
     markInterruptedQuestion()
@@ -1308,8 +1445,9 @@ final class UIStore: ObservableObject {
   }
 
   /// 현재 대화를 기록에 반영하고 파일에 쓴다 — 핀 여부와 무관(모든 대화 자동 저장).
-  func syncArchive() {
+  func syncArchive(_ session: ChatSession? = nil) {
     guard !suppressArchiveSaveForSelfTest else { return }
+    let conversation = (session ?? activeSession).conversation
     archive.removeAll { $0.id == conversation.id }
     if !conversation.turns.isEmpty || conversation.pinned {
       archive.insert(conversation, at: 0)
@@ -1433,8 +1571,7 @@ final class UIStore: ObservableObject {
 
   /// 보관함에서 대화를 연다. `searching`이 있으면 그 검색어와 일치하는 첫 턴으로 포커스를 요청한다.
   func openConversation(_ c: Conversation, searching query: String = "") {
-    core.open(c)
-    conversation = core.conversation
+    activateSession(c)
     compactMessage = nil
     if let turn = c.firstTurn(matching: query) {
       searchFocus = SearchFocusRequest(conversationID: c.id, turnID: turn.id, query: query)
@@ -1583,26 +1720,29 @@ final class UIStore: ObservableObject {
       syncArchive()                      // 사용자 메시지도 바로 기록(앱이 꺼져도 남는다)
       // 한글 IME: 전송 직후 조합 커밋이 입력창으로 되돌아오는 경우가 있어 잠시 방어한다
       suppressEcho(of: prompt)
-      isReplying = true
-      replyStartedAt = Date()
-      let convID = conversation.id
-      replyTask = Task { @MainActor in
+      // 이 응답이 **어느 대화방의 것인지** 잡아 둔다 — 도중에 다른 방을 열어도
+      // 상태·글자는 그 방에만 쌓인다(v0.31 6a/6b).
+      let session = activeSession
+      session.isReplying = true
+      session.replyStartedAt = Date()
+      let convID = session.conversation.id
+      session.replyTask = Task { @MainActor in
         // 응답까지 걸린 시간 — 모델 호출 구간만 잰다(첨부 읽기 제외)
         var callStarted = Date()
         defer {
-          self.isReplying = false
-          self.replyStartedAt = nil
-          self.streamingTurnID = nil
-          self.isSearching = false
-          self.networkRetryStatus = nil
-          self.replyTask = nil
+          session.isReplying = false
+          session.replyStartedAt = nil
+          session.streamingTurnID = nil
+          session.isSearching = false
+          session.networkRetryStatus = nil
+          session.replyTask = nil
         }
         // 첨부 "내용"은 여기서 읽는다 — 텍스트 파일은 본문 인라인, 이미지는 data URL로 실린다
         let outgoing = await Self.loadAttachments(pending)
         if !outgoing.isEmpty {
           NSLog("[QuickTalk] 첨부 전송 준비 — %@", AttachmentLoader.summary(outgoing))
         }
-        guard self.conversation.id == convID else { return }
+        guard session.conversation.id == convID else { return }
         // 사용자가 [중지]를 눌렀으면 여기서 멈춘다(모델 호출 없이 종료).
         if Task.isCancelled { return }
         guard let provider = self.settings.activeProvider else {
@@ -1636,10 +1776,10 @@ final class UIStore: ObservableObject {
                                 mode: ws.globalMemoryMode,
                                 budget: ws.globalMemoryBudgetTokens)
           : .empty
-        let conversationPrefix = Self.memoryPromptPrefix(self.conversation)
+        let conversationPrefix = Self.memoryPromptPrefix(session.conversation)
         // 비서 — 대화마다 고른 성격·말투를 **프롬프트 앞**에 붙인다.
         // 도구가 꺼진 일반 클라이언트에도 적용되도록 시스템 프롬프트가 아니라 여기에 둔다.
-        let conversationPersona = self.settings.persona(self.conversation.personaID)
+        let conversationPersona = self.settings.persona(session.conversation.personaID)
         let personaHeader = conversationPersona
           .map { PersonaPrompt.header($0) + "\n\n" } ?? ""
         // 비서가 자기 **쓰기 가능한 리포트 폴더**를 알아야 엉뚱한 곳을 뒤지지 않는다(v0.29).
@@ -1651,7 +1791,7 @@ final class UIStore: ObservableObject {
           NSLog("[QuickTalk] 공통 메모리 %d개 주입 (약 %d토큰)",
                 globalMemory.included.count, globalMemory.tokens)
         }
-        let fitted = ConversationMemory.fitHistory(self.conversation,
+        let fitted = ConversationMemory.fitHistory(session.conversation,
                                                    prompt: prompt,
                                                    provider: provider,
                                                    attachmentTokens: attachmentTokens,
@@ -1691,8 +1831,8 @@ final class UIStore: ObservableObject {
         }
         /// 툴 콜링이 검색 없이 바로 답한 경우 — 두 번째 모델 호출을 건너뛴다.
         var precomputedAnswer: String?
-        let forced = self.forceWebSearch
-        self.forceWebSearch = false
+        let forced = session.forceWebSearch
+        session.forceWebSearch = false
         // 도구가 켜져 있으면 **웹 검색도 같은 루프**에서 모델이 직접 고른다(v0.23).
         // 사전 검색·Y/N 판정을 따로 돌리면 호출이 두 번 되고, 모델이 검색 없이 답하면
         // 그 답이 확정되어 셸·프로세스 도구를 쓸 기회가 사라진다.
@@ -1710,12 +1850,12 @@ final class UIStore: ObservableObject {
         var toolFellBack = false
         if ws.webSearchEnabled, ws.webSearchMode == .toolCalling,
            provider.type == .openAICompatible, !forced, !skipPreSearch {
-          self.isSearching = true
+          session.isSearching = true
           let plan = await self.planWebToolCall(provider: provider,
                                                 prompt: memoryPrefix + prompt,
                                                 history: history,
                                                 attachments: outgoing)
-          self.isSearching = false
+          session.isSearching = false
           switch plan {
           case .search(let results):
             handledByTool = true
@@ -1762,11 +1902,11 @@ final class UIStore: ObservableObject {
           }
         }
         if !handledByTool, needsSearch {
-          self.isSearching = true
+          session.isSearching = true
           if ws.webSearchMode == .answer {
             // Exa `/answer` — 실패하면 같은 질문으로 일반 검색을 한 번 더 시도한다.
             let answered = await self.answerWeb(query: prompt)
-            self.isSearching = false
+            session.isSearching = false
             switch answered {
             case .success(let result):
               if result.isEmpty {
@@ -1789,7 +1929,7 @@ final class UIStore: ObservableObject {
             }
           } else {
             let outcome = await self.searchWeb(query: prompt)
-            self.isSearching = false
+            session.isSearching = false
             switch outcome {
             case .success(let results):
               if results.isEmpty {
@@ -1806,13 +1946,13 @@ final class UIStore: ObservableObject {
           }
         }
         // 검색 중 사용자가 다른 대화방으로 옮겼으면 이 답변은 버린다(다른 방에 섞이지 않게).
-        guard self.conversation.id == convID else { return }
+        guard session.conversation.id == convID else { return }
         // 초기 400토큰 예약보다 검색 컨텍스트가 크면 기록을 다시 맞춘다.
         // (검색은 기록 fitting 뒤에 일어나므로 실제 컨텍스트 크기를 그때 알 수 있다.)
         var finalHistory = history
         if searchContextTokens > 400 {
           let refit = ConversationMemory.fitHistory(
-            self.conversation, prompt: prompt, provider: provider,
+            session.conversation, prompt: prompt, provider: provider,
             attachmentTokens: attachmentTokens,
             extraTokens: globalMemory.tokens + searchContextTokens)
           finalHistory = refit.history
@@ -1825,31 +1965,31 @@ final class UIStore: ObservableObject {
         callStarted = Date()
         // 스트리밍 버블 — 첫 델타 전까지는 아래 점 애니메이션이 보인다
         if Task.isCancelled { return }     // 검색·판정 중에 [중지]를 누른 경우
-        let aid = self.core.beginAssistantTurn()
-        self.conversation = self.core.conversation
-        self.streamingTurnID = aid
+        let aid = session.core.beginAssistantTurn()
+        session.conversation = session.core.conversation
+        session.streamingTurnID = aid
         // 사고 과정(thinking 모델) — 답변이 시작되기 전에도 화면이 "지금 고민 중"을 보여 준다.
         // 스텝(모델 호출)마다 새 구간으로 쌓는다 — 도구 카드 앞에 그 구간을 붙이고 비운다.
         // 완료되면 **마지막 구간**(최종 답변 직전의 사고)을 턴에 저장한다.
-        self.liveReasoning = ""
+        session.liveReasoning = ""
         let appendReasoning: @MainActor (String) -> Void = { piece in
-          guard self.conversation.id == convID else { return }
-          var text = self.liveReasoning + piece
+          guard session.conversation.id == convID else { return }
+          var text = session.liveReasoning + piece
           if text.count > 24_000 { text = String(text.suffix(24_000)) }
-          self.liveReasoning = text
+          session.liveReasoning = text
         }
         /// 말풍선에서 **모델 답변 앞**에 붙는 안내(검색 경고·첨부 경고) — 재시도로 지우지 않는다.
         var answerPrefix = ""
         // 첨부 경고(줄임·미전송)는 델타보다 먼저 붙인다 — 기존 `reply`와 같은 순서
         if let searchNote {
-          self.core.appendStreaming(searchNote + "\n\n", to: aid)
-          self.conversation = self.core.conversation
+          session.core.appendStreaming(searchNote + "\n\n", to: aid)
+          session.conversation = session.core.conversation
           answerPrefix += searchNote + "\n\n"
         }
         let warnings = AttachmentLoader.warnings(outgoing)
         if !warnings.isEmpty {
-          self.core.appendStreaming(warnings, to: aid)
-          self.conversation = self.core.conversation
+          session.core.appendStreaming(warnings, to: aid)
+          session.conversation = session.core.conversation
           answerPrefix += warnings
         }
         var buffer = ""
@@ -1862,22 +2002,22 @@ final class UIStore: ObservableObject {
         let flush: (Bool) -> Void = { force in
           guard force || Date().timeIntervalSince(lastFlush) >= 0.08 else { return }
           guard !buffer.isEmpty else { return }
-          guard self.conversation.id == convID else { buffer = ""; return }
-          self.core.appendStreaming(buffer, to: aid)
+          guard session.conversation.id == convID else { buffer = ""; return }
+          session.core.appendStreaming(buffer, to: aid)
           buffer = ""
           lastFlush = Date()
-          self.conversation = self.core.conversation
+          session.conversation = session.core.conversation
         }
         /// 재시도·이어쓰기 후 말풍선을 **중복 없는 답변**으로 다시 맞춘다.
         let replaceAnswer: (String) -> Void = { text in
           modelText = text
           buffer = ""
-          guard self.conversation.id == convID else { return }
-          self.core.setAssistantText(answerPrefix + text, id: aid)
-          self.conversation = self.core.conversation
+          guard session.conversation.id == convID else { return }
+          session.core.setAssistantText(answerPrefix + text, id: aid)
+          session.conversation = session.core.conversation
         }
         let showRetry: (NetworkRetryProgress?) -> Void = { progress in
-          self.networkRetryStatus = progress.map { Self.retryStatusText($0) }
+          session.networkRetryStatus = progress.map { Self.retryStatusText($0) }
         }
         do {
           guard let p = self.settings.activeProvider else {
@@ -1888,10 +2028,11 @@ final class UIStore: ObservableObject {
             // 툴 콜링이 검색 없이 답한 경우 — 그대로 표시한다(스트리밍 없음).
             reply = precomputedAnswer
             modelText = precomputedAnswer
-            self.core.appendStreaming(precomputedAnswer, to: aid)
-            self.conversation = self.core.conversation
+            session.core.appendStreaming(precomputedAnswer, to: aid)
+            session.conversation = session.core.conversation
           } else if let agentClient = self.makeAgentClientIfEnabled(provider: p,
-                                                                    persona: conversationPersona) {
+                                                                    persona: conversationPersona,
+                                                                    session: session) {
             // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
             // 웹 검색도 **같은 루프**에 넣는다(v0.23) — 모델이 답을 모르면 `web_search` 를 고른다.
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
@@ -1903,6 +2044,7 @@ final class UIStore: ObservableObject {
               includingSchedule: true)
             do {
               reply = try await self.runAgentTurn(
+                session: session,
                 client: agentClient, prompt: modelPrompt,
                 history: finalHistory, turnID: aid,
                 tools: agentTools,
@@ -1916,11 +2058,11 @@ final class UIStore: ObservableObject {
                 // 스텝 시작 시점을 기억했다가, 도구 호출 예고·재시도 실패분을 지운다.
                 // 사고 과정도 스텝마다 새 구간 — 재시도한 실패 시도의 사고는 버린다.
                 onReasoning: appendReasoning,
-                onStepStart: { stepStartText = modelText; self.liveReasoning = "" },
+                onStepStart: { stepStartText = modelText; session.liveReasoning = "" },
                 onStepDiscard: { replaceAnswer(stepStartText) },
                 onRetry: { showRetry($0) })
               // 모델이 검색으로 확인한 출처가 있으면 답변에 남긴다.
-              if !self.agentSearchSources.isEmpty { sources = self.agentSearchSources }
+              if !session.agentSearchSources.isEmpty { sources = session.agentSearchSources }
             } catch {
               // 도구를 모르는 서버(400 등)면 도구 없는 일반 경로로 되돌린다.
               // **아직 글자가 없을 때만** — 부분 답변이 있으면 그 답을 지키고 오류를 알린다.
@@ -1969,50 +2111,50 @@ final class UIStore: ObservableObject {
               onRetry: { showRetry($0) },
               onReasoning: appendReasoning)
           }
-          self.networkRetryStatus = nil
+          session.networkRetryStatus = nil
           flush(true)
-          guard self.conversation.id == convID else { return }
-          let current = self.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
+          guard session.conversation.id == convID else { return }
+          let current = session.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
           // 오류 문구는 표시 언어에 따라 "(오류 …)" 또는 "(Error …)"로 시작한다
           let isError = reply.hasPrefix("(오류") || reply.hasPrefix("(Error")
           if isError {
             // 재시도 사다리가 델타 대신 오류 문자열을 돌려준 경우
-            self.core.setAssistantText(current.isEmpty ? reply : current + "\n\n" + reply, id: aid)
+            session.core.setAssistantText(current.isEmpty ? reply : current + "\n\n" + reply, id: aid)
           } else if reply != modelText, !reply.isEmpty {
             // 에이전트가 스트리밍 없이 만든 최종 답(최대 스텝 안전망·재촉 답변)을 반영한다.
             // 예전에는 이미 글자가 있으면 이 값을 버려 "확인하겠습니다"가 답으로 남았다.
-            self.core.setAssistantText(answerPrefix + reply, id: aid)
+            session.core.setAssistantText(answerPrefix + reply, id: aid)
           } else if current.isEmpty {
             // 스트리밍을 지원하지 않는 경로(기본 구현) — 한 번에 채운다
-            self.core.setAssistantText(answerPrefix + reply, id: aid)
+            session.core.setAssistantText(answerPrefix + reply, id: aid)
           }
-          self.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
+          session.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
                                         sources: sources.isEmpty ? nil : sources,
-                                        reasoning: self.liveReasoning.isEmpty ? nil : self.liveReasoning)
-          self.conversation = self.core.conversation
-          self.liveReasoning = ""
-          self.syncArchive()
+                                        reasoning: session.liveReasoning.isEmpty ? nil : session.liveReasoning)
+          session.conversation = session.core.conversation
+          session.liveReasoning = ""
+          self.syncArchive(session)
           // 답변을 마친 뒤 **백그라운드로** 정리한다 — 현재 답변 지연을 만들지 않는다.
-          if !isError { self.startAutoCompact(convID: convID) }
+          if !isError { self.startAutoCompact(convID: convID, session: session) }
           self.lastAICall = isError ? .failed(Self.errorCode(in: reply)) : .ok
           self.lastAIErrorDetail = isError ? Self.errorSummary(in: reply) : nil
         } catch {
-          self.networkRetryStatus = nil
+          session.networkRetryStatus = nil
           // 사용자가 [중지]를 누른 경우 — 오류가 아니다. 부분 출력은 남기고 안내만 덧붙인다.
           if Task.isCancelled || error is CancellationError
               || (error as? URLError)?.code == .cancelled {
             flush(true)
-            let current = self.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
+            let current = session.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
             if current.isEmpty {
-              self.core.setAssistantText(L("응답을 중지했습니다."), id: aid)
+              session.core.setAssistantText(L("응답을 중지했습니다."), id: aid)
             } else {
-              self.core.appendStreaming(L("\n\n⏹ 중지됨"), to: aid)
+              session.core.appendStreaming(L("\n\n⏹ 중지됨"), to: aid)
             }
-            self.core.finishAssistantTurn(aid,
+            session.core.finishAssistantTurn(aid,
                                           elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
                                           sources: sources.isEmpty ? nil : sources)
-            self.conversation = self.core.conversation
-            self.syncArchive()
+            session.conversation = session.core.conversation
+            self.syncArchive(session)
             NSLog("[QuickTalk] 사용자 중지 — 응답 취소(부분 %d자)", current.count)
             return
           }
@@ -2023,14 +2165,14 @@ final class UIStore: ObservableObject {
           let url = self.settings.activeProvider.flatMap { URL(string: $0.baseURL) }
           let text = AIErrorText.userText(for: error, url: url)
           NSLog("[ERROR] %@ LLM 호출 실패 — %@", code, AIErrorText.logLabel(for: error))
-          let current = self.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
-          self.core.setAssistantText(current.isEmpty ? text : current + "\n\n" + text, id: aid)
-          self.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000))
-          self.conversation = self.core.conversation
-          self.syncArchive()
+          let current = session.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
+          session.core.setAssistantText(current.isEmpty ? text : current + "\n\n" + text, id: aid)
+          session.core.finishAssistantTurn(aid, elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000))
+          session.conversation = session.core.conversation
+          self.syncArchive(session)
           self.lastAICall = .failed(code)
           self.lastAIErrorDetail = AIErrorText.shortDetail(for: error)
-          self.liveReasoning = ""
+          session.liveReasoning = ""
         }
       }
     } catch {
@@ -2208,19 +2350,21 @@ final class UIStore: ObservableObject {
   }
 
   /// 답변을 마친 뒤 호출 — 예산의 70%를 넘었을 때만 백그라운드로 정리한다.
-  func startAutoCompact(convID: UUID) {
+  func startAutoCompact(convID: UUID, session: ChatSession? = nil) {
     guard settings.autoCompact, !isCompacting else { return }
-    guard conversation.id == convID, !conversation.autoCompactPaused else { return }
+    let s = session ?? activeSession
+    guard s.id == convID, !s.conversation.autoCompactPaused else { return }
     guard let provider = settings.activeProvider else { return }
     let keep = effectiveKeepTurns(for: provider)
-    guard ConversationMemory.shouldCompact(conversation, provider: provider, keepTurns: keep) else {
+    guard ConversationMemory.shouldCompact(s.conversation, provider: provider, keepTurns: keep) else {
       return
     }
-    runCompaction(conversation: conversation, manual: false)
+    runCompaction(conversation: s.conversation, manual: false, session: s)
   }
 
   /// 정리 실행 — 원문은 그대로 두고 `summary`만 갱신한다(실패하면 아무것도 바꾸지 않는다).
-  private func runCompaction(conversation target: Conversation, manual: Bool) {
+  private func runCompaction(conversation target: Conversation, manual: Bool,
+                             session: ChatSession? = nil) {
     guard let provider = settings.activeProvider else {
       if manual { compactMessage = L("활성 AI가 없습니다. 설정 > AI에서 프로바이더를 켜 주세요.") }
       return
@@ -2241,6 +2385,7 @@ final class UIStore: ObservableObject {
     let through = target.turns[boundary - 1].id
     let previous = target.activeSummary
     let convID = target.id
+    let s = session ?? activeSession
     isCompacting = true
     compactingConversationID = convID
     compactMessage = nil
@@ -2251,13 +2396,13 @@ final class UIStore: ObservableObject {
       }
       do {
         let summary = try await Self.makeSummary(provider: provider, previous: previous, turns: oldTurns)
-        // 그 사이 대화가 바뀌었거나 사용자가 요약을 해제했으면 적용하지 않는다(다른 방에 섞이지 않게)
-        guard self.conversation.id == convID,
-              !self.conversation.autoCompactPaused,
-              self.conversation.turns.contains(where: { $0.id == through }) else { return }
-        self.core.applySummary(summary, through: through)
-        self.conversation = self.core.conversation
-        self.syncArchive()
+        // 그 사이 사용자가 요약을 해제했으면 적용하지 않는다(다른 방에 섞이지 않게).
+        guard s.id == convID,
+              !s.conversation.autoCompactPaused,
+              s.conversation.turns.contains(where: { $0.id == through }) else { return }
+        s.core.applySummary(summary, through: through)
+        s.conversation = s.core.conversation
+        self.syncArchive(s)
         NSLog("[QuickTalk] 대화 정리 — %d턴 → 요약 %d자 (%@)",
               oldTurns.count, summary.count, provider.type.rawValue)
       } catch {
@@ -2929,5 +3074,56 @@ final class UIStore: ObservableObject {
                                                  prompt: prompt, history: history,
                                                  attachments: attachments, model: p.model)
     }
+  }
+}
+
+// MARK: - 대화방 하나의 상태 (v0.31 6a)
+
+/// 대화방 하나가 들고 있는 입력·실행 상태.
+///
+/// 예전에는 `UIStore` 가 전부 **하나만** 들고 있어서, 다른 대화를 열면
+/// 진행 중이던 응답의 상태(스트리밍 턴·도구 카드·승인)가 화면에서 사라졌다.
+/// 이제 대화방마다 이 객체를 두고, 화면은 활성 방의 것만 본다.
+/// (동시 응답을 켜는 6b 는 이 경계 위에서 `replyTask` 를 방별로 돌린다)
+final class ChatSession: ObservableObject, Identifiable {
+  let id: UUID
+  /// 이 방의 대화 저장소 — 예약 실행과 같은 방식으로 방마다 독립이다.
+  let core: ConversationStore
+  @Published var conversation: Conversation
+
+  // 입력독
+  @Published var draft = ""
+  @Published var attached: [PendingAttachment] = []
+  /// 이번 질문만 웹 검색을 강제한다(전송 후 자동 해제)
+  @Published var forceWebSearch = false
+
+  // 응답 진행
+  @Published var isReplying = false
+  @Published var isSearching = false
+  @Published var streamingTurnID: UUID?
+  /// 지금 도착 중인 사고 과정 — 완료 시 턴에 저장하고 비운다.
+  @Published var liveReasoning = ""
+  @Published var networkRetryStatus: String?
+  var replyStartedAt: Date?
+  var replyTask: Task<Void, Never>?
+
+  // 도우미 도구
+  @Published var agentEvents: [AgentEvent] = []
+  var agentSearchSources: [TurnSource] = []
+  @Published var agentApproval: AgentApprovalRequest?
+  @Published var agentTurnID: UUID?
+  @Published var agentHandoffNotice: String?
+  @Published var agentUndoEntries: [String: UndoEntry] = [:]
+  @Published var agentUndoMessages: [String: String] = [:]
+  var agentExecutor: AgentExecutor?
+  var currentRunHandle: SandboxCancellation?
+
+  // 일정 제안 카드
+  @Published var pendingSchedule: ScheduleConfirmation?
+
+  init(conversation: Conversation) {
+    self.id = conversation.id
+    self.core = ConversationStore(conversation: conversation)
+    self.conversation = conversation
   }
 }

@@ -17,14 +17,20 @@ extension UIStore {
   /// 예약 실행 중이면 **그 실행의 대화**에만 붙는다(현재 대화 오염 금지).
   @MainActor
   func appendAgentEvent(_ event: AgentEvent) {
+    appendAgentEvent(event, session: activeSession)
+  }
+
+  /// 실행 1건을 **그 대화방 세션**에 붙인다 — 다른 방이 활성화되어도 섞이지 않는다(6b).
+  @MainActor
+  func appendAgentEvent(_ event: AgentEvent, session: ChatSession) {
     var event = event
     // ★ 이번 스텝의 사고 과정을 **그 도구 카드 앞**에 붙인다 — 사고 → 도구 → 사고 → 도구
     //   순서를 화면에 그대로 그리기 위해서다(v0.31, 2026-11-06 사용자 지적).
     //   한 스텝에 도구가 여럿이면 첫 카드에만 붙고, 나머지는 같은 스텝으로 묶인다.
     //   붙인 구간은 비워 다음 스텝의 사고가 새로 쌓이게 한다.
-    if event.reasoningBefore == nil, scheduledRun == nil, !liveReasoning.isEmpty {
-      event.reasoningBefore = liveReasoning
-      liveReasoning = ""
+    if event.reasoningBefore == nil, scheduledRun == nil, !session.liveReasoning.isEmpty {
+      event.reasoningBefore = session.liveReasoning
+      session.liveReasoning = ""
     }
     if let ctx = scheduledRun {
       ctx.events.append(event)
@@ -34,15 +40,22 @@ extension UIStore {
       }
       return
     }
-    agentEvents.append(event)
-    if let turnID = agentTurnID {
-      appendAgentEventToTurn(event, turnID: turnID)
+    session.agentEvents.append(event)
+    if let turnID = session.agentTurnID {
+      session.core.appendAgentEvent(event, to: turnID)
+      session.conversation = session.core.conversation
     }
   }
 
   /// 카드 한 건을 고친다(상태·출력·경과시간).
   @MainActor
   func updateAgentEvent(id: String, _ mutate: (inout AgentEvent) -> Void) {
+    updateAgentEvent(id: id, session: activeSession, mutate)
+  }
+
+  /// 카드 한 건을 **그 대화방 세션**에서 고친다.
+  @MainActor
+  func updateAgentEvent(id: String, session: ChatSession, _ mutate: (inout AgentEvent) -> Void) {
     if let ctx = scheduledRun {
       if let index = ctx.events.firstIndex(where: { $0.id == id }) {
         mutate(&ctx.events[index])
@@ -52,10 +65,11 @@ extension UIStore {
       }
       return
     }
-    guard let idx = agentEvents.firstIndex(where: { $0.id == id }) else { return }
-    mutate(&agentEvents[idx])
-    if let turnID = agentTurnID {
-      updateAgentEventInTurn(id: id, turnID: turnID, mutate)
+    guard let idx = session.agentEvents.firstIndex(where: { $0.id == id }) else { return }
+    mutate(&session.agentEvents[idx])
+    if let turnID = session.agentTurnID {
+      session.core.updateAgentEvent(id: id, in: turnID, mutate)
+      session.conversation = session.core.conversation
     }
   }
 
@@ -74,8 +88,9 @@ extension UIStore {
   /// 승인은 대화 기록과 함께 저장되고 7일 뒤 만료되며, 다시 승인하면 기간이 갱신된다(2026-10-29).
   /// 예약 실행 중이면 **그 실행의 대화**에 저장한다.
   @MainActor
-  func approveWriteScopes(_ scopes: [String]) {
+  func approveWriteScopes(_ scopes: [String], session: ChatSession? = nil) {
     guard !scopes.isEmpty else { return }
+    let s = session ?? activeSession
     if let ctx = scheduledRun {
       let grants = WriteScopeGrant.approve(scopes, into: ctx.conversation.approvedWriteScopes ?? [])
       ctx.session.setWriteScopeGrants(grants)
@@ -84,33 +99,40 @@ extension UIStore {
       NSLog("[QuickTalk] 예약 실행 쓰기 폴더 승인 — %d개 범위", ctx.writeScopes.count)
       return
     }
-    let grants = WriteScopeGrant.approve(scopes, into: conversation.approvedWriteScopes ?? [])
-    setWriteScopeGrants(grants)
-    NSLog("[QuickTalk] 쓰기 폴더 승인 — %d개 범위", approvedWriteScopes.count)
+    let grants = WriteScopeGrant.approve(scopes, into: s.conversation.approvedWriteScopes ?? [])
+    s.core.setWriteScopeGrants(grants)
+    s.conversation = s.core.conversation
+    NSLog("[QuickTalk] 쓰기 폴더 승인 — %d개 범위", approvedWriteScopes(for: s).count)
   }
 
   /// 진행 중인 셸 실행 중지(v0.20) — 카드 [중단] 버튼·응답 중지가 함께 쓴다.
   @MainActor
-  func cancelAgentRun() {
-    // 예약 실행 — 대기 중인 승인을 거부로 깨우고, 다음 도구 호출부터 멈춘다.
+  func cancelAgentRun() { cancelAgentRun(session: activeSession) }
+
+  @MainActor
+  func cancelAgentRun(session: ChatSession) {
+    // 예약 실행 — 대기 중인 승인을 거부로 깨우고, 그 컨텍스트의 손잡이를 멈춘다.
     if let ctx = scheduledRun {
       ctx.cancelled = true
       if scheduledApproval != nil { resolveScheduledApproval(.deny) }
+      session.agentExecutor?.cancelUIActions()
+      ctx.runHandle?.cancel()
+      return
     }
     // 화면 조작은 셸 프로세스가 없으므로 실행기의 손잡이를 따로 취소한다(PLAN_v0.25 §4.4).
-    agentExecutor?.cancelUIActions()
-    guard let handle = agentRunHandle else { return }
+    session.agentExecutor?.cancelUIActions()
+    guard let handle = session.currentRunHandle else { return }
     NSLog("[QuickTalk] 도구 실행 중지 요청")
     handle.cancel()
   }
 
   /// 시스템 영역 쓰기·상승 권한 명령을 터미널로 넘긴다(v0.20) — 앱은 실행하지 않는다.
   @MainActor
-  func handoffToTerminal(_ command: String) {
+  func handoffToTerminal(_ command: String, session: ChatSession? = nil) {
     let notice = TerminalHandoffService.open(command: command)
     // 예약 실행 중에는 현재 대화의 카드에 안내를 끼워 넣지 않는다.
     guard scheduledRun == nil else { return }
-    agentHandoffNotice = notice
+    (session ?? activeSession).agentHandoffNotice = notice
   }
 
   /// Shortcuts/AppIntent가 채운 질문을 입력창에 넣는다 — 기본은 **자동 전송하지 않는다**.
@@ -133,9 +155,10 @@ extension UIStore {
 
   /// 쓰기 실행이 끝나면 되돌리기 스냅샷을 카드와 연결한다.
   @MainActor
-  func registerAgentUndo(_ entry: UndoEntry, eventID: String) {
-    agentUndoEntries[eventID] = entry
-    agentUndoMessages[eventID] = nil
+  func registerAgentUndo(_ entry: UndoEntry, eventID: String, session: ChatSession? = nil) {
+    let s = session ?? activeSession
+    s.agentUndoEntries[eventID] = entry
+    s.agentUndoMessages[eventID] = nil
   }
 
   /// 카드에 보여 줄 되돌리기 항목 — 이번 세션에서 만든 것만(앱을 다시 켜면 사라진다).
@@ -185,12 +208,12 @@ extension UIStore {
   /// 사용자가 카드의 버튼을 눌렀다.
   /// 예약 실행의 승인 대기 중이면 그 실행으로 보낸다(현재 대화의 실행기는 없다).
   @MainActor
-  func resolveAgentApproval(_ choice: AgentApprovalChoice) {
+  func resolveAgentApproval(_ choice: AgentApprovalChoice, session: ChatSession? = nil) {
     if scheduledRun != nil, scheduledApproval != nil {
       resolveScheduledApproval(choice)
       return
     }
-    agentExecutor?.resolveApproval(choice)
+    (session ?? activeSession).agentExecutor?.resolveApproval(choice)
   }
 
   /// 예약 실행 대화를 보관함에 반영한다 — 진행 중에도 사용자가 열어 볼 수 있게.
@@ -250,7 +273,8 @@ extension UIStore {
   /// **도구 필요 판정은 따로 하지 않는다** — 작은 분류기 모델이 "메모리"를 앱의 '기억'으로
   /// 오해해 도구를 안 쓰는 일이 있었다(2026-10-22). 판정 없이 **본 모델이 직접 고르게** 한다.
   @MainActor
-  func runAgentTurn(client: AgentClient,
+  func runAgentTurn(session: ChatSession,
+                    client: AgentClient,
                     prompt: String,
                     history: [Turn],
                     turnID: UUID,
@@ -262,15 +286,15 @@ extension UIStore {
                     onStepStart: @escaping @MainActor () -> Void = {},
                     onStepDiscard: @escaping @MainActor () -> Void = {},
                     onRetry: @escaping @MainActor (NetworkRetryProgress?) -> Void = { _ in }) async throws -> String {
-    let executor = AgentExecutor(store: self)
-    agentExecutor = executor
-    agentEvents = []
-    agentSearchSources = []
-    agentTurnID = turnID
-    agentHandoffNotice = nil
+    let executor = AgentExecutor(store: self, session: session)
+    session.agentExecutor = executor
+    session.agentEvents = []
+    session.agentSearchSources = []
+    session.agentTurnID = turnID
+    session.agentHandoffNotice = nil
     defer {
-      agentApproval = nil
-      agentRunHandle = nil
+      session.agentApproval = nil
+      session.currentRunHandle = nil
     }
 
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 12)
@@ -283,9 +307,9 @@ extension UIStore {
                                       onStepDiscard: onStepDiscard,
                                       onRetry: onRetry)
     // 모델이 `web_search` 로 확인한 출처 — 답변 아래 출처 카드로 남긴다.
-    agentSearchSources = executor.turnSources
+    session.agentSearchSources = executor.turnSources
     NSLog("[QuickTalk] 에이전트 종료 — 스텝 %d · 실행 %d건 · 검색 출처 %d · 거부 %@",
-          result.steps, result.events.count, agentSearchSources.count,
+          result.steps, result.events.count, session.agentSearchSources.count,
           result.hadDenial ? "있음" : "없음")
     if result.answer.isEmpty {
       return L("작업을 마쳤습니다.")
@@ -297,10 +321,12 @@ extension UIStore {
   /// `persona` 를 넘기면 그 비서의 정체성·리포트 폴더·쓰기 권한이 지시문에 들어간다.
   @MainActor
   func makeAgentClientIfEnabled(provider: LLMProviderConfig,
-                                persona: Persona? = nil) -> AgentClient? {
+                                persona: Persona? = nil,
+                                session: ChatSession? = nil) -> AgentClient? {
     guard settings.agentToolsEnabled else { return nil }
-    let executor = AgentExecutor(store: self)
-    agentExecutor = executor
+    let s = session ?? activeSession
+    let executor = AgentExecutor(store: self, session: s)
+    s.agentExecutor = executor
     return makeAgentClient(provider: provider, executor: executor, persona: persona)
   }
 
@@ -344,7 +370,7 @@ extension UIStore {
     guard let provider = settings.activeProvider else { return "FAIL no-provider" }
     agentSelfTestMode = true
     defer { agentSelfTestMode = false }
-    let executor = AgentExecutor(store: self)
+    let executor = AgentExecutor(store: self, session: activeSession)
     agentExecutor = executor
     agentEvents = []
     guard let client = makeAgentClient(provider: provider, executor: executor) else {

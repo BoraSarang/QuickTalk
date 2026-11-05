@@ -27,6 +27,8 @@ enum AgentApprovalChoice {
 @MainActor
 final class AgentExecutor: AgentToolExecutor {
   unowned let store: UIStore
+  /// 이 실행기가 움직이는 대화방 — 다른 방이 활성화되어도 카드·승인·손잡이가 섞이지 않는다(6b).
+  let session: ChatSession
   private var continuation: CheckedContinuation<AgentApprovalChoice, Never>?
   /// 이번 턴에 `web_search` 로 모은 출처 — 답변 아래 출처 카드에 쓴다.
   private(set) var turnSources: [TurnSource] = []
@@ -47,8 +49,31 @@ final class AgentExecutor: AgentToolExecutor {
   /// 화면 조작 중지 손잡이 — 카드 [중단]이 취소한다.
   var uiCancellation: SandboxCancellation?
 
-  init(store: UIStore) {
+  init(store: UIStore, session: ChatSession) {
     self.store = store
+    self.session = session
+  }
+
+  /// 이 방의 실행 카드에 붙인다.
+  private func appendEvent(_ event: AgentEvent) {
+    store.appendAgentEvent(event, session: session)
+  }
+
+  /// 이 방의 실행 카드를 고친다.
+  private func updateEvent(_ id: String, _ mutate: (inout AgentEvent) -> Void) {
+    store.updateAgentEvent(id: id, session: session, mutate)
+  }
+
+  /// 진행 중인 셸 실행의 손잡이 — 예약 실행이면 그 컨텍스트, 아니면 이 방.
+  private var runHandle: SandboxCancellation? {
+    get {
+      if store.scheduledRun != nil { return store.agentRunHandle }
+      return session.currentRunHandle
+    }
+    set {
+      if store.scheduledRun != nil { store.agentRunHandle = newValue }
+      else { session.currentRunHandle = newValue }
+    }
   }
 
   /// 감사 기록 — 예약 실행이면 `task:<id>` 태그를 붙인다(PLAN_v0.26 §6).
@@ -95,8 +120,8 @@ final class AgentExecutor: AgentToolExecutor {
     }
     let risk = RiskClassifier.classify(command)
     // 전역 설정 + **이 대화의 오버라이드**(v0.22) — 치명적·상승 권한 제한은 전역 값 그대로.
-    let policy = store.effectiveAgentPolicy
-    let approvedScopes = store.approvedWriteScopes
+    let policy = store.effectiveAgentPolicy(for: session)
+    let approvedScopes = store.approvedWriteScopes(for: session)
 
     // ★ 실행 **이전**의 순서를 지킨다 (2026-10-22 사고).
     //   이전 흐름은 [실측(실행) → 정책 판단] 이라 `rm -rf /` 가 샌드박스 실측에서
@@ -110,7 +135,7 @@ final class AgentExecutor: AgentToolExecutor {
     case .deny(let reason):
       // 상승 권한(sudo)은 앱이 실행하지 않는다 — 대신 **터미널로 넘길 수 있게** 한다.
       let handoff = RiskClassifier.requiresElevation(command) ? command : nil
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
                                         command: command, level: .execute,
                                         risk: risk, state: .denied, output: reason,
                                         terminalCommand: handoff))
@@ -120,13 +145,13 @@ final class AgentExecutor: AgentToolExecutor {
                               terminalCommand: handoff)
 
     case .ask(let request):
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
                                         command: command, level: request.level, risk: risk,
                                         state: .pending, output: request.reason))
       let choice = await requestApproval(request)
       if choice == .deny {
         let text = L("사용자가 실행을 거부했습니다. 다른 방법을 제안하세요.")
-        store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
+        updateEvent(call.id) { $0.state = .denied; $0.output = text }
         recordAudit(command: command, level: request.level, risk: risk,
               decision: "deny", exitCode: nil, elapsedMs: 0)
         return AgentToolOutcome(output: text, denied: true, level: request.level, risk: risk)
@@ -157,7 +182,7 @@ final class AgentExecutor: AgentToolExecutor {
       }
       // ★ 자동 허용된 실행도 **카드에 남긴다**(v0.20) — 예전에는 승인을 거치지 않은
       //   실행이 화면에 전혀 보이지 않았다(무엇이 돌았는지 알 수 없음).
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
                                         command: command, level: resolved.level, risk: risk,
                                         state: .running))
       return await executeShell(call, command: command, capability: resolved, risk: risk)
@@ -178,7 +203,7 @@ final class AgentExecutor: AgentToolExecutor {
     if capability == .unprobed {
       capability = await Self.probeApprovedOffMain(command).capability
     }
-    store.updateAgentEvent(id: call.id) { $0.state = .running }
+    updateEvent(call.id) { $0.state = .running }
     let profile: String
     var runCommand = command
     var undo: UndoEntry?
@@ -193,7 +218,7 @@ final class AgentExecutor: AgentToolExecutor {
       if TerminalHandoff.isSystemWrite(path) {
         // v0.20 — "안 됩니다"로 끝내지 않고 **터미널로 넘긴다**(앱은 실행하지 않는다).
         let note = TerminalHandoff.note(capability: capability)
-        store.updateAgentEvent(id: call.id) {
+        updateEvent(call.id) {
           $0.state = .denied
           $0.output = note
           $0.terminalCommand = command
@@ -225,7 +250,7 @@ final class AgentExecutor: AgentToolExecutor {
     //   v0.20: 출력을 **오는 대로** 카드에 흘리고, [중단] 버튼으로 프로세스를 멈춘다.
     let timeout = TimeInterval(min(max(store.settings.agentTimeoutSeconds, 10), 600))
     let handle = SandboxCancellation()
-    store.agentRunHandle = handle
+    runHandle = handle
     let liveEnabled = store.settings.agentStreamOutput
     let live = LiveShellOutput()
     let storeRef = store
@@ -241,7 +266,7 @@ final class AgentExecutor: AgentToolExecutor {
         }
       })
     }.value
-    store.agentRunHandle = nil
+    runHandle = nil
 
     // ★ (2026-11-06) 읽기로 분류됐지만 샌드박스가 **쓰기를 거부**한 흔적이 있고,
     //   이 대화에서 승인한 폴더가 있으면 그 범위만 열어 **한 번** 다시 실행한다.
@@ -249,17 +274,17 @@ final class AgentExecutor: AgentToolExecutor {
     //   실측이 읽기로 판정했고, 이미 승인한 폴더조차 쓰기가 막혀 파일이 저장되지 않았다.
     //   (읽기 전용 실행은 파일을 만들지 못했으므로 다시 실행해도 중복 부작용이 없다)
     if case .read = capability, SandboxRunner.showsWriteDenial(result) {
-      let scopes = store.approvedWriteScopes
+      let scopes = store.approvedWriteScopes(for: session)
       if !scopes.isEmpty {
         NSLog("[QuickTalk] 읽기 판정 명령이 쓰기 거부 — 승인된 범위 %d곳으로 재실행", scopes.count)
         let retryHandle = SandboxCancellation()
-        store.agentRunHandle = retryHandle
+        runHandle = retryHandle
         let retryProfile = SandboxRunner.scopedProfile(writablePaths: scopes)
         result = await Task.detached(priority: .userInitiated) {
           SandboxRunner.runStreaming(runCommand, profile: retryProfile, timeout: timeout,
                                      cancellation: retryHandle)
         }.value
-        store.agentRunHandle = nil
+        runHandle = nil
         // 카드·감사 기록에도 **실제 실행 단계**를 남긴다(읽기로 보이면 오해한다).
         capability = .write(path: scopes[0])
       }
@@ -320,14 +345,14 @@ final class AgentExecutor: AgentToolExecutor {
     if let note = undo?.note, !note.isEmpty {
       output += "\n" + note
     }
-    store.updateAgentEvent(id: call.id) {
+    updateEvent(call.id) {
       $0.state = result.succeeded ? .done : .failed
       $0.output = output
       $0.elapsedMs = elapsed
       if let undo { $0.undoID = undo.id }
     }
     if let undo {
-      store.registerAgentUndo(undo, eventID: call.id)
+      store.registerAgentUndo(undo, eventID: call.id, session: session)
     }
     recordAudit(command: command, level: level, risk: risk,
           decision: denied ? "deny" : "allow",
@@ -367,11 +392,11 @@ final class AgentExecutor: AgentToolExecutor {
   /// `updateAgentEvent` 는 첫 장만 고치므로 **첫 카드가 "실행 중"으로 굳고** 결과 카드가
   /// 따로 생긴다. 같은 id 가 이미 있으면 그 카드의 상태·출력만 바꾼다(2026-10-27).
   private func upsertAgentEvent(_ event: AgentEvent) {
-    guard store.hasAgentEvent(id: event.id) else {
-      store.appendAgentEvent(event)
+    guard store.hasAgentEvent(id: event.id, session: session) else {
+      appendEvent(event)
       return
     }
-    store.updateAgentEvent(id: event.id) { existing in
+    updateEvent(event.id) { existing in
       existing.state = event.state
       existing.output = event.output
     }
@@ -384,7 +409,7 @@ final class AgentExecutor: AgentToolExecutor {
     let level = AgentPermissionLevel.read
     let risk = AgentRiskLevel.normal
     // 읽기는 기본 자동 허용 — 정책이 "매번 확인"이면 확인 카드(판정은 스크린샷과 같은 곳)
-    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy) {
+    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy(for: session)) {
       let request = AgentApprovalRequest(command: path, level: level, risk: risk,
                                          capability: .read, writablePaths: [],
                                          reason: L("파일을 읽으려면 확인이 필요합니다."))
@@ -393,7 +418,7 @@ final class AgentExecutor: AgentToolExecutor {
                                   state: .pending, output: request.reason))
       if await requestApproval(request) == .deny {
         let text = L("사용자가 파일 읽기를 거부했습니다.")
-        store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
+        updateEvent(call.id) { $0.state = .denied; $0.output = text }
         return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
       }
     }
@@ -422,7 +447,7 @@ final class AgentExecutor: AgentToolExecutor {
     let risk = AgentRiskLevel.normal
     let limit = min(max(call.intArgument("limit") ?? 5, 1), 30)
     let sort = ProcessSort(rawValue: call.stringArgument("sort") ?? "cpu") ?? .cpu
-    store.appendAgentEvent(AgentEvent(
+    appendEvent(AgentEvent(
       id: call.id, toolName: call.name,
       title: AgentRunner.title(for: call, tools: AgentToolCatalog.all),
       command: "", level: level, risk: risk, state: .running))
@@ -433,7 +458,7 @@ final class AgentExecutor: AgentToolExecutor {
     }.value
     let text = ProcessSampler.report(rows)
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
-    store.updateAgentEvent(id: call.id) {
+    updateEvent(call.id) {
       $0.state = rows.isEmpty ? .failed : .done
       $0.output = text
       $0.elapsedMs = elapsed
@@ -446,10 +471,10 @@ final class AgentExecutor: AgentToolExecutor {
     let level = AgentPermissionLevel.read
     let risk = AgentRiskLevel.normal
     let fm = FileManager.default
-    store.updateAgentEvent(id: call.id) { $0.state = .running }
+    updateEvent(call.id) { $0.state = .running }
     guard let items = try? fm.contentsOfDirectory(atPath: path) else {
       let text = Lf("폴더를 읽을 수 없습니다: %@", path)
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
                                         command: path, level: level, risk: risk,
                                         state: .failed, output: text))
       return AgentToolOutcome(output: text, level: level, risk: risk)
@@ -463,7 +488,7 @@ final class AgentExecutor: AgentToolExecutor {
       return "\(isDir.boolValue ? "📁" : "📄") \(name)\(size > 0 ? " (\(size) bytes)" : "")"
     }
     let text = lines.isEmpty ? L("(빈 폴더)") : lines.joined(separator: "\n")
-    store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+    appendEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
                                       command: path, level: level, risk: risk,
                                       state: .done, output: Lf("%d개 항목", items.count)))
     return AgentToolOutcome(output: text, level: level, risk: risk)
@@ -479,7 +504,7 @@ final class AgentExecutor: AgentToolExecutor {
     let risk = AgentRiskLevel.normal
     // ★ 읽기 단계 정책을 그대로 따른다. 예전에는 이 판정이 없어 "읽기: 매번 확인"
     //   으로 설정해도 화면 캡처가 무조건 실행됐다(2026-10-27).
-    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy) {
+    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy(for: session)) {
       let command = "screenshot \(target)"
       let request = AgentApprovalRequest(
         command: command, level: level, risk: risk, capability: .read, writablePaths: [],
@@ -490,7 +515,7 @@ final class AgentExecutor: AgentToolExecutor {
         command: target, level: level, risk: risk, state: .pending, output: request.reason))
       if await requestApproval(request) == .deny {
         let text = L("사용자가 화면 캡처를 거부했습니다.")
-        store.updateAgentEvent(id: call.id) { $0.state = .denied; $0.output = text }
+        updateEvent(call.id) { $0.state = .denied; $0.output = text }
         recordAudit(command: command, level: level, risk: risk,
               decision: "deny", exitCode: nil, elapsedMs: 0)
         return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
@@ -504,14 +529,14 @@ final class AgentExecutor: AgentToolExecutor {
       let url = try await WindowAttachmentService.captureForTool(target: target)
       let text = Lf("스크린샷을 찍었습니다(%@). 다음 스텝에서 이 이미지를 볼 수 있습니다.",
                     url.lastPathComponent)
-      store.updateAgentEvent(id: call.id) { $0.state = .done; $0.output = text }
+      updateEvent(call.id) { $0.state = .done; $0.output = text }
       recordAudit(command: "screenshot \(target)", level: level, risk: risk,
             decision: "allow", exitCode: 0, elapsedMs: 0)
       return AgentToolOutcome(output: text, level: level, risk: risk, imageURL: url)
     } catch {
       let message = (error as? WindowAttachError)?.message
         ?? L("스크린샷을 찍지 못했습니다.")
-      store.updateAgentEvent(id: call.id) { $0.state = .failed; $0.output = message }
+      updateEvent(call.id) { $0.state = .failed; $0.output = message }
       recordAudit(command: "screenshot \(target)", level: level, risk: risk,
             decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: message, denied: true, level: level, risk: risk)
@@ -555,7 +580,7 @@ final class AgentExecutor: AgentToolExecutor {
     case .success(let tree):
       cacheUiTree(tree)
       let text = tree.snapshot.render()
-      store.updateAgentEvent(id: call.id) { event in
+      updateEvent(call.id) { event in
         event.state = .done
         event.output = Lf("요소 %d개를 읽었습니다.", tree.snapshot.count)
       }
@@ -566,7 +591,7 @@ final class AgentExecutor: AgentToolExecutor {
 
     case .failure(let error):
       let text = error.message
-      store.updateAgentEvent(id: call.id) { $0.state = .failed; $0.output = text }
+      updateEvent(call.id) { $0.state = .failed; $0.output = text }
       recordAudit(command: command, level: level, risk: risk,
             decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
@@ -585,13 +610,13 @@ final class AgentExecutor: AgentToolExecutor {
     let risk = AgentRiskLevel.normal
     guard !query.isEmpty else {
       let text = L("검색어가 비어 있습니다.")
-      store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+      appendEvent(AgentEvent(id: call.id, toolName: call.name,
                                         title: text, command: "",
                                         level: level, risk: risk,
                                         state: .failed, output: text))
       return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
     }
-    store.appendAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+    appendEvent(AgentEvent(id: call.id, toolName: call.name,
                                       title: Lf("웹 검색 — %@", query), command: "",
                                       level: level, risk: risk, state: .running))
     let started = Date()
@@ -608,7 +633,7 @@ final class AgentExecutor: AgentToolExecutor {
         turnSources.append(source)
       }
       let added = turnSources.count
-      store.updateAgentEvent(id: call.id) {
+      updateEvent(call.id) {
         $0.state = .done
         $0.output = Lf("검색 결과 %d건 · 출처 %d개", results.count, added)
         $0.elapsedMs = elapsed
@@ -617,7 +642,7 @@ final class AgentExecutor: AgentToolExecutor {
 
     case .success:
       let text = L("검색 결과가 없습니다. 다른 검색어로 시도하거나 아는 범위에서 답하세요.")
-      store.updateAgentEvent(id: call.id) {
+      updateEvent(call.id) {
         $0.state = .failed
         $0.output = text
         $0.elapsedMs = elapsed
@@ -626,7 +651,7 @@ final class AgentExecutor: AgentToolExecutor {
 
     case .failure(let error):
       let text = error.userText
-      store.updateAgentEvent(id: call.id) {
+      updateEvent(call.id) {
         $0.state = .failed
         $0.output = text
         $0.elapsedMs = elapsed
@@ -647,13 +672,13 @@ final class AgentExecutor: AgentToolExecutor {
     }
     return await withCheckedContinuation { cont in
       self.continuation = cont
-      self.store.agentApproval = request
+      session.agentApproval = request
     }
   }
 
   /// 사용자가 카드의 버튼을 눌렀다.
   func resolveApproval(_ choice: AgentApprovalChoice) {
-    store.agentApproval = nil
+    session.agentApproval = nil
     guard let cont = continuation else { return }
     continuation = nil
     cont.resume(returning: choice)
@@ -663,16 +688,16 @@ final class AgentExecutor: AgentToolExecutor {
   func cancelPending() {
     if store.scheduledRun != nil {
       store.resolveScheduledApproval(.deny)
-      store.cancelAgentRun()
+      store.cancelAgentRun(session: session)
       cancelUIActions()
       return
     }
     if let cont = continuation {
       continuation = nil
-      store.agentApproval = nil
+      session.agentApproval = nil
       cont.resume(returning: .deny)
     }
-    store.cancelAgentRun()
+    store.cancelAgentRun(session: session)
     cancelUIActions()
   }
 

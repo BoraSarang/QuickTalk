@@ -1722,7 +1722,7 @@ struct ContentView: View {
         .disabled(store.isReplying)
       }
       if store.settings.webSearchEnabled {
-        Toggle(isOn: $store.forceWebSearch) {
+        Toggle(isOn: Binding(get: { store.forceWebSearch }, set: { store.forceWebSearch = $0 })) {
           Label(store.forceWebSearch ? L("웹 검색 — 이번 질문 켜짐") : L("웹 검색 — 이번 질문만"),
                 systemImage: "globe")
         }
@@ -1768,7 +1768,7 @@ struct ContentView: View {
     ZStack(alignment: .bottomTrailing) {
       // 입력 영역 — 좌우로 버튼 자리를 비워 둔다
       ZStack(alignment: .topLeading) {
-        ChatInputField(text: $store.draft, height: $inputHeight,
+        ChatInputField(text: Binding(get: { store.draft }, set: { store.draft = $0 }), height: $inputHeight,
                        isBusy: store.isReplying,
                        focusToken: store.composerFocusToken,
                        placeholder: L("무엇이든 물어보세요"),

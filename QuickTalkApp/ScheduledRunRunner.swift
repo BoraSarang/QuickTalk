@@ -59,7 +59,7 @@ final class ScheduledRunRunner {
       return finish(task: task, run: &run, session: session, cardTurnID: cardTurnID,
                     reason: L("AI 프로바이더가 설정되지 않았습니다."))
     }
-    let executor = AgentExecutor(store: store)
+    let executor = AgentExecutor(store: store, session: store.activeSession)
     guard let client = store.makeAgentClient(provider: provider, executor: executor,
                                              persona: persona) else {
       return finish(task: task, run: &run, session: session, cardTurnID: cardTurnID,
