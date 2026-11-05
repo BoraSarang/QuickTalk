@@ -114,6 +114,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(forName: .quickTalkOpenSettings, object: nil, queue: .main) { [weak self] _ in
       self?.openSettings()
     }
+    // QuickShelf(플로팅)의 "보관함 전체 열기" → 대화 창의 보관함 탭(검색·삭제·비서별 정리)
+    NotificationCenter.default.addObserver(forName: .quickTalkOpenArchive, object: nil, queue: .main) { [weak self] _ in
+      self?.openPanel(tab: 1)
+    }
     // 중복 실행 시도가 있었으면 기존 인스턴스(이 앱)가 창을 앞으로 낸다 — 두 번째 앱은 뜨지 않는다.
     DistributedNotificationCenter.default().addObserver(
       forName: SingleInstance.activateNotification, object: nil, queue: .main) { [weak self] _ in
@@ -558,7 +562,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     dismissHub()
     switch action {
     case .newConversation: openPanel(tab: 0, resetConversation: true)
-    case .openArchive: openShelfChats()
+    case .openArchive: openArchive()
     case .continueConversation:
       if let recent = store.archive.first { store.openConversation(recent) }
       openPanel(tab: 0)
@@ -600,7 +604,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func openPanelAction() { openPanel(tab: 0) }
-  @objc private func openArchiveAction() { openShelfChats() }
+  @objc private func openArchiveAction() { openArchive() }
   @objc private func toggleVoiceAction() { store.toggleVoice() }
   @objc private func openSettingsMenu() { openSettings() }
   @objc private func showAboutAction() { showAbout() }
@@ -825,17 +829,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       store.openConversation(conversation)
       showPanel(tab: 0, anchor: anchor)
     case .archive:
-      store.shelfTab = .chats
-      store.shelfDocked = true
-      showPanel(tab: 0, anchor: anchor)
+      // pill 의 "보관함 전체 열기" — 검색·이름 변경·삭제·비서별 정리가 있는 창 안 보관함.
+      showPanel(tab: 1, anchor: anchor)
     }
   }
 
-  /// 보관함 — v0.31부터 별도 탭 대신 QuickShelf의 **대화 허브**로 연다(상단 아이콘 제거).
-  private func openShelfChats() {
-    store.shelfTab = .chats
-    store.shelfDocked = true
-    showPanel(tab: 0)
+  /// 보관함 — 창 안 보관함 탭(검색·이름 변경·삭제·비서별 정리).
+  private func openArchive() {
+    openPanel(tab: 1)
   }
 
   /// 알림 클릭 — 예약 실행 대화를 열고(승인 카드가 있으면 그 자리에서) 패널을 앞으로.
@@ -1024,6 +1025,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension Notification.Name {
   static let openQuickTalk = Notification.Name("openQuickTalk")
   static let quickTalkOpenSettings = Notification.Name("quickTalkOpenSettings")
+  /// QuickShelf → 창 안 보관함 탭(검색·이름 변경·삭제·비서별 정리)
+  static let quickTalkOpenArchive = Notification.Name("quickTalkOpenArchive")
   /// QuickShelf에서 무언가를 대화에 넣었을 때 대화 창을 보여달라는 요청
   static let quickTalkShowChat = Notification.Name("quickTalkShowChat")
   /// 대화 창을 열 때(또는 이어서 열 때) 대화 스크롤을 맨 아래로 맞추라는 요청

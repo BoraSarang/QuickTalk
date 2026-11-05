@@ -112,7 +112,11 @@ final class ShelfController {
 
     let root = ShelfView(store: store,
                          onClose: { [weak self] in self?.close() },
-                         onSettings: { [weak self] in self?.close(); NotificationCenter.default.post(name: .quickTalkOpenSettings, object: nil) })
+                         onSettings: { [weak self] in self?.close(); NotificationCenter.default.post(name: .quickTalkOpenSettings, object: nil) },
+                         onOpenArchive: { [weak self] in
+                           self?.close()
+                           NotificationCenter.default.post(name: .quickTalkOpenArchive, object: nil)
+                         })
     win.contentView = NSHostingView(rootView: root)
     panel = win
 

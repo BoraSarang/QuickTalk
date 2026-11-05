@@ -20,12 +20,11 @@ enum ShelfMetrics {
   static let previewGap: CGFloat = 12
 }
 
-/// QuickShelf 강조 텍스트 색 — 라이트에서는 진한 퍼플, 다크에서는 라벤더.
+/// QuickShelf 강조 텍스트 색 — 마크다운과 같은 공통 토큰(`AccentPalette`)을 쓴다.
 /// (고정 라벤더를 라이트에 쓰면 대비가 낮아 읽기 어렵다)
 enum ShelfTheme {
   static func accentText(_ scheme: ColorScheme) -> Color {
-    scheme == .dark ? Color(red: 0.80, green: 0.75, blue: 1)
-                    : Color(red: 0.40, green: 0.28, blue: 0.82)
+    AccentPalette.text(scheme)
   }
 }
 
@@ -34,6 +33,8 @@ struct ShelfView: View {
   var chrome: ShelfChrome = .floating
   var onClose: () -> Void
   var onSettings: () -> Void
+  /// 보관함 전체 보기(검색·이름 변경·삭제·비서별 정리) — 창 안 보관함 탭으로 이동한다.
+  var onOpenArchive: () -> Void = {}
 
   @Environment(\.colorScheme) private var colorScheme
   @State private var query = ""
@@ -299,6 +300,7 @@ struct ShelfView: View {
       }
     }
     .padding(.top, 8)
+    .onAppear { if !store.isRenderHarness { store.loadArchive() } }
   }
 
   private func chatRow(_ c: Conversation, selected: Bool) -> some View {
@@ -360,7 +362,8 @@ struct ShelfView: View {
   }
 
   private func openChat(_ c: Conversation) {
-    if c.id != store.conversation.id { store.openConversation(c) }
+    // 검색어가 있으면 그 단어가 나온 턴으로 이동한다(창 안 보관함과 같은 동작).
+    if c.id != store.conversation.id { store.openConversation(c, searching: query) }
     onClose()
   }
 
@@ -374,9 +377,26 @@ struct ShelfView: View {
 
   private var footer: some View {
     HStack(spacing: 6) {
-      Text(footerText).font(.system(size: 9.5)).foregroundColor(.secondary)
-      Spacer()
-      if store.shelfTab != .chats {
+      if store.shelfTab == .chats {
+        // 목록은 빠른 전환용 — **검색·삭제·이름 변경·비서별 정리**는 창 안 보관함에서 한다.
+        Button {
+          onOpenArchive()
+          onClose()
+        } label: {
+          HStack(spacing: 4) {
+            Image(systemName: "archivebox").font(.system(size: 9))
+            Text(L("보관함 전체 열기 — 검색·삭제·이름 변경"))
+              .font(.system(size: 9.5, weight: .medium))
+              .lineLimit(1)
+          }
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(accentText)
+        .help(L("보관함 — 검색 · 이름 변경 · 삭제 · 비서별 정리"))
+        Spacer(minLength: 0)
+      } else {
+        Text(footerText).font(.system(size: 9.5)).foregroundColor(.secondary)
+        Spacer()
         Button(L("모두 지우기")) { clearCurrent() }
           .buttonStyle(.plain)
           .font(.system(size: 9.5))

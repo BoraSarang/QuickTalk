@@ -359,6 +359,8 @@ final class UIStore: ObservableObject {
   @Published var networkRetryStatus: String?
   /// QA 렌더에서 설정을 바꿀 때 저장을 막는다
   private var suppressSettingsSave = false
+  /// QA 오프스크린 렌더 중인가 — 실제 기록(history.json)을 화면에 끌어오지 않게 한다.
+  private(set) var isRenderHarness = false
   private var replyStartedAt: Date?
   /// 진행 중인 응답 Task — 로컬 모델은 첫 토큰까지 수 분 걸릴 수 있어 **사용자가 중지**할 수 있다.
   private var replyTask: Task<Void, Never>?
@@ -874,6 +876,9 @@ final class UIStore: ObservableObject {
     suppressSettingsSave = false
   }
 
+  /// QA 렌더 시작 표시 — 렌더 중에는 실제 기록을 디스크에서 다시 읽지 않는다(개인 대화가 문서에 남지 않게).
+  func markRenderHarness() { isRenderHarness = true }
+
   /// QA 렌더·실검증용 — 웹 검색을 켠 상태로 **메모리에서만** 바꾼다(설정 저장 없음).
   func applyRenderOverride(webSearch enabled: Bool) {
     suppressSettingsSave = true
@@ -889,8 +894,7 @@ final class UIStore: ObservableObject {
   }
 
   /// QA 렌더 전용 — 상단 도구를 항상 보이는 상태로 **메모리에서만** 재현한다(설정 저장 없음).
-  func applyRenderOverride(chatToolbarAlwaysVisible: Bool) {
-    suppressSettingsSave = true
+  func applyRenderOverride(chatToolbarAlwaysVisible: Bool) {    suppressSettingsSave = true
     settings.chatToolbarAlwaysVisible = chatToolbarAlwaysVisible
     suppressSettingsSave = false
   }
