@@ -87,6 +87,10 @@ struct ContentView: View {
   @State private var titleHover = false
   /// v0.31 — 상단 도구가 지금 보이는가(마우스가 상단 40pt에 있으면 참).
   @State private var toolbarHovered = false
+  /// 시스템 신호등(traffic light)의 **세로 중심**(창 위에서부터의 거리).
+  /// fullSizeContentView 창에서 헤더 글자·도구를 신호등과 같은 높이에 맞추는 데 쓴다.
+  /// (40pt 행의 가운데 = 20pt 는 신호등 중심 16pt 보다 4pt 낮아 제목이 아래로 처져 보였다 — 2026-11-05 사용자 지적)
+  @State private var titlebarCenter: CGFloat = 16
   /// 0.5초 뒤 숨기는 작업 — 다시 들어오면 취소한다.
   @State private var toolbarHideWork: DispatchWorkItem?
   /// 지금 마우스를 올린 턴 — 복사·읽어주기·질문 `⋯`를 그 턴에서만 보인다.
@@ -180,12 +184,14 @@ struct ContentView: View {
   private func archiveRow(_ c: Conversation) -> some View {
     ZStack(alignment: .trailing) {
       Button { store.openConversation(c, searching: archiveQuery); tab = 0 } label: {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 3) {
           HStack(spacing: 4) {
             if c.pinned {
               Image(systemName: "bookmark.fill").font(.system(size: 9)).foregroundColor(.purple)
             }
-            Text(c.displayTitle).bold().lineLimit(1)
+            Text(c.displayTitle)
+              .font(.system(size: 12.5, weight: .semibold))
+              .lineLimit(1)
           }
           // 마지막으로 이야기한 때 — "5분 전 / 3일 전 / 10월 14일"
           HStack(spacing: 6) {
@@ -195,7 +201,7 @@ struct ContentView: View {
             Text(Lf("%d턴 · %@ · %@", c.turns.count,
                     RelativeTime.text(for: c.updatedAt, now: nowTick),
                     c.pinned ? L("보관") : Lf("%d일 보관", store.settings.keepDays)))
-              .font(.caption).foregroundColor(.gray)
+              .font(.system(size: 10)).foregroundColor(.secondary)
               .help(Lf("마지막 대화: %@", RelativeTime.absolute(c.updatedAt)))
           }
         }
@@ -209,13 +215,15 @@ struct ContentView: View {
         Button {
           renameTarget = RenameTarget(id: c.id, title: c.displayTitle)
         } label: {
-          Text(L("변경")).font(.caption2).foregroundColor(.secondary)
+          Text(L("변경")).font(.system(size: 10)).foregroundColor(.secondary)
         }.help(L("제목 변경")).buttonStyle(.borderless)
         Button { deleteTarget = DeleteTarget(conversation: c) } label: {
-          Image(systemName: "trash").foregroundColor(.red)
+          Image(systemName: "trash").font(.system(size: 11)).foregroundColor(.red)
         }.help(L("기록에서 삭제")).buttonStyle(.borderless)
       }
     }
+    .padding(.horizontal, 10).padding(.vertical, 7)
+    .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.03)))
   }
   /// 표시 언어에 맞는 날짜 형식(언어를 바꾸면 다음 렌더부터 반영된다)
   private static var historyDate: DateFormatter {
@@ -346,7 +354,8 @@ struct ContentView: View {
     ShelfView(store: store,
               chrome: .docked,
               onClose: { closeShelfDock() },
-              onSettings: { openSettingsWindow() })
+              onSettings: { openSettingsWindow() },
+              onOpenArchive: { openArchiveTab() })
       .frame(width: 300)
       .frame(maxHeight: .infinity)
       .shadow(color: .black.opacity(0.45), radius: 22, x: -10, y: 0)
@@ -412,6 +421,11 @@ struct ContentView: View {
 
   private var headerRow: some View {
     HStack(spacing: 6) {
+      // 보관함·설정에서는 **대화로 돌아가기** — v0.31 에서 상단 탭 아이콘을 없앴으므로
+      // 비대화 화면에는 이 버튼이 유일한 복귀 경로다.
+      if tab != 0 {
+        headerIcon("chevron.left", help: L("대화로 돌아가기")) { tab = 0 }
+      }
       if tab == 0 {
         // 제목 = 첫 질문에서 자동 생성 · 클릭하면 바로 바꿀 수 있다.
         Button {
@@ -456,7 +470,16 @@ struct ContentView: View {
     }
     .padding(.leading, 76)   // traffic light 자리
     .padding(.trailing, 10)
-    .frame(height: 40)
+    // 신호등과 **같은 높이**에 앉힌다 — 상단 32pt 띠(신호등 중심 16pt)에 가운데 정렬하고,
+    // 나머지 8pt 는 호버 감지·구분선을 위한 여백으로 남긴다(행 전체는 여전히 40pt).
+    .frame(height: max(28, titlebarCenter * 2))
+    .frame(height: 40, alignment: .top)
+    .background {
+      // 실제 창의 신호등 위치를 읽어 온다 — OS·타이틀바 높이가 달라도 어긋나지 않게.
+      TitlebarCenterReader { center in
+        if abs(center - titlebarCenter) > 0.25 { titlebarCenter = center }
+      }
+    }
     .background {
       LinearGradient(colors: [Color.primary.opacity(showsToolbar ? 0.055 : 0.02),
                               Color.primary.opacity(0.008)],
@@ -484,23 +507,26 @@ struct ContentView: View {
       }
 
       // 🧠 = 공통 메모리 — 꺼져 있으면 회색, 켜짐은 보라(존재하지 않는 brain.slash 대신 색으로 구분).
-      let memoryOff = !store.commonMemoryActive
-      headerIcon("brain",
-                 tint: memoryOff ? .secondary : .purple,
-                 help: memoryOff
-                   ? (store.settings.globalMemoryEnabled
-                      ? L("이 대화에서는 공통 메모리를 쓰지 않습니다 — 눌러서 켜기")
-                      : L("공통 메모리가 꺼져 있습니다 — 눌러서 켜기"))
-                   : L("공통 메모리 사용 중 — 눌러서 이 대화에서만 끄기")) {
-        store.toggleCommonMemory()
-      }
+      //   대화에만 해당하는 도구라 보관함·설정 화면에서는 숨긴다.
+      if tab == 0 {
+        let memoryOff = !store.commonMemoryActive
+        headerIcon("brain",
+                   tint: memoryOff ? .secondary : .purple,
+                   help: memoryOff
+                     ? (store.settings.globalMemoryEnabled
+                        ? L("이 대화에서는 공통 메모리를 쓰지 않습니다 — 눌러서 켜기")
+                        : L("공통 메모리가 꺼져 있습니다 — 눌러서 켜기"))
+                     : L("공통 메모리 사용 중 — 눌러서 이 대화에서만 끄기")) {
+          store.toggleCommonMemory()
+        }
 
-      // 🔖 = 이 대화를 만료 없이 보관
-      headerIcon(store.conversation.pinned ? "bookmark.fill" : "bookmark",
-                 active: store.conversation.pinned,
-                 help: store.conversation.pinned
-                   ? L("보관 해제 — 보관일수가 지나면 정리됩니다")
-                   : L("보관 — 이 대화를 만료 없이 보관함에 남깁니다")) { store.togglePin() }
+        // 🔖 = 이 대화를 만료 없이 보관
+        headerIcon(store.conversation.pinned ? "bookmark.fill" : "bookmark",
+                   active: store.conversation.pinned,
+                   help: store.conversation.pinned
+                     ? L("보관 해제 — 보관일수가 지나면 정리됩니다")
+                     : L("보관 — 이 대화를 만료 없이 보관함에 남깁니다")) { store.togglePin() }
+      }
 
       headerIcon("sidebar.right", active: store.shelfDocked,
                  help: store.shelfDocked
@@ -518,8 +544,8 @@ struct ContentView: View {
   /// ⋯ — 보관함·새 대화·설정·툴바 항상 보기. 호버를 모를 때의 안전한 출구.
   private var toolbarMenu: some View {
     Menu {
-      Button { showShelfChats() } label: {
-        Label(L("보관함"), systemImage: "archivebox")
+      Button { openArchiveTab() } label: {
+        Label(L("보관함 — 검색·삭제"), systemImage: "archivebox")
       }
       Button { store.newConversation() } label: {
         Label(L("새 대화"), systemImage: "square.and.pencil")
@@ -545,10 +571,13 @@ struct ContentView: View {
     .help(L("도구 메뉴 — 보관함 · 새 대화 · 설정"))
   }
 
-  /// 상단 ⋯/퀵셸프에서 보관함을 연다 — QuickShelf 대화 탭.
-  private func showShelfChats() {
-    store.shelfTab = .chats
-    withAnimation(.easeInOut(duration: 0.18)) { store.shelfDocked = true }
+  /// 보관함(검색·이름 변경·삭제·비서별 정리)을 **창 안 탭**으로 연다.
+  /// v0.31 에서 상단 탭 아이콘을 없애면서 QuickShelf 대화 목록만 남겨, 이 기능들이 사라진 것처럼 보였다
+  /// (2026-11-05 사용자 지적). 다시 창 안 보관함으로 연결한다.
+  private func openArchiveTab() {
+    dismissHoverPreview()
+    if store.shelfDocked { closeShelfDock() }
+    tab = 1
   }
 
 
@@ -1577,60 +1606,89 @@ struct ContentView: View {
           .help(L("검색어 지우기"))
         }
       }
+      .padding(.horizontal, 9).padding(.vertical, 7)
+      .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.06)))
+      .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+        .stroke(Color.primary.opacity(0.07), lineWidth: 1))
       .padding(.horizontal, 12).padding(.top, 8)
-      List {
-        Section(L("진행 중")) {
+      // v0.31 — List 대신 ScrollView+LazyVStack. 오프스크린 렌더에서 List 행이 그려지지 않아
+      // QA 로 확인할 수 없었고, 자체 카드 디자인(design_profile=custom)과도 맞는다.
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 8) {
+          archiveSectionHeader(L("진행 중"))
           if store.conversation.turns.isEmpty {
-            Text(L("진행 중 대화 없음 — 새 대화에서 시작")).font(.callout).foregroundColor(.gray)
+            archiveEmptyNote(L("진행 중 대화 없음 — 새 대화에서 시작"))
           } else {
-            Button { tab = 0 } label: {
-              VStack(alignment: .leading) {
-                Text(store.conversation.displayTitle).bold()
-                HStack(spacing: 6) {
-                  if let p = store.settings.persona(personaID(for: store.conversation)) {
-                    personaTag(p)
-                  }
-                  Text(Lf("%d턴 · %@ · %@", store.conversation.turns.count,
-                          RelativeTime.text(for: store.conversation.updatedAt, now: nowTick),
-                          store.conversation.pinned ? L("보관") : L("자동 저장")))
-                    .font(.caption).foregroundColor(.gray)
-                    .help(Lf("마지막 대화: %@", RelativeTime.absolute(store.conversation.updatedAt)))
-                }
-              }
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .contentShape(Rectangle())
-            }.buttonStyle(.plain)
+            archiveCurrentRow
           }
-        }
-        if filteredArchive.isEmpty {
-          Section(L("대화 기록")) {
-            Text(archiveQuery.isEmpty ? L("기록 없음 — 대화를 보내면 자동으로 저장됩니다") : L("검색 결과 없음"))
-              .font(.callout).foregroundColor(.gray)
-          }
-        } else if archiveQuery.isEmpty {
-          // 비서별로 묶어서 보여 준다 — 기본(비서 없음)이 먼저, 그 다음 설정 순서.
-          ForEach(personaGroups) { group in
-            Section(group.title) {
-              ForEach(group.conversations, id: \.id) { c in
-                archiveRow(c)
-              }
+
+          if filteredArchive.isEmpty {
+            archiveSectionHeader(L("대화 기록"))
+            archiveEmptyNote(archiveQuery.isEmpty
+                             ? L("기록 없음 — 대화를 보내면 자동으로 저장됩니다")
+                             : L("검색 결과 없음"))
+          } else if archiveQuery.isEmpty {
+            // 비서별로 묶어서 보여 준다 — 기본(비서 없음)이 먼저, 그 다음 설정 순서.
+            ForEach(personaGroups) { group in
+              archiveSectionHeader(group.title)
+              ForEach(group.conversations, id: \.id) { archiveRow($0) }
             }
+          } else {
+            archiveSectionHeader(L("검색 결과"))
+            ForEach(filteredArchive, id: \.id) { archiveRow($0) }
           }
-        } else {
-          Section(L("검색 결과")) {
-            ForEach(filteredArchive, id: \.id) { c in
-              archiveRow(c)
-            }
-          }
-        }
-        Section {
+
           Text(Lf("대화는 보낼 때마다 자동 저장됩니다. 자동 저장분은 %d일 뒤 정리되고, 🔖 보관한 대화는 남습니다.", store.settings.keepDays))
             .font(.caption).foregroundColor(.secondary)
+            .padding(.top, 6)
         }
+        .padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 12)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .onAppear { if !suppressArchiveLoad { store.loadArchive() } }
+  }
+
+  private func archiveSectionHeader(_ title: String) -> some View {
+    Text(title)
+      .font(.system(size: 10.5, weight: .semibold))
+      .foregroundColor(.secondary)
+      .padding(.top, 6)
+  }
+
+  private func archiveEmptyNote(_ text: String) -> some View {
+    Text(text)
+      .font(.system(size: 11.5))
+      .foregroundColor(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.vertical, 4)
+  }
+
+  /// 진행 중 대화 한 줄 — 누르면 대화 탭으로 돌아간다.
+  private var archiveCurrentRow: some View {
+    Button { tab = 0 } label: {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(store.conversation.displayTitle)
+          .font(.system(size: 12.5, weight: .semibold))
+          .lineLimit(1)
+        HStack(spacing: 6) {
+          if let p = store.settings.persona(personaID(for: store.conversation)) {
+            personaTag(p)
+          }
+          Text(Lf("%d턴 · %@ · %@", store.conversation.turns.count,
+                  RelativeTime.text(for: store.conversation.updatedAt, now: nowTick),
+                  store.conversation.pinned ? L("보관") : L("자동 저장")))
+            .font(.system(size: 10)).foregroundColor(.secondary)
+            .help(Lf("마지막 대화: %@", RelativeTime.absolute(store.conversation.updatedAt)))
+        }
+      }
+      .padding(.horizontal, 10).padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.05)))
+      .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.purple.opacity(0.22), lineWidth: 1))
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 
   // MARK: - 설정 탭 (메뉴바 Hub 설정 탭과 동일한 뷰 — 단일 출처)
@@ -1872,6 +1930,51 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
         pin(attempt: 0)
       }
       onChange(distance, scrolledUp)
+    }
+  }
+}
+
+/// 창의 신호등(traffic light) 세로 중심을 읽어 알려 준다.
+///
+/// `fullSizeContentView` 창에서는 SwiftUI 콘텐츠가 타이틀바까지 올라오므로, 헤더의 글자·도구를
+/// 시스템 버튼과 같은 높이에 맞추려면 **실제 버튼 위치**를 알아야 한다. 타이틀바 높이는
+/// OS 버전에 따라 다르므로(28/32pt) 상수로 두지 않고 표준 버튼 프레임에서 계산한다.
+private struct TitlebarCenterReader: NSViewRepresentable {
+  var onChange: (CGFloat) -> Void
+
+  func makeNSView(context: Context) -> ReporterView {
+    let v = ReporterView()
+    v.onChange = onChange
+    return v
+  }
+
+  func updateNSView(_ nsView: ReporterView, context: Context) {
+    nsView.onChange = onChange
+  }
+
+  final class ReporterView: NSView {
+    var onChange: ((CGFloat) -> Void)?
+    private var last: CGFloat = 0
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      report()
+    }
+
+    override func layout() {
+      super.layout()
+      report()
+    }
+
+    private func report() {
+      guard let window,
+            let button = window.standardWindowButton(.closeButton),
+            let superview = button.superview else { return }
+      let inWindow = superview.convert(button.frame, to: nil)
+      let center = window.frame.height - inWindow.midY
+      guard abs(center - last) > 0.01 else { return }
+      last = center
+      onChange?(center)
     }
   }
 }

@@ -1,5 +1,19 @@
 import SwiftUI
 
+/// 앱 공통 강조색 토큰 — 마크다운과 QuickShelf가 **같은 적응형 색**을 쓴다.
+///
+/// 고정 바이올렛 `#7A5CFF`(0.48, 0.36, 1)는 다크 배경에서 ≈3.9:1 · 라이트 배경에서 ≈4.4:1 로,
+/// 12~13pt 모노 글자에 필요한 4.5:1 에 못 미쳤다(2026-11-05 사용자 지적 — "다크·라이트 둘 다 안 보인다").
+/// 굵게(`**…**`)는 **색이 아니라 굵기**다 — 본문과 같은 `.primary` 를 그대로 쓴다.
+enum AccentPalette {
+  /// 인라인 코드 · 링크 · 인용 막대 · 완료 체크 · QuickShelf 강조 문구
+  static func text(_ scheme: ColorScheme) -> Color {
+    scheme == .dark
+      ? Color(red: 0.80, green: 0.75, blue: 1.00)   // 라벤더 — 다크 배경에서 ≈10:1
+      : Color(red: 0.40, green: 0.28, blue: 0.82)   // 진한 브랜드 퍼플 — 라이트 배경에서 ≈6.1:1
+  }
+}
+
 /// AI 답변용 마크다운 렌더러 — CapsuleStash `MarkdownBody`(T-26)를 QuickTalk 토큰으로 옮긴 것.
 ///
 /// 원문(`message.text`)은 그대로 두고 **표시만** 바꾼다. 복사는 원문, 읽어주기는 평문
@@ -10,6 +24,7 @@ struct MarkdownText: View {
   var sources: [TurnSource] = []
   var baseSize: CGFloat = 13
 
+  @Environment(\.colorScheme) private var colorScheme
   @State private var segments: [MarkdownSegment]
 
   init(text: String, sources: [TurnSource] = [], baseSize: CGFloat = 13) {
@@ -26,7 +41,8 @@ struct MarkdownText: View {
 
   private var base: Font { .system(size: baseSize) }
   private var mono: Font { .system(size: baseSize - 1, design: .monospaced) }
-  private let accent = Color(red: 0.48, green: 0.36, blue: 1)
+  /// 인라인 코드·링크·체크 색 — 테마(라이트/다크)에 따라 바뀐다.
+  private var accent: Color { AccentPalette.text(colorScheme) }
   private var muted: Color { .secondary }
   /// 코드 글자 — 라이트/다크 모두에서 읽히게 의미 색(모노 글꼴로 이미 구분된다)
   private var codeInk: Color { .primary }

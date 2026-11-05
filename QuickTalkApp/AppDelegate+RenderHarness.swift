@@ -8,6 +8,7 @@ extension AppDelegate {
     guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--render=") }) else { return }
     let dir = String(arg.dropFirst("--render=".count))
     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    store.markRenderHarness()
 
     let tabArg = CommandLine.arguments.first(where: { $0.hasPrefix("--settings-tab=") })
     let tab = tabArg.flatMap { QuickTalkSettingsTab(rawValue: String($0.dropFirst("--settings-tab=".count))) } ?? .general
@@ -348,6 +349,42 @@ extension AppDelegate {
                        size: NSSize(width: 460, height: 620),
                        to: "\(dir)/archive-search-\(suffix).png")
       }
+      // QA(v0.31 수정): 보관함 — **검색·이름 변경·삭제·비서별 그룹**이 한 화면에 있는지.
+      if CommandLine.arguments.contains("--demo-archive") {
+        let archiveBackup = self.store.archive
+        let conversationBackup = self.store.conversation
+        let personaBackup = self.store.settings.personas
+        let techie = Persona(name: "테크충", role: "IT·AI·Mac", emoji: "🦾")
+        let researcher = Persona(name: "리서처", role: "뉴스·리서치", emoji: "🔎")
+        self.store.applyRenderOverride(personas: [techie, researcher])
+        let now = Date()
+        self.store.conversation = Conversation(title: "부산 2박 3일 여행 일정", turns: [
+          Turn(role: .user, text: "부산 2박 3일 여행 일정을 짜줘"),
+          Turn(role: .assistant, text: "해운대와 감천문화마을을 중심으로 정리했습니다.")
+        ], updatedAt: now.addingTimeInterval(-600))
+        self.store.archive = [self.store.conversation] + [
+          Conversation(title: "이번 주 논문 요약", turns: [
+            Turn(role: .user, text: "이 논문을 3줄로 요약해줘"),
+            Turn(role: .assistant, text: "핵심 기여는 세 가지입니다.", personaID: researcher.id)
+          ], pinned: true, updatedAt: now.addingTimeInterval(-7200), personaID: researcher.id),
+          Conversation(title: "맥 단축키 정리", turns: [
+            Turn(role: .user, text: "맥 단축키 알려줘"),
+            Turn(role: .assistant, text: "자주 쓰는 단축키입니다.", personaID: techie.id)
+          ], updatedAt: now.addingTimeInterval(-86_400), personaID: techie.id),
+          Conversation(title: "주말 전시회", turns: [
+            Turn(role: .user, text: "서울 전시회 알려줘"),
+            Turn(role: .assistant, text: "세 곳을 추천합니다.")
+          ], updatedAt: now.addingTimeInterval(-172_800))
+        ]
+        self.renderPNG(AnyView(ContentView(initialTab: 1, suppressArchiveLoad: true)
+                                .environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/archive-\(suffix).png")
+        self.store.archive = archiveBackup
+        self.store.conversation = conversationBackup
+        self.store.applyRenderOverride(personas: personaBackup)
+      }
+
       // QA: 실제로 복원된 대화를 그대로 렌더 — 겹침·스크롤 회귀를 실데이터로 확인(v0.28).
       if CommandLine.arguments.contains("--demo-current-chat") {
         // 겹침 원인 격리 — 거대 명령/출력만 잘라 본다(저장 안 함).
@@ -1104,6 +1141,8 @@ extension AppDelegate {
   private static let markdownSample = """
   ## Markdown check
   **Bold** and *italic*, `inline code`, [link](https://example.com).
+
+  긴 인라인 코드: `/Users/lee/Documents/QuickTalkReport` — 줄바꿈·대비 확인용.
 
   - [x] Done item
   - [ ] Open item

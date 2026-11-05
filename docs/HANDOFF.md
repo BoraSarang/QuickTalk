@@ -176,6 +176,8 @@
 | 실행 중 앱 | **최신 배포본**(PID 80576, 11-02 18:00 기동) — UA `QuickTalk/1.0` 빌드 |
 | git | `main` = **`0aa9308`(PR #77 — 배포 백업 금지)** · 이전 `5a616c6`(#75 UA) · `7802cfc`(#72) · `43a4c42`(#70) · `cf5728b`(#66) · `8bed1ef`(#63) · `main` 직접 push 금지 |
 
+> **2026-11-05 현재**: v0.31 배포본이 `~/Applications/QuickTalk.app`(SHA-256 `98dedb4e…`, 배포 23:03). 작업 트리에는 **사용자 WIP**(`ContentView.swift`·`ShelfView.swift` — 보관함 전체 열기·타이틀바 중심 정렬)와 **마크다운 강조색 적응형**(`MarkdownText.swift` 의 `AccentPalette`)이 **커밋 전**으로 남아 있다. 색 변경은 Debug 빌드 + 오프스크린 렌더(`docs/qa/markdown-contrast-2026-11-05/`)까지 검증, **배포·재실행은 하지 않았다**.
+
 ### 다음 세션 시작점 (2026-10-29) — **④ 컴퓨터 제어 Phase 1 완료 · 배포 완료**
 
 - **무엇**: `PLAN_v0.25` Phase 1. 에이전트가 **다른 앱 창의 접근성 요소를 읽기만** 한다(`ui_snapshot`). 클릭·입력·스크롤·포커스 이동 없음.
