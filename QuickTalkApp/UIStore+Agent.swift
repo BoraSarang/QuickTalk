@@ -17,6 +17,15 @@ extension UIStore {
   /// 예약 실행 중이면 **그 실행의 대화**에만 붙는다(현재 대화 오염 금지).
   @MainActor
   func appendAgentEvent(_ event: AgentEvent) {
+    var event = event
+    // ★ 이번 스텝의 사고 과정을 **그 도구 카드 앞**에 붙인다 — 사고 → 도구 → 사고 → 도구
+    //   순서를 화면에 그대로 그리기 위해서다(v0.31, 2026-11-06 사용자 지적).
+    //   한 스텝에 도구가 여럿이면 첫 카드에만 붙고, 나머지는 같은 스텝으로 묶인다.
+    //   붙인 구간은 비워 다음 스텝의 사고가 새로 쌓이게 한다.
+    if event.reasoningBefore == nil, scheduledRun == nil, !liveReasoning.isEmpty {
+      event.reasoningBefore = liveReasoning
+      liveReasoning = ""
+    }
     if let ctx = scheduledRun {
       ctx.events.append(event)
       if let turnID = ctx.turnID {

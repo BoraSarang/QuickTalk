@@ -3,6 +3,14 @@ import AppKit
 import Combine
 import UniformTypeIdentifiers
 
+/// 사고 과정 + 도구 실행을 **한 스텝 단위**로 묶은 표시용 그룹 (v0.31).
+/// 같은 스텝에서 호출한 도구 여러 개는 한 카드에, 스텝 사이에는 사고 과정이 들어간다.
+fileprivate struct AgentTimelineGroup: Identifiable {
+  let id: String
+  let reasoning: String?
+  var events: [AgentEvent]
+}
+
 /// 새 대화 화면의 중앙 워터마크 — 앱 아이콘 + 안내(Siri 새 대화의 오브 자리).
 /// 대화가 시작되면 사라진다(답변 글 뒤로 비치지 않게).
 struct ChatBackground: View {
@@ -85,8 +93,10 @@ struct ContentView: View {
   @State private var showWindowPicker = false
   /// 헤더 제목에 마우스를 올리면 밑줄(편집 가능 표시)
   @State private var titleHover = false
-  /// 펼쳐 둔 **사고 과정** 블록 — 완료 뒤에도 눌러서 다시 볼 수 있다.
-  @State private var expandedReasoning: Set<UUID> = []
+  /// 사용자가 **직접 펼친** 사고 과정 구간 — 설정 기본값보다 우선한다.
+  @State private var reasoningOpen: Set<String> = []
+  /// 사용자가 **직접 접은** 사고 과정 구간.
+  @State private var reasoningClosed: Set<String> = []
   /// v0.31 — 상단 도구가 지금 보이는가(마우스가 상단 40pt에 있으면 참).
   @State private var toolbarHovered = false
   /// 시스템 신호등(traffic light)의 **세로 중심**(창 위에서부터의 거리).
@@ -97,6 +107,11 @@ struct ContentView: View {
   @State private var toolbarHideWork: DispatchWorkItem?
   /// 지금 마우스를 올린 턴 — 복사·읽어주기·질문 `⋯`를 그 턴에서만 보인다.
   @State private var hoveredTurn: UUID?
+  /// `⋯` 메뉴 **자체**에 마우스가 있는 동안 — 행의 hover 가 풀려도 메뉴를 지우지 않는다.
+  /// (메뉴는 말풍선 오른쪽 여백에 떠 있어, 메뉴로 마우스를 옮기면 행 밖으로 나간다)
+  @State private var hoveredQuestionMenu: UUID?
+  /// hover 해제 뒤 바로 지우지 않고 잠깐 기다린다 — 메뉴로 옮겨 누를 수 있게.
+  @State private var hoverClearTask: Task<Void, Never>?
   /// 상대 시간("5분 전")을 1분마다 다시 계산하기 위한 현재 시각 — 창을 오래 열어 두어도 표기가 낡지 않는다.
   @State private var nowTick = Date()
   /// 대화창이 맨 아래에 있는가 — 아니면 우하단에 "맨 아래로" 버튼을 띄운다.
@@ -621,7 +636,9 @@ struct ContentView: View {
           ScrollView {
           VStack(alignment: .leading, spacing: 12) {
             if store.conversation.turns.isEmpty && !store.isReplying {
-              ChatBackground().id(store.settings.language)   // L10n은 전역 — 언어 변경 시 다시 그린다
+              ChatBackground()
+                .padding(.trailing, 20)   // 오른쪽 여백은 행이 차지한다(아래 주석)
+                .id(store.settings.language)   // L10n은 전역 — 언어 변경 시 다시 그린다
             }
             ForEach(store.conversation.turns, id: \.id) { t in
               messageRow(t).id(t.id)
@@ -633,7 +650,7 @@ struct ContentView: View {
             }
             Color.clear.frame(height: 1).id(Self.bottomID)
           }
-          .padding(.horizontal, 20)
+          .padding(.leading, 20)
           .padding(.vertical, 12)
           // 토큰 칩이 위에 떠 있어도 첫 메시지를 가리지 않게 그만큼 비워 둔다(헤더 높이는 그대로).
           .padding(.top, showsMemoryChip ? 14 : 0)
@@ -720,21 +737,7 @@ struct ContentView: View {
           jumpToBottom()
         }
         .onAppear {
-          if let req = store.searchFocus {
-            focusTurn(req, proxy: proxy)
-          } else {
-            jumpToBottom()
-          }
-          // QA 렌더 — 첫 질문을 호버한 상태로 그려 말풍선 폭이 변하지 않는지 확인한다.
-          if hoverFirstQuestion,
-             let first = store.conversation.turns.first(where: { $0.role == .user }) {
-            hoveredTurn = first.id
-          }
-          // QA 렌더 — 사고 과정 블록을 펼친 상태로 그린다.
-          if expandReasoning,
-             let answer = store.conversation.turns.first(where: { $0.role == .assistant && $0.reasoning != nil }) {
-            expandedReasoning.insert(answer.id)
-          }
+          handleAppear(proxy: proxy)
         }
         }
 
@@ -770,11 +773,26 @@ struct ContentView: View {
         }
         // `⋯` 는 **레이아웃 밖**에 띄운다 — HStack 에 넣으면 호버 때 말풍선 폭이 26pt 줄어
         // 글자가 다시 접히고 높이가 변한다(2026-11-06 사용자 지적: 가로가 아니라 세로로 변함).
-        // 오른쪽 여백(20pt) 안쪽에 겹쳐 놓아 폭·줄바꿈이 그대로다.
+        // 대신 오른쪽 여백 **20pt 를 행 안으로 포함**하고(`padding(.trailing, 20)`) 말풍선은
+        // 그대로 20pt 안쪽에 둔다 — 메뉴가 행 프레임 안에 들어와 호버가 끊기지 않고 눌린다
+        // (레이아웃 밖에 두면 마우스가 메뉴로 가는 순간 행 밖이 되어 사라졌다, 2026-11-06).
+        .padding(.trailing, 20)
         .overlay(alignment: .trailing) {
           if hoveredTurn == t.id {
             questionMenu(t)
-              .offset(x: 16)
+              // 클릭 영역을 아이콘보다 넓게 — 왼쪽으로 말풍선 위까지 겹친다.
+              .frame(width: 32, height: 24, alignment: .trailing)
+              .contentShape(Rectangle())
+              .offset(x: -4)
+              .onHover { inside in
+                if inside {
+                  hoveredQuestionMenu = t.id
+                  setHovered(t.id, true)
+                } else {
+                  if hoveredQuestionMenu == t.id { hoveredQuestionMenu = nil }
+                  setHovered(t.id, false)
+                }
+              }
               .transition(.opacity)
           }
         }
@@ -804,35 +822,23 @@ struct ContentView: View {
           .foregroundColor(.secondary)
         }
         if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
-        reasoningBlock(t)
-        // ★ 도구 실행 카드는 **답변보다 위** — 명령이 먼저 돌고 그 결과로 답하기 때문.
+        // ★ 시간 순서 그대로 — (사고 과정 → 도구 실행)을 반복해 그리고, 마지막 사고 뒤에 답변.
+        //   예전에는 사고를 전부 위에, 도구를 전부 아래에 고정해 진행 단계를 알 수 없었다
+        //   (2026-11-06 사용자 지적: "질문 → 도구 → 추론 → 쉘 → 추론 → 응답" 순서로).
         if let pending = store.pendingSchedule,
            pending.turnID == t.id,
            pending.conversationID == store.conversation.id {
           ScheduleProposalCard(pending: pending)
             .padding(.bottom, 2)
         }
-        if let events = t.agentEvents, !events.isEmpty {
-          AgentCard(events: events,
-                    approval: approvalRequest(for: t),
-                    showExecution: store.settings.agentShowExecution,
-                    undoEntry: store.agentUndoEntry(for: events),
-                    undoMessage: store.agentUndoMessage(for: events),
-                    onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
-                    onAllowScope: { store.resolveAgentApproval(.allowScope) },
-                    onAllowApp: { store.resolveAgentApproval(.allowApp) },
-                    onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
-                    onDeny: { store.resolveAgentApproval(.deny) },
-                    onUndo: {
-                      if let id = store.agentUndoEventID(for: events) {
-                        Task { await store.undoAgentWrite(eventID: id) }
-                      }
-                    },
-                    onCancel: { store.cancelAgentRun() },
-                    handoffNotice: t.id == store.agentTurnID ? store.agentHandoffNotice : nil,
-                    onTerminalHandoff: { store.handoffToTerminal($0) })
-            .padding(.bottom, 2)
+        let events = t.agentEvents ?? []
+        let groups = Self.agentTimeline(events)
+        let undoEventID = store.agentUndoEventID(for: events)
+        ForEach(groups) { group in
+          agentStepCard(t: t, group: group, undoEventID: undoEventID,
+                        isLast: group.id == groups.last?.id)
         }
+        reasoningBlock(t)
         if !t.text.isEmpty {
           // AI 답변은 마크다운 그대로, **응답을 질문보다 크게**(15pt) 읽는다.
           MarkdownText(text: t.text, sources: t.sources ?? [], baseSize: 15)
@@ -846,6 +852,9 @@ struct ContentView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+      // 스크롤 여백은 **왼쪽만** 준다(질문 행의 ⋯ 클릭 영역 확보). 답변은 오른쪽 20pt 를
+      // 여기서 되돌려 기존과 같은 본문 폭을 유지한다.
+      .padding(.trailing, 20)
       .contentShape(Rectangle())
       .onHover { setHovered(t.id, $0) }
       .overlay {
@@ -863,10 +872,29 @@ struct ContentView: View {
   /// 마우스를 올린 턴만 보조 동작을 노출한다(다른 턴으로 옮기면 이전 것은 즉시 숨김).
   private func setHovered(_ id: UUID, _ hovering: Bool) {
     if hovering {
+      cancelHoverClear()
       if hoveredTurn != id { hoveredTurn = id }
     } else if hoveredTurn == id {
+      // 메뉴 위에 있으면 유지 — 메뉴로 옮기는 순간 행의 hover 가 먼저 풀린다.
+      if hoveredQuestionMenu == id { return }
+      scheduleHoverClear(id)
+    }
+  }
+
+  /// 사라지기 전 0.5초 유예 — `⋯` 로 마우스를 옮겨 누를 틈을 준다.
+  private func scheduleHoverClear(_ id: UUID) {
+    cancelHoverClear()
+    hoverClearTask = Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(500))
+      guard !Task.isCancelled else { return }
+      guard hoveredTurn == id, hoveredQuestionMenu != id else { return }
       hoveredTurn = nil
     }
+  }
+
+  private func cancelHoverClear() {
+    hoverClearTask?.cancel()
+    hoverClearTask = nil
   }
 
   /// 응답 하단 한 줄 — 왼쪽은 상대 시간(항상), 오른쪽은 복사·읽어주기(호버 시에만).
@@ -1243,11 +1271,13 @@ struct ContentView: View {
     bottomPinToken &+= 1
   }
 
-  /// 도구 실행 카드가 추가·갱신될 때마다 바뀌는 값 — 자동 스크롤 트리거.
+  /// 도구 실행 카드·사고 과정이 추가·갱신될 때마다 바뀌는 값 — 자동 스크롤 트리거.
+  /// 사고 과정도 포함한다: 답변이 나오기 전 수 분간 화면이 멈춘 것처럼 보이지 않게
+  /// 사고가 흐르는 동안에도 새 내용이 화면 안에 들어오게 한다(v0.31).
   private var agentFollowToken: String {
     let events = store.conversation.turns.last?.agentEvents ?? []
     let last = events.last
-    return "\(events.count)|\(last?.state.rawValue ?? "")|\(last?.output.count ?? 0)"
+    return "\(events.count)|\(last?.state.rawValue ?? "")|\(last?.output.count ?? 0)|\(store.liveReasoning.count)"
   }
 
   /// 사용자가 스크롤을 **위로** 올리면 자동 따라가기를 멈춘다(내용이 스크롤을 납치하지 않게).
@@ -1304,17 +1334,69 @@ struct ContentView: View {
   /// 사고 과정 — thinking 모델이 답을 쓰기 전에 보내는 추론.
   ///
   /// 답이 3분 넘게 걸릴 때 화면이 멈춘 것처럼 보이지 않게 **도착하는 대로** 보여 준다.
-  /// 스트리밍 중에는 자동으로 펼치고, 완료 뒤에는 한 줄로 접어 둔다(눌러서 다시 본다).
+  /// 표시 방식은 설정(항상 보기 / 끝나면 접기 / '생각 중'만)을 따른다.
   @ViewBuilder private func reasoningBlock(_ t: Turn) -> some View {
     let live = t.id == store.streamingTurnID && store.isReplying
     let text = live ? store.liveReasoning : (t.reasoning ?? "")
-    if !text.isEmpty {
-      let expanded = live || expandedReasoning.contains(t.id)
+    reasoningSegment(text, key: Self.reasoningKey(t.id), live: live)
+  }
+
+  static func reasoningKey(_ id: UUID) -> String { "turn-\(id.uuidString)" }
+
+  /// QA 렌더 전용 — 모든 사고 과정 구간(턴 요약 + 스텝별)을 펼친 상태로 표시한다.
+  private func expandAllReasoning() {
+    for turn in store.conversation.turns {
+      if turn.reasoning != nil {
+        reasoningOpen.insert(Self.reasoningKey(turn.id))
+      }
+      let events = turn.agentEvents ?? []
+      for event in events where event.reasoningBefore != nil {
+        reasoningOpen.insert("step-\(event.id)")
+      }
+    }
+  }
+
+  /// 화면이 나타날 때 — 검색 결과로 연 턴(또는 맨 아래)으로 이동하고 QA 렌더 상태를 맞춘다.
+  private func handleAppear(proxy: ScrollViewProxy) {
+    if let req = store.searchFocus {
+      focusTurn(req, proxy: proxy)
+    } else {
+      jumpToBottom()
+    }
+    // QA 렌더 — 첫 질문을 호버한 상태로 그려 말풍선 폭이 변하지 않는지 확인한다.
+    if hoverFirstQuestion,
+       let first = store.conversation.turns.first(where: { $0.role == .user }) {
+      hoveredTurn = first.id
+    }
+    // QA 렌더 — 사고 과정 블록을 펼친 상태로 그린다(턴 요약 + 각 스텝 구간).
+    if expandReasoning {
+      expandAllReasoning()
+    }
+  }
+
+  /// 사고 과정 한 구간 — 스텝마다 하나씩, 도구 카드 앞/답변 앞에 놓인다.
+  @ViewBuilder private func reasoningSegment(_ text: String, key: String, live: Bool) -> some View {
+    let mode = store.settings.reasoningDisplay
+    if mode == .indicatorOnly {
+      // '생각 중' 표시만 — 내용은 숨기고, 끝나면 흔적도 남기지 않는다.
+      if live {
+        HStack(spacing: 5) {
+          Image(systemName: "brain")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(.purple)
+          Text(L("사고 과정 — 생각 중"))
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundColor(.secondary)
+          Spacer(minLength: 0)
+        }
+        .padding(.bottom, 2)
+      }
+    } else if !text.isEmpty {
+      let expanded = isReasoningExpanded(key, live: live)
       VStack(alignment: .leading, spacing: 5) {
         Button {
           guard !live else { return }
-          if expandedReasoning.contains(t.id) { expandedReasoning.remove(t.id) }
-          else { expandedReasoning.insert(t.id) }
+          toggleReasoning(key, live: live)
         } label: {
           HStack(spacing: 5) {
             if live {
@@ -1353,6 +1435,76 @@ struct ContentView: View {
       }
       .padding(.bottom, 2)
     }
+  }
+
+  /// 기본 펼침/접힘은 설정이 정하고, 사용자가 직접 누른 상태가 우선한다.
+  private func isReasoningExpanded(_ key: String, live: Bool) -> Bool {
+    if reasoningClosed.contains(key) { return false }
+    if reasoningOpen.contains(key) { return true }
+    switch store.settings.reasoningDisplay {
+    case .always: return true
+    case .collapseWhenDone: return live
+    case .indicatorOnly: return false
+    }
+  }
+
+  private func toggleReasoning(_ key: String, live: Bool) {
+    guard !live else { return }
+    if isReasoningExpanded(key, live: live) {
+      reasoningOpen.remove(key)
+      reasoningClosed.insert(key)
+    } else {
+      reasoningClosed.remove(key)
+      reasoningOpen.insert(key)
+    }
+  }
+
+  /// 사고 과정과 도구 실행을 **한 스텝 단위**로 묶는다 — 사고가 있으면 새 그룹.
+  /// (구버전 기록은 `reasoningBefore` 가 없어 전부 한 카드로 묶인다 — 예전과 동일)
+  fileprivate static func agentTimeline(_ events: [AgentEvent]) -> [AgentTimelineGroup] {
+    var groups: [AgentTimelineGroup] = []
+    for event in events {
+      let reasoning = event.reasoningBefore?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      let hasReasoning = !(reasoning?.isEmpty ?? true)
+      if groups.isEmpty || hasReasoning {
+        groups.append(AgentTimelineGroup(id: event.id,
+                                         reasoning: hasReasoning ? reasoning : nil,
+                                         events: [event]))
+      } else {
+        groups[groups.count - 1].events.append(event)
+      }
+    }
+    return groups
+  }
+
+  /// 스텝 하나 — 사고 과정(있으면) 위에, 도구 카드 아래.
+  @ViewBuilder private func agentStepCard(t: Turn, group: AgentTimelineGroup,
+                                          undoEventID: String?, isLast: Bool) -> some View {
+    if let reasoning = group.reasoning {
+      reasoningSegment(reasoning, key: "step-\(group.id)", live: false)
+    }
+    let hasPending = group.events.contains { $0.state == .pending }
+    let hasUndo = undoEventID.map { id in group.events.contains { $0.id == id } } ?? false
+    AgentCard(events: group.events,
+              approval: hasPending ? approvalRequest(for: t) : nil,
+              showExecution: store.settings.agentShowExecution,
+              undoEntry: hasUndo ? store.agentUndoEntry(for: group.events) : nil,
+              undoMessage: hasUndo ? store.agentUndoMessage(for: group.events) : nil,
+              onAllowOnce: { store.resolveAgentApproval(.allowOnce) },
+              onAllowScope: { store.resolveAgentApproval(.allowScope) },
+              onAllowApp: { store.resolveAgentApproval(.allowApp) },
+              onAlwaysAllow: { store.resolveAgentApproval(.alwaysAllow) },
+              onDeny: { store.resolveAgentApproval(.deny) },
+              onUndo: {
+                if let id = undoEventID {
+                  Task { await store.undoAgentWrite(eventID: id) }
+                }
+              },
+              onCancel: { store.cancelAgentRun() },
+              handoffNotice: isLast && t.id == store.agentTurnID ? store.agentHandoffNotice : nil,
+              onTerminalHandoff: { store.handoffToTerminal($0) })
+      .padding(.bottom, 2)
   }
 
   private var replyingBubble: some View {

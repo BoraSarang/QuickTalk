@@ -41,6 +41,13 @@ extension SettingsView {
         store.settings.fallbackProviderID = ""
       }
     }
+    groupBox(L("사고 과정 표시")) {
+      pickerRow(L("표시 방식"), selection: Binding(
+        get: { store.settings.reasoningDisplay.rawValue },
+        set: { store.settings.reasoningDisplay = ReasoningDisplayMode(rawValue: $0) ?? .collapseWhenDone }
+      ), options: ReasoningDisplayMode.allCases.map { ($0.rawValue, $0.displayName) })
+      caption(L("thinking 모델이 답변 전에 보내는 사고 과정을 어떻게 보여 줄지 고릅니다. '항상 보기'는 완료된 뒤에도 펼쳐 두고, '끝나면 자동으로 접기'는 진행 중에만 펼칩니다. '생각 중' 표시만 고르면 내용은 숨기고 진행 상태만 보여 줍니다."))
+    }
     groupBox(L("연결 끊김 대기")) {
       toggleRow(L("연결이 끊기면 자동으로 다시 연결"),
                 isOn: $store.settings.networkRetryEnabled,
