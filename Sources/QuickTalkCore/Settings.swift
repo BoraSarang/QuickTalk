@@ -35,6 +35,9 @@ public struct QuickTalkSettings: Codable, Equatable {
   public static let sessionMinuteOptions: [Int] = [5, 10, 30, 0]
   /// 대화 창을 항상 위에 둘지(헤더 📌). 기본은 꺼짐 — 설정·시스템 권한 창을 가리지 않게.
   public var alwaysOnTop: Bool = false
+  /// 대화 창의 상단 도구(📌·🧠·🔖·▤·⋯)를 **항상** 보일지.
+  /// 기본은 꺼짐 — 평소에는 숨고 마우스를 창 위쪽에 올리면 나타난다(v0.31).
+  public var chatToolbarAlwaysVisible: Bool = false
   public var previewLines: Int = 2
   public var keepDays: Int = 30
   public var globalShortcut: String = "Cmd+Space"
@@ -277,6 +280,7 @@ public struct QuickTalkSettings: Codable, Equatable {
 
   private enum CodingKeys: String, CodingKey {
     case showMenuBarIcon, showDockIcon, shortcutSessionMinutes, alwaysOnTop
+    case chatToolbarAlwaysVisible
     case appearance, language
     case previewLines, keepDays, globalShortcut
     case shelfShortcut, captureFullShortcut, captureRegionShortcut, captureWindowShortcut
@@ -325,6 +329,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     language = Self.decodeEnum(AppLanguage.self, c, .language, default: .system)
     shortcutSessionMinutes = try c.decodeIfPresent(Int.self, forKey: .shortcutSessionMinutes) ?? 10
     alwaysOnTop = try c.decodeIfPresent(Bool.self, forKey: .alwaysOnTop) ?? false
+    chatToolbarAlwaysVisible = try c.decodeIfPresent(Bool.self,
+                                                     forKey: .chatToolbarAlwaysVisible) ?? false
     previewLines = try c.decodeIfPresent(Int.self, forKey: .previewLines) ?? 2
     keepDays = try c.decodeIfPresent(Int.self, forKey: .keepDays) ?? 30
     globalShortcut = try c.decodeIfPresent(String.self, forKey: .globalShortcut) ?? "Cmd+Space"
@@ -419,6 +425,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(language, forKey: .language)
     try c.encode(shortcutSessionMinutes, forKey: .shortcutSessionMinutes)
     try c.encode(alwaysOnTop, forKey: .alwaysOnTop)
+    try c.encode(chatToolbarAlwaysVisible, forKey: .chatToolbarAlwaysVisible)
     try c.encode(previewLines, forKey: .previewLines)
     try c.encode(keepDays, forKey: .keepDays)
     try c.encode(globalShortcut, forKey: .globalShortcut)

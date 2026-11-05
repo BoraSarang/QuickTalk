@@ -2,12 +2,13 @@ import AppKit
 
 // [INFO] [FEATURE] QuickShelf — Edge 허브(클립보드 · 파일 · 캡처) 데이터 모델 (PLAN_v0.13)
 
-/// QuickShelf 상단 탭
+/// QuickShelf 상단 탭 — v0.31부터 **대화 허브**가 기본.
 enum ShelfTab: Int, CaseIterable {
-  case clipboard, files, capture
+  case chats, clipboard, files, capture
 
   var title: String {
     switch self {
+    case .chats: return L("대화")
     case .clipboard: return L("클립보드")
     case .files: return L("파일")
     case .capture: return L("캡처")
@@ -16,6 +17,7 @@ enum ShelfTab: Int, CaseIterable {
 
   var symbol: String {
     switch self {
+    case .chats: return "bubble.left.and.bubble.right"
     case .clipboard: return "doc.on.clipboard"
     case .files: return "folder"
     case .capture: return "camera.viewfinder"

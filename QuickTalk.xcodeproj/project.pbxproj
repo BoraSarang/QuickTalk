@@ -116,6 +116,7 @@
 		DC2BB6057B3210C693529F8E /* AgentExecutor+Schedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4490D9592A0BF3BF1ED648BD /* AgentExecutor+Schedule.swift */; };
 		DC9CBF03E98BE7C92747D0DB /* UiSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E0941B442FB529124794B /* UiSnapshot.swift */; };
 		DCEF44C46F220F3F88100FF6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4472F21647669F7654514434 /* ContentView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* DesignMockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* DesignMockView.swift */; };
 		DE125E6E50255538D9BAB7F3 /* CaptureGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */; };
 		DE4AA2CB4E6172195413E217 /* NetworkRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B2E8E186ACF3F03733F7DE /* NetworkRetry.swift */; };
 		E10F99B773B5394F401A5FA2 /* AgentClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C53F47F12D73C586CF8AEC /* AgentClients.swift */; };
@@ -167,6 +168,7 @@
 		43B2E8E186ACF3F03733F7DE /* NetworkRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkRetry.swift; sourceTree = "<group>"; };
 		43E3A0BFC302ECA3A8A7A23D /* SettingsView+Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Tools.swift"; sourceTree = "<group>"; };
 		4472F21647669F7654514434 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* DesignMockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignMockView.swift; sourceTree = "<group>"; };
 		4490D9592A0BF3BF1ED648BD /* AgentExecutor+Schedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentExecutor+Schedule.swift"; sourceTree = "<group>"; };
 		46373C502FECDCEB5E747F5F /* SchedulerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulerService.swift; sourceTree = "<group>"; };
 		46AB59036E6CDC9C1D797893 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
@@ -296,6 +298,7 @@
 				7F68FFC1BB0BE6E9BDD9D620 /* ChatInputField.swift */,
 				A80145B8EF36B33D339972F5 /* ClipboardService.swift */,
 				4472F21647669F7654514434 /* ContentView.swift */,
+				A1B2C3D4E5F60718293A4B5D /* DesignMockView.swift */,
 				A994DD19EB365550CB2B3E48 /* DeleteConfirmSheet.swift */,
 				C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */,
 				E65BDBEF0EEC3BD5742E2AF7 /* GlobalHotKey.swift */,
@@ -535,6 +538,7 @@
 				355B656C93CB1A5C46A93134 /* Clipboard.swift in Sources */,
 				0766EFD159A4F7B587D8A786 /* ClipboardService.swift in Sources */,
 				DCEF44C46F220F3F88100FF6 /* ContentView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* DesignMockView.swift in Sources */,
 				075145421A3EBC33B2E656AE /* ConversationMemory.swift in Sources */,
 				B0ED415EF78C8366C26ACB98 /* DeleteConfirmSheet.swift in Sources */,
 				9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */,

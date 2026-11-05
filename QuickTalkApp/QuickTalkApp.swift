@@ -558,7 +558,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     dismissHub()
     switch action {
     case .newConversation: openPanel(tab: 0, resetConversation: true)
-    case .openArchive: openPanel(tab: 1)
+    case .openArchive: openShelfChats()
     case .continueConversation:
       if let recent = store.archive.first { store.openConversation(recent) }
       openPanel(tab: 0)
@@ -600,7 +600,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func openPanelAction() { openPanel(tab: 0) }
-  @objc private func openArchiveAction() { openPanel(tab: 1) }
+  @objc private func openArchiveAction() { openShelfChats() }
   @objc private func toggleVoiceAction() { store.toggleVoice() }
   @objc private func openSettingsMenu() { openSettings() }
   @objc private func showAboutAction() { showAbout() }
@@ -750,7 +750,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func buildPanel() {
     let root = ContentView(initialTab: 0).environmentObject(store)
     panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 560),
       styleMask: [.titled, .fullSizeContentView, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
     panel.contentView = NSHostingView(rootView: root)
@@ -761,10 +761,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     panel.becomesKeyOnlyIfNeeded = false
     panel.isMovableByWindowBackground = true
     panel.title = "QuickTalk"
-    // 가변 크기(PLAN_v0.12): 최소 420×420. 크기·위치는 NSWindow가 기억한다.
-    panel.contentMinSize = NSSize(width: 420, height: 420)
-    panel.setFrameAutosaveName("QuickTalkMainPanel")
-    if !panel.setFrameUsingName("QuickTalkMainPanel") { panel.center() }
+    // v0.31 — 시리식 크롬: 시스템 제목줄 글자를 숨기고 **대화 제목·비서를 타이틀바 줄에** 얹는다.
+    //   traffic light(왼쪽 70pt)만 남기고 나머지 도구는 상단 호버 시에만 나타난다.
+    panel.titleVisibility = .hidden
+    panel.titlebarAppearsTransparent = true
+    if #available(macOS 11.0, *) { panel.titlebarSeparatorStyle = .none }
+    // 가변 크기(PLAN_v0.12·v0.31): 최소 380×420, 기본 400×560. 크기·위치는 NSWindow가 기억한다.
+    panel.contentMinSize = NSSize(width: 380, height: 420)
+    panel.setFrameAutosaveName("QuickTalkMainPanelV31")
+    if !panel.setFrameUsingName("QuickTalkMainPanelV31") { panel.center() }
   }
 
   private func togglePanel(fromShortcut: Bool) {
@@ -820,8 +825,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       store.openConversation(conversation)
       showPanel(tab: 0, anchor: anchor)
     case .archive:
-      showPanel(tab: 1, anchor: anchor)
+      store.shelfTab = .chats
+      store.shelfDocked = true
+      showPanel(tab: 0, anchor: anchor)
     }
+  }
+
+  /// 보관함 — v0.31부터 별도 탭 대신 QuickShelf의 **대화 허브**로 연다(상단 아이콘 제거).
+  private func openShelfChats() {
+    store.shelfTab = .chats
+    store.shelfDocked = true
+    showPanel(tab: 0)
   }
 
   /// 알림 클릭 — 예약 실행 대화를 열고(승인 카드가 있으면 그 자리에서) 패널을 앞으로.

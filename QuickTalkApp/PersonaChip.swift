@@ -57,6 +57,8 @@ struct PersonaMenuItems: View {
 /// 채팅 헤더의 비서 칩 (v0.26) — **비서가 1명 이상일 때만** 보인다.
 struct PersonaChip: View {
   @EnvironmentObject var store: UIStore
+  /// v0.31 — 상단 도구가 떠 있는 동안에는 이모지만 남겨 대화 제목 자리를 확보한다.
+  var compact: Bool = false
 
   private var current: Persona? { store.settings.persona(store.conversation.personaID) }
 
@@ -72,15 +74,17 @@ struct PersonaChip: View {
           Image(systemName: "person.crop.circle")
             .font(.system(size: 10, weight: .medium))
         }
-        Text(current?.name ?? L("비서 없음"))
-          .font(.system(size: 10.5, weight: .medium))
-          .lineLimit(1)
-        if current != nil {
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 8, weight: .bold))
+        if !compact {
+          Text(current?.name ?? L("비서 없음"))
+            .font(.system(size: 10.5, weight: .medium))
+            .lineLimit(1)
+          if current != nil {
+            Image(systemName: "checkmark.circle.fill")
+              .font(.system(size: 8, weight: .bold))
+          }
         }
       }
-      .padding(.horizontal, 6)
+      .padding(.horizontal, compact ? 4 : 6)
       .padding(.vertical, 2)
       .background(Capsule().fill(Color.purple.opacity(current == nil ? 0.08 : 0.18)))
       .foregroundColor(current == nil ? .secondary : .primary)

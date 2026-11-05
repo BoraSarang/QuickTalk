@@ -116,6 +116,7 @@ struct ShelfView: View {
 
   private var badgeCount: Int {
     switch store.shelfTab {
+    case .chats: return store.archive.count
     case .clipboard: return store.clipboard.items.count
     case .files: return store.shelfFiles.count
     case .capture: return store.shelfCaptures.count
@@ -155,6 +156,7 @@ struct ShelfView: View {
 
   private func count(for tab: ShelfTab) -> Int {
     switch tab {
+    case .chats: return store.archive.count
     case .clipboard: return store.clipboard.items.count
     case .files: return store.shelfFiles.count
     case .capture: return store.shelfCaptures.count
@@ -164,7 +166,7 @@ struct ShelfView: View {
   private var searchRow: some View {
     HStack(spacing: 6) {
       Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundColor(.secondary)
-      TextField(L("검색"), text: $query)
+      TextField(searchPlaceholder, text: $query)
         .textFieldStyle(.plain)
         .font(.system(size: 11.5))
       if !query.isEmpty {
@@ -225,10 +227,147 @@ struct ShelfView: View {
 
   @ViewBuilder private var content: some View {
     switch store.shelfTab {
+    case .chats: chatsTab
     case .clipboard: clipboardTab
     case .files: filesTab
     case .capture: captureTab
     }
+  }
+
+  // MARK: - 대화 탭 (v0.31)
+  //
+  // 상단 아이콘에서 사라진 "보관함·새 대화"를 여기로 모았다. 행을 고르면
+  // 그 대화로 이동하고 **셸프는 자동으로 닫힌다**(사용자 요청 2026-11-05).
+
+  private var searchPlaceholder: String {
+    store.shelfTab == .chats ? L("대화 검색") : L("검색")
+  }
+
+  /// 검색어에 맞는 **다른** 대화들 — 지금 열려 있는 대화는 위에 따로 보여 준다.
+  private var chatItems: [Conversation] {
+    let list = store.archive.filter { $0.id != store.conversation.id }
+    guard !query.isEmpty else { return list }
+    let q = query.lowercased()
+    return list.filter {
+      $0.displayTitle.lowercased().contains(q) ||
+      $0.turns.contains { $0.text.lowercased().contains(q) }
+    }
+  }
+
+  private func personaID(for c: Conversation) -> UUID? {
+    c.personaID ?? c.turns.last(where: { $0.role == .assistant })?.personaID
+  }
+
+  @ViewBuilder private var chatsTab: some View {
+    VStack(spacing: 6) {
+      Button { startNewChat() } label: {
+        HStack(spacing: 8) {
+          Image(systemName: "plus.circle.fill")
+            .font(.system(size: 14))
+            .foregroundColor(.purple)
+          VStack(alignment: .leading, spacing: 1) {
+            Text(L("새 대화")).font(.system(size: 11.5, weight: .semibold))
+            Text(L("지금 대화는 보관함에 저장됩니다"))
+              .font(.system(size: 9.5)).foregroundColor(.secondary)
+          }
+          Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 9).fill(Color.purple.opacity(0.10)))
+        .overlay(RoundedRectangle(cornerRadius: 9)
+          .stroke(Color.purple.opacity(0.25), lineWidth: 1))
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .help(L("새 대화 시작 — 지금 대화는 보관함에 남습니다"))
+      .padding(.horizontal, 10)
+
+      ScrollView {
+        LazyVStack(spacing: 4) {
+          if !store.conversation.turns.isEmpty || store.conversation.pinned {
+            chatRow(store.conversation, selected: true)
+          }
+          ForEach(chatItems, id: \.id) { c in
+            chatRow(c, selected: false)
+          }
+          if store.conversation.turns.isEmpty && !store.conversation.pinned && chatItems.isEmpty {
+            emptyState(L("보관된 대화가 없습니다"), L("새 대화를 시작하면 여기에 쌓입니다"))
+              .frame(height: 180)
+          }
+        }
+        .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 6)
+      }
+    }
+    .padding(.top, 8)
+  }
+
+  private func chatRow(_ c: Conversation, selected: Bool) -> some View {
+    let running = store.isReplying && store.conversation.id == c.id
+    let persona = store.settings.persona(personaID(for: c))
+    return Button { openChat(c) } label: {
+      HStack(spacing: 8) {
+        ZStack(alignment: .bottomTrailing) {
+          Circle()
+            .fill(Color.primary.opacity(0.08))
+            .frame(width: 26, height: 26)
+            .overlay {
+              if let persona {
+                Text(persona.displayEmoji).font(.system(size: 12))
+              } else {
+                Image(systemName: "person.crop.circle")
+                  .font(.system(size: 12)).foregroundColor(.secondary)
+              }
+            }
+          if running {
+            Circle()
+              .fill(Color.green)
+              .frame(width: 8, height: 8)
+              .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
+              .offset(x: 1, y: 1)
+          }
+        }
+        VStack(alignment: .leading, spacing: 2) {
+          Text(c.displayTitle)
+            .font(.system(size: 11.5, weight: .medium))
+            .lineLimit(1)
+          HStack(spacing: 5) {
+            if running {
+              Text(L("응답 중"))
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.green)
+            }
+            Text(RelativeTime.text(for: c.updatedAt))
+              .font(.system(size: 9))
+              .foregroundColor(.secondary)
+          }
+        }
+        Spacer(minLength: 0)
+        if selected {
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 10))
+            .foregroundColor(.purple)
+        }
+      }
+      .padding(.horizontal, 8).padding(.vertical, 7)
+      .background(RoundedRectangle(cornerRadius: 9)
+        .fill(Color.primary.opacity(selected ? 0.07 : 0.03)))
+      .overlay(RoundedRectangle(cornerRadius: 9)
+        .stroke(Color.purple.opacity(selected ? 0.25 : 0), lineWidth: 1))
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .help(c.displayTitle)
+  }
+
+  private func openChat(_ c: Conversation) {
+    if c.id != store.conversation.id { store.openConversation(c) }
+    onClose()
+  }
+
+  private func startNewChat() {
+    store.newConversation()
+    store.shelfTab = .chats
+    onClose()
   }
 
   // MARK: - 푸터
@@ -237,10 +376,12 @@ struct ShelfView: View {
     HStack(spacing: 6) {
       Text(footerText).font(.system(size: 9.5)).foregroundColor(.secondary)
       Spacer()
-      Button(L("모두 지우기")) { clearCurrent() }
-        .buttonStyle(.plain)
-        .font(.system(size: 9.5))
-        .foregroundColor(.secondary)
+      if store.shelfTab != .chats {
+        Button(L("모두 지우기")) { clearCurrent() }
+          .buttonStyle(.plain)
+          .font(.system(size: 9.5))
+          .foregroundColor(.secondary)
+      }
     }
     .padding(.horizontal, 12).padding(.vertical, 8)
     .overlay(alignment: .top) { Divider().overlay(Color.primary.opacity(0.08)) }
@@ -248,6 +389,7 @@ struct ShelfView: View {
 
   private var footerText: String {
     switch store.shelfTab {
+    case .chats: return L("대화는 보낼 때마다 자동 저장됩니다 · 고르면 이 창이 닫힙니다")
     case .clipboard: return Lf("2분 뒤 사라짐 · 최대 %d개", ClipboardPolicy.maxItems)
     case .files: return L("클릭하면 대화에 첨부되고 목록에서 사라짐")
     case .capture: return L("첨부하면 목록에서 사라짐 · 복사·저장은 유지")
@@ -256,6 +398,7 @@ struct ShelfView: View {
 
   private func clearCurrent() {
     switch store.shelfTab {
+    case .chats: break
     case .clipboard: store.clipboard.clear()
     case .files: store.shelfFiles.removeAll()
     case .capture: store.clearCaptures()
