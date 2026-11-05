@@ -554,7 +554,26 @@ public enum SandboxRunner {
                                                 stderr: blockedNote(for: command)))
     }
     let r = run(command, profile: readOnlyProfile(), timeout: timeout)
-    if r.succeeded { return SandboxProbe(command: command, capability: .read, result: r) }
+
+    // ★ 종료코드가 0이어도 **쓰기 거부 흔적**이 있으면 쓰기 명령이다.
+    //   `cd 폴더 && printf … > 보고서.md; ls -la` 처럼 마지막 명령이 성공하면
+    //   종료코드는 0 이라 읽기로 오판됐고, 승인된 폴더조차 쓰기가 막혀 파일이 저장되지
+    //   않았다(2026-11-06 리포트 저장 실패). EPERM("Operation not permitted")만 본다 —
+    //   EACCES("Permission denied")는 POSIX 읽기 권한이라 샌드박스 쓰기 차단과 다르다.
+    if r.succeeded {
+      if let path = deniedPath(in: r.combined, onlyOperationNotPermitted: true) {
+        if isSetuidBinary(path) {
+          return SandboxProbe(command: command, capability: .blocked,
+                              result: SandboxResult(exitCode: -1, stdout: r.stdout,
+                                                    stderr: blockedNote(for: command)))
+        }
+        if RiskClassifier.isSystemScopePath(path) {
+          return SandboxProbe(command: command, capability: .blocked, result: r)
+        }
+        return SandboxProbe(command: command, capability: .write(path: path), result: r)
+      }
+      return SandboxProbe(command: command, capability: .read, result: r)
+    }
 
     // ① 파일 쓰기 차단 — 메시지에 경로가 함께 나온다(/bin/sh: /path: Operation not permitted)
     if let path = deniedPath(in: r.combined) {
@@ -584,16 +603,38 @@ public enum SandboxRunner {
   }
 
   /// 차단된 경로 추출 — 콜론으로 나눈 조각 중 "/" 로 시작하는 **마지막** 조각.
-  public static func deniedPath(in message: String) -> String? {
+  ///
+  /// - `onlyOperationNotPermitted`: 샌드박스가 쓰기를 막을 때의 EPERM 문구만 본다.
+  ///   (성공한 명령의 출력에 섞인 POSIX "Permission denied" 를 쓰기로 오판하지 않기 위해)
+  /// - 따옴표로 감싼 경로(`'/path/file.md'`)도 인식한다 — Python 예외 메시지가 그렇다.
+  public static func deniedPath(in message: String,
+                                onlyOperationNotPermitted: Bool = false) -> String? {
     for line in message.split(separator: "\n") {
       let lower = line.lowercased()
-      guard lower.contains("operation not permitted") || lower.contains("permission denied")
-              || lower.contains("deny file-write") else { continue }
+      let isDenial = onlyOperationNotPermitted
+        ? (lower.contains("operation not permitted") || lower.contains("deny file-write"))
+        : (lower.contains("operation not permitted") || lower.contains("permission denied")
+           || lower.contains("deny file-write"))
+      guard isDenial else { continue }
       let parts = line.split(separator: ":", omittingEmptySubsequences: true)
-      let candidates = parts.map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.hasPrefix("/") }
-      if let path = candidates.last { return path }
+      let candidates = parts
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "'\"`")) }
+        .filter { $0.hasPrefix("/") }
+      if let path = candidates.last {
+        return path.trimmingCharacters(in: CharacterSet(charactersIn: "'\"`.,;)"))
+      }
     }
     return nil
+  }
+
+  /// 읽기 전용 실행 결과에 **쓰기 거부(EPERM)** 흔적이 있는가.
+  ///
+  /// 종료코드가 0이어도 참일 수 있다(`cd … && 쓰기; ls`). 승인된 폴더 범위로
+  /// 다시 실행할지 판단하는 데 쓴다(2026-11-06).
+  public static func showsWriteDenial(_ r: SandboxResult) -> Bool {
+    let text = r.combined.lowercased()
+    return text.contains("operation not permitted") || text.contains("deny file-write")
   }
 
   /// 네트워크가 필요한지 — 도구 자신의 실패 신호로 판정한다.

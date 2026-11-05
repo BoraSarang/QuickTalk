@@ -229,7 +229,7 @@ final class AgentExecutor: AgentToolExecutor {
     let liveEnabled = store.settings.agentStreamOutput
     let live = LiveShellOutput()
     let storeRef = store
-    let result = await Task.detached(priority: .userInitiated) {
+    var result = await Task.detached(priority: .userInitiated) {
       SandboxRunner.runStreaming(runCommand, profile: profile, timeout: timeout,
                                  cancellation: handle,
                                  onOutput: { chunk in
@@ -242,6 +242,28 @@ final class AgentExecutor: AgentToolExecutor {
       })
     }.value
     store.agentRunHandle = nil
+
+    // ★ (2026-11-06) 읽기로 분류됐지만 샌드박스가 **쓰기를 거부**한 흔적이 있고,
+    //   이 대화에서 승인한 폴더가 있으면 그 범위만 열어 **한 번** 다시 실행한다.
+    //   `cd 폴더 && printf … > 보고서.md; ls` 처럼 마지막 명령이 성공하면 종료코드가 0이라
+    //   실측이 읽기로 판정했고, 이미 승인한 폴더조차 쓰기가 막혀 파일이 저장되지 않았다.
+    //   (읽기 전용 실행은 파일을 만들지 못했으므로 다시 실행해도 중복 부작용이 없다)
+    if case .read = capability, SandboxRunner.showsWriteDenial(result) {
+      let scopes = store.approvedWriteScopes
+      if !scopes.isEmpty {
+        NSLog("[QuickTalk] 읽기 판정 명령이 쓰기 거부 — 승인된 범위 %d곳으로 재실행", scopes.count)
+        let retryHandle = SandboxCancellation()
+        store.agentRunHandle = retryHandle
+        let retryProfile = SandboxRunner.scopedProfile(writablePaths: scopes)
+        result = await Task.detached(priority: .userInitiated) {
+          SandboxRunner.runStreaming(runCommand, profile: retryProfile, timeout: timeout,
+                                     cancellation: retryHandle)
+        }.value
+        store.agentRunHandle = nil
+        // 카드·감사 기록에도 **실제 실행 단계**를 남긴다(읽기로 보이면 오해한다).
+        capability = .write(path: scopes[0])
+      }
+    }
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
     // ★ 되돌리기 기록 — 성공한 쓰기만 남기고, 실패·중단이면 백업을 버린다(v0.19).
     //   (2026-10-25 발견: commit 을 부르지 않아 [되돌리기]가 항상 "기록을 찾지 못했습니다"였다)

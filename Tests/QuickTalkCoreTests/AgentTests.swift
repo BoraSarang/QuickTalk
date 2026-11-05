@@ -368,6 +368,72 @@ final class AgentTests: XCTestCase {
     XCTAssertEqual(probe.capability, .elevated)
   }
 
+  // MARK: - 쓰기 거부가 종료코드 0에 묻히는 경우 (2026-11-06 리포트 저장 실패)
+
+  func testProbeDetectsWriteWhenChainEndsWithSuccess() {
+    // `쓰기; echo …` — 마지막 명령이 성공해 종료코드가 0 이어도 쓰기는 막혔다.
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-probe-chain-\(UUID().uuidString.prefix(6))")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let target = dir.appendingPathComponent("report.md").path
+    let probe = SandboxRunner.probe("printf 'a' > \(target); echo done")
+    guard case .write(let path) = probe.capability else {
+      return XCTFail("쓰기 요구로 판정되어야 한다: \(probe.capability)")
+    }
+    XCTAssertTrue(path.hasSuffix("report.md"), "차단된 경로가 나와야 한다: \(path)")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: target))
+  }
+
+  func testProbeDetectsQuotedPathInPythonError() throws {
+    let probe = SandboxRunner.probe(#"python3 -c "open('/tmp/qt-quoted-probe.md','w')""#)
+    guard case .write(let path) = probe.capability else {
+      return XCTFail("따옴표 경로도 인식해야 한다: \(probe.capability)")
+    }
+    XCTAssertEqual(path, "/tmp/qt-quoted-probe.md")
+  }
+
+  func testDeniedPathStripsQuotes() {
+    let line = "PermissionError: [Errno 1] Operation not permitted: '/tmp/a b/report.md'"
+    XCTAssertEqual(SandboxRunner.deniedPath(in: line), "/tmp/a b/report.md")
+  }
+
+  func testDeniedPathIgnoresEACCESWhenOnlyEPERM() {
+    // POSIX 읽기 권한(EACCES)은 샌드박스 쓰기 차단이 아니다 — 성공한 명령에서 쓰기로 오판하지 않는다.
+    let line = "cat: /var/log/secret.log: Permission denied"
+    XCTAssertNil(SandboxRunner.deniedPath(in: line, onlyOperationNotPermitted: true))
+    XCTAssertEqual(SandboxRunner.deniedPath(in: line), "/var/log/secret.log")
+  }
+
+  func testShowsWriteDenial() {
+    XCTAssertTrue(SandboxRunner.showsWriteDenial(
+      SandboxResult(exitCode: 0, stdout: "done", stderr: "/bin/sh: t1.md: Operation not permitted")))
+    XCTAssertFalse(SandboxRunner.showsWriteDenial(
+      SandboxResult(exitCode: 0, stdout: "ok", stderr: "")))
+    XCTAssertFalse(SandboxRunner.showsWriteDenial(
+      SandboxResult(exitCode: 1, stdout: "", stderr: "cat: x: No such file or directory")))
+  }
+
+  func testApprovedScopeRecoversWriteDeniedAsRead() {
+    // 실행기 재시도 계약 — 읽기 프로필에서 쓰기가 막혀도 승인된 폴더를 열면 저장된다.
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-probe-esc-\(UUID().uuidString.prefix(6))")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let target = dir.appendingPathComponent("report.md").path
+    let command = "cd \(dir.path) && printf 'report' > report.md; echo done"
+
+    let readOnly = SandboxRunner.run(command, profile: SandboxRunner.readOnlyProfile())
+    XCTAssertTrue(readOnly.succeeded, "마지막 echo 가 성공해 종료코드가 0 이어야 한다")
+    XCTAssertTrue(SandboxRunner.showsWriteDenial(readOnly))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: target), "읽기 프로필에서는 쓰기가 막힌다")
+
+    let scoped = SandboxRunner.run(command,
+                                   profile: SandboxRunner.scopedProfile(writablePaths: [dir.path]))
+    XCTAssertTrue(scoped.succeeded, scoped.combined)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: target), "승인된 범위에서는 저장된다")
+  }
+
   func testScopedProfileBlocksOutsidePath() {
     let dir = FileManager.default.temporaryDirectory
       .appendingPathComponent("qt-agent-scope-\(UUID().uuidString.prefix(6))")
