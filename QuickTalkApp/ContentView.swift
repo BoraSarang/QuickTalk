@@ -806,6 +806,9 @@ struct ContentView: View {
           if let req { focusTurn(req, proxy: proxy) }
         }
         .onChange(of: store.isReplying) { _, _ in followBottom() }
+        // 후속 질문 칩(v0.32)은 응답이 끝난 **뒤**에 나타나 내용이 늘어난다 —
+        // 이벤트가 없으면 바닥 핀이 다시 돌지 않아 칩이 화면 밖에 잘려 있었다(v0.32.2).
+        .onChange(of: followUpToken) { _, _ in followBottom() }
         // 승인 카드가 뜨면 카드 **끝(버튼)** 까지 보이게 맨 아래로 따라간다.
         // (2026-10-26: 카드가 화면 밖에 걸려 [한 번 허용]이 잘려 보이던 문제)
         .onChange(of: store.agentApproval) { _, request in
@@ -1382,6 +1385,10 @@ struct ContentView: View {
   private func pinBottom() {
     lastPinAt = Date()
     bottomPinToken &+= 1
+    // 토큰만으로는 부족했다 — 스크롤 알림 안에서 바꾼 `@State` 는 다음 SwiftUI
+    // 업데이트까지 묶여, 응답 **밖에서** 내용이 늘 때(후속 질문 칩) 핀이 유실됐다.
+    // 관찰 뷰에 직접 알려 문서 높이를 다시 재게 한다(v0.32.2, 2026-11-06 사용자 지적).
+    NotificationCenter.default.post(name: .quickTalkPinChatBottom, object: nil)
   }
 
   /// 도구 실행 카드·사고 과정이 추가·갱신될 때마다 바뀌는 값 — 자동 스크롤 트리거.
@@ -1391,6 +1398,14 @@ struct ContentView: View {
     let events = store.conversation.turns.last?.agentEvents ?? []
     let last = events.last
     return "\(events.count)|\(last?.state.rawValue ?? "")|\(last?.output.count ?? 0)|\(store.liveReasoning.count)"
+  }
+
+  /// 후속 질문 칩의 유무·개수 — 칩이 늦게 붙어도 바닥을 따라가게 하는 트리거(v0.32.2).
+  private var followUpToken: String {
+    store.activeSession.followUpStates
+      .map { "\($0.key.uuidString):\($0.value.chips.count)" }
+      .sorted()
+      .joined(separator: ",")
   }
 
   /// 사용자가 스크롤을 **위로** 올리면 자동 따라가기를 멈춘다(내용이 스크롤을 납치하지 않게).
@@ -2236,6 +2251,12 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       startSettle()
     }
 
+    /// 명시적 핀 요청(알림) — 이전에 사용자가 위로 올려 취소했더라도 다시 붙인다.
+    func forcePin() {
+      pinCancelled = false
+      pin(attempt: 0)
+    }
+
     private func pin(attempt: Int) {
       guard !pinCancelled else { return }
       // 아직 스크롤 뷰 계층에 붙기 전이면 곧바로 포기하지 말고 다시 시도한다.
@@ -2290,6 +2311,11 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       tokens.append(center.addObserver(forName: NSView.frameDidChangeNotification,
                                        object: scroll.documentView, queue: .main) { [weak self] _ in
         self?.report()
+      })
+      // SwiftUI `@State` 토큰은 스크롤 알림 안에서 바꾸면 다음 업데이트까지 묶인다 —
+      // 내용이 응답 밖에서 늘 때 핀을 놓치지 않도록 **직접** 알림을 받는다(v0.32.2).
+      tokens.append(center.addObserver(forName: .quickTalkPinChatBottom, object: nil, queue: .main) { [weak self] _ in
+        self?.forcePin()
       })
       // 레이아웃이 확정된 뒤 첫 값 — 창을 열 때 버튼이 잠깐 잘못 뜨는 것을 막는다.
       DispatchQueue.main.async { [weak self] in self?.report() }

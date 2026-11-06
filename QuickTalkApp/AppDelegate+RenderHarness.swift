@@ -15,6 +15,58 @@ extension AppDelegate {
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
       guard let self else { return }
+      // QA 진단(2026-11-06) — 후속 질문 칩이 **나중에** 삽입될 때 스크롤 문서 높이가
+      // 따라오는지, 바닥까지 내려갈 수 있는지 실제 NSScrollView 값으로 확인한다.
+      if CommandLine.arguments.contains("--qa-followup-scroll") {
+        let body = (1...24)
+          .map { "\($0)번째 문단입니다. 스크롤 높이를 넘기기 위한 긴 답변입니다." }
+          .joined(separator: "\n\n")
+        self.store.conversation = Conversation(title: "QA 스크롤", turns: [
+          Turn(role: .user, text: "긴 답변 보여줘"),
+          Turn(role: .assistant, text: body, elapsedMs: 3_000)
+        ])
+        let host = NSHostingView(rootView: ContentView().environmentObject(self.store))
+        host.frame = NSRect(x: 0, y: 0, width: 400, height: 560)
+        let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: 400, height: 560),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = host
+        window.orderFrontRegardless()
+        func snapshot(_ tag: String) {
+          host.layoutSubtreeIfNeeded()
+          guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+          host.cacheDisplay(in: host.bounds, to: rep)
+          if let data = rep.representation(using: .png, properties: [:]) {
+            try? data.write(to: URL(fileURLWithPath: "\(dir)/followup-scroll-\(tag).png"))
+          }
+        }
+        func log(_ tag: String) {
+          _ = window   // 창이 스냅샷 동안 살아 있게
+          snapshot(tag)
+          guard let s = Self.firstScrollView(in: host), let doc = s.documentView else {
+            NSLog("[QA-SCROLL] %@ — 스크롤 뷰 없음", tag)
+            return
+          }
+          let clip = s.contentView
+          NSLog("[QA-SCROLL] %@ doc=%.1f viewport=%.1f offset=%.1f max=%.1f distance=%.1f",
+                tag, doc.frame.height, clip.bounds.height, clip.bounds.origin.y,
+                max(0, doc.frame.height - clip.bounds.height),
+                max(0, doc.frame.height - clip.bounds.height - clip.bounds.origin.y))
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+          log("before")
+          let id = self.store.conversation.turns.last!.id
+          self.store.activeSession.followUpStates[id] = FollowUpState(chips: ["하나", "둘", "셋"])
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+          log("after-chips")
+          self.store.activeSession.isReplying = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.4) {
+          log("thinking")
+          NSApp.terminate(nil)
+        }
+        return
+      }
       let suffix = "\(L10n.effective.rawValue)"
       // 렌더에서도 QuickShelf 탭을 고를 수 있게(`--shelf-tab=`)
       if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--shelf-tab=") }) {

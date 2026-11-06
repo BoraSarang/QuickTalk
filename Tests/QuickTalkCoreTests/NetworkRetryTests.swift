@@ -279,6 +279,23 @@ final class NetworkRetryTests: XCTestCase {
     XCTAssertTrue(text.contains("파일 쓰기가 꺼져"))
   }
 
+  /// 비서 없는 일반 대화에는 리포트 폴더 블록을 넣지 않는다 —
+  /// 모델이 "파일로 남길까요?"를 먼저 제안하던 원인(v0.32.2, 2026-11-06 사용자 지적).
+  func testReportFolderPromptSkippedWithoutPersona() {
+    var settings = QuickTalkSettings()
+    settings.defaultReportFolder = "~/Documents/QuickTalkReport"
+    XCTAssertEqual(SystemKnowledge.reportFolderPrompt(settings: settings, persona: nil), "")
+  }
+
+  func testReportFolderPromptIncludedForPersona() {
+    let persona = Persona(name: "다미", reportFolder: "~/Documents/QuickTalkReport")
+    let text = SystemKnowledge.reportFolderPrompt(settings: QuickTalkSettings(), persona: persona)
+    XCTAssertTrue(text.contains("[리포트 폴더]"))
+    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkReport")))
+    // 먼저 저장을 권하지 않는다 — 사용자가 요청할 때만 쓴다.
+    XCTAssertTrue(text.contains("먼저 저장을 제안하지 않는다"))
+  }
+
   // MARK: - 비서 아이콘
 
   func testDisplayEmojiUsesSavedIcon() {

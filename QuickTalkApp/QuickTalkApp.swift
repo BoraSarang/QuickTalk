@@ -1041,6 +1041,8 @@ extension Notification.Name {
   static let quickTalkShowChat = Notification.Name("quickTalkShowChat")
   /// 대화 창을 열 때(또는 이어서 열 때) 대화 스크롤을 맨 아래로 맞추라는 요청
   static let quickTalkScrollToBottom = Notification.Name("quickTalkScrollToBottom")
+  /// 대화 스크롤을 **즉시** 문서 끝으로 붙이라는 요청 — SwiftUI 상태 갱신을 기다리지 않는다
+  static let quickTalkPinChatBottom = Notification.Name("quickTalkPinChatBottom")
   /// 시스템 권한 안내(대화상자·시스템 설정)가 대화 창 뒤로 숨지 않게 잠시 내리라는 요청
   static let quickTalkSystemPromptBegin = Notification.Name("quickTalkSystemPromptBegin")
   static let quickTalkSystemPromptEnd = Notification.Name("quickTalkSystemPromptEnd")
