@@ -139,6 +139,11 @@
 		FC53A763BCFEA595A4803B87 /* ScheduleProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB3783C9443F18244C24E95F /* ScheduleProposal.swift */; };
 		FE12BBE4D2793340A1A23644 /* PanelToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B443636C48759C886EF337 /* PanelToggle.swift */; };
 		FF2DB7B2997AF188A9DADB82 /* TerminalHandoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C2D9F670B0B7A6243A4118C /* TerminalHandoff.swift */; };
+		3DFE2DA7D086AD6DF7382BE2 /* ChatOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35B53AE038B9CC0BD9F1719 /* ChatOutlineView.swift */; };
+		81ECBABD863CF15934002970 /* FollowUpChipsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0DC53CB69E73A895CF1CCA /* FollowUpChipsRow.swift */; };
+		28F575B95832A629C6931D27 /* UIStore+FollowUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E96C597A8B71D04ACCAD37 /* UIStore+FollowUp.swift */; };
+		8D69BC65637DF4604015827B /* ConversationOutline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B405409B177022283BC10B7 /* ConversationOutline.swift */; };
+		1C0EBEF947E97CF9B55F4BBA /* FollowUpSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC2B3C386830697D66F935F2 /* FollowUpSuggest.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -277,6 +282,11 @@
 		F8DA628BB654E3E67B9506CF /* ScheduleChangeProposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleChangeProposal.swift; sourceTree = "<group>"; };
 		FBCE96CEC85C13FDBFF74E2E /* ShelfView+Capture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShelfView+Capture.swift"; sourceTree = "<group>"; };
 		FD338D166DB5AE50DCF5D204 /* SettingsView+General.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+General.swift"; sourceTree = "<group>"; };
+		C35B53AE038B9CC0BD9F1719 /* ChatOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatOutlineView.swift"; sourceTree = "<group>"; };
+		1C0DC53CB69E73A895CF1CCA /* FollowUpChipsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FollowUpChipsRow.swift"; sourceTree = "<group>"; };
+		54E96C597A8B71D04ACCAD37 /* UIStore+FollowUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStore+FollowUp.swift"; sourceTree = "<group>"; };
+		6B405409B177022283BC10B7 /* ConversationOutline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConversationOutline.swift"; sourceTree = "<group>"; };
+		FC2B3C386830697D66F935F2 /* FollowUpSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FollowUpSuggest.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -349,6 +359,9 @@
 				C1F7B5A8E2365B16A7EB2007 /* UIStore+Agent.swift */,
 				0FC65C65BFBB1162A8D544DC /* WindowAttachmentService.swift */,
 				5C3CD8DAF5148FE466D1AA21 /* WindowPickerSheet.swift */,
+				C35B53AE038B9CC0BD9F1719 /* ChatOutlineView.swift */,
+				1C0DC53CB69E73A895CF1CCA /* FollowUpChipsRow.swift */,
+				54E96C597A8B71D04ACCAD37 /* UIStore+FollowUp.swift */,
 			);
 			path = QuickTalkApp;
 			sourceTree = "<group>";
@@ -441,6 +454,8 @@
 				F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */,
 				B84B6C711CC4B17306428FA2 /* WriteScope.swift */,
 				2EFB3918CE6815267D749492 /* WriteScopeGrant.swift */,
+				6B405409B177022283BC10B7 /* ConversationOutline.swift */,
+				FC2B3C386830697D66F935F2 /* FollowUpSuggest.swift */,
 			);
 			name = QuickTalkCore;
 			path = Sources/QuickTalkCore;
@@ -648,6 +663,11 @@
 				A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */,
 				E9E1987CAB9109729E1D986A /* WriteScope.swift in Sources */,
 				ABA71666781C22B998755448 /* WriteScopeGrant.swift in Sources */,
+				3DFE2DA7D086AD6DF7382BE2 /* ChatOutlineView.swift in Sources */,
+				81ECBABD863CF15934002970 /* FollowUpChipsRow.swift in Sources */,
+				28F575B95832A629C6931D27 /* UIStore+FollowUp.swift in Sources */,
+				8D69BC65637DF4604015827B /* ConversationOutline.swift in Sources */,
+				1C0EBEF947E97CF9B55F4BBA /* FollowUpSuggest.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

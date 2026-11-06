@@ -125,20 +125,30 @@ struct ContentView: View {
   @State private var bottomPinToken = 0
   /// 거리 기반 재고정을 너무 자주 하지 않게(스크롤 알림은 초당 수십 번 온다)
   @State private var lastPinAt = Date.distantPast
+  /// 대화 목차(v0.32) — 사용자 질문 턴 ID → **내용 좌표** y(스크롤과 무관하게 고정).
+  @State private var outlineOffsets: [UUID: CGFloat] = [:]
+  /// 지금 화면 위쪽 기준선의 내용 좌표(= 스크롤 오프셋 + 여유).
+  @State private var outlineAnchor: CGFloat = 0
+  /// 대화 영역 크기 — 목차 패널 폭·높이를 창에 맞춘다.
+  @State private var chatSize: CGSize = .zero
   var initialTab: Int = 0
   var suppressArchiveLoad = false
   /// QA 렌더 전용 — 첫 질문에 마우스를 올린 상태를 재현한다(호버 시 말풍선 폭 고정 확인).
   var hoverFirstQuestion = false
   /// QA 렌더 전용 — 사고 과정 블록을 펼친 상태로 그린다.
   var expandReasoning = false
+  /// QA 렌더 전용 — 대화 목차 패널을 펼친 상태로 그린다(v0.32).
+  var expandOutline = false
 
   init(initialTab: Int = 0, initialInputHeight: CGFloat = 28,
        initialArchiveQuery: String = "", suppressArchiveLoad: Bool = false,
-       hoverFirstQuestion: Bool = false, expandReasoning: Bool = false) {
+       hoverFirstQuestion: Bool = false, expandReasoning: Bool = false,
+       expandOutline: Bool = false) {
     self.initialTab = initialTab
     self.suppressArchiveLoad = suppressArchiveLoad
     self.hoverFirstQuestion = hoverFirstQuestion
     self.expandReasoning = expandReasoning
+    self.expandOutline = expandOutline
     _tab = State(initialValue: initialTab)
     _inputHeight = State(initialValue: initialInputHeight)
     _archiveQuery = State(initialValue: initialArchiveQuery)
@@ -153,6 +163,50 @@ struct ContentView: View {
       $0.turns.contains { $0.text.lowercased().contains(q) }
     }
   }
+
+  // MARK: - 대화 목차 (v0.32)
+
+  /// 사용자 질문만 목차로 — 답변은 넣지 않는다(질문으로 점프가 목적).
+  private var outlineEntries: [OutlineEntry] {
+    ConversationOutline.entries(from: store.conversation.turns)
+  }
+
+  /// 레일을 그릴 조건 — 설정이 켜져 있고 질문이 3개 이상이며 대화 탭일 때.
+  private var showsOutlineRail: Bool {
+    tab == 0
+      && store.settings.outlineDisplay.showsRail
+      && ConversationOutline.shouldShow(outlineEntries)
+  }
+
+  /// 펼친 패널이 본문을 덮지 않도록 오른쪽 여백을 14pt 더 둔다(행 자체의 20pt 와 합쳐 34pt).
+  /// 목차를 켠 사용자는 질문이 3개가 되기 전에도 같은 폭을 유지해, 세 번째 질문에서
+  /// 글자 폭이 갑자기 바뀌지 않게 한다.
+  private var outlineInset: CGFloat {
+    store.settings.outlineDisplay.showsRail ? 14 : 0
+  }
+
+  /// 지금 화면 위쪽에 걸린 질문의 순번.
+  private var outlineCurrentIndex: Int {
+    ConversationOutline.currentIndex(offsets: outlineOffsets,
+                                     anchorY: outlineAnchor,
+                                     entries: outlineEntries) ?? 0
+  }
+
+  /// 스크롤 위치(내용 좌표) — 목차의 현재 위치를 갱신한다. 2pt 미만 변화는 무시한다.
+  private func handleScrollOffset(_ offsetY: CGFloat) {
+    guard store.settings.outlineDisplay.showsRail else { return }
+    let anchor = offsetY + 8
+    guard abs(anchor - outlineAnchor) > 2 else { return }
+    outlineAnchor = anchor
+  }
+
+  /// 목차에서 질문을 골랐다 — 보관함 검색과 같은 점프·깜빡임을 재사용한다.
+  private func jumpToOutline(_ entry: OutlineEntry, proxy: ScrollViewProxy) {
+    focusTurn(SearchFocusRequest(conversationID: store.conversation.id,
+                                 turnID: entry.id, query: ""),
+              proxy: proxy)
+  }
+
   /// 이 답변을 만든 비서 — 턴에 기록된 비서가 우선, 구버전 기록은 대화의 현재 비서.
   private func persona(for turn: Turn) -> Persona? {
     store.settings.persona(turn.personaID ?? store.conversation.personaID)
@@ -641,7 +695,9 @@ struct ContentView: View {
                 .id(store.settings.language)   // L10n은 전역 — 언어 변경 시 다시 그린다
             }
             ForEach(store.conversation.turns, id: \.id) { t in
-              messageRow(t).id(t.id)
+              messageRow(t)
+                .background { outlineOffsetReader(for: t) }
+                .id(t.id)
             }
             // 스트리밍 첫 글자가 오면 점 표시를 숨긴다(글자가 대신 보인다)
             if store.isReplying,
@@ -651,16 +707,22 @@ struct ContentView: View {
             Color.clear.frame(height: 1).id(Self.bottomID)
           }
           .padding(.leading, 20)
+          // 목차 레일이 오른쪽에 떠 있어도 글자와 겹치지 않게 14pt 더 비운다(행의 20pt 와 합 34pt).
+          .padding(.trailing, outlineInset)
           .padding(.vertical, 12)
           // 토큰 칩이 위에 떠 있어도 첫 메시지를 가리지 않게 그만큼 비워 둔다(헤더 높이는 그대로).
           .padding(.top, showsMemoryChip ? 14 : 0)
           .frame(maxWidth: .infinity, alignment: .leading)
+          // 질문 턴의 y 를 **내용 좌표**로 잰다 — 스크롤해도 값이 변하지 않아 현재 위치 계산에 쓴다.
+          .coordinateSpace(name: Self.outlineSpace)
+          .onPreferenceChange(OutlineOffsetKey.self) { outlineOffsets = $0 }
           // 내용 끝(마커)의 위치를 스크롤 좌표계에서 잰다 — 뷰포트 높이와 비교해 맨 아래 여부를 안다.
           // ★ GeometryReader+PreferenceKey 는 macOS 에서 스크롤 중 갱신되지 않아 버튼이 뜨지 않았다.
           //   NSScrollView 를 직접 관찰한다(2026-10-27).
           .background(ScrollOffsetObserver(
             bottomToken: bottomPinToken,
-            onChange: handleScrollDistance))
+            onChange: handleScrollDistance,
+            onOffset: handleScrollOffset))
         }
         .coordinateSpace(name: Self.chatSpace)
         // `.defaultScrollAnchor(.bottom)` 은 **크기가 바뀔 때도** 바닥에 다시 붙는다
@@ -671,6 +733,24 @@ struct ContentView: View {
         // 기억 사용량 — 헤더가 아니라 대화 영역 위에 띄운다(탭 전환 시 헤더 높이 고정).
         .overlay(alignment: .topTrailing) { memoryChip }
         .overlay(alignment: .bottomTrailing) { hoverPreviewCard }
+        // 대화 목차 레일(v0.32) — 오른쪽 가운데. 펼친 패널은 **오버레이**라 본문 폭을 바꾸지 않는다.
+        .overlay(alignment: .trailing) {
+          if showsOutlineRail {
+            ChatOutlineRail(entries: outlineEntries,
+                            currentIndex: outlineCurrentIndex,
+                            showsPosition: store.settings.outlineShowPosition,
+                            availableWidth: chatSize.width,
+                            availableHeight: chatSize.height,
+                            onSelect: { jumpToOutline($0, proxy: proxy) },
+                            initiallyExpanded: expandOutline)
+              .padding(.trailing, 6)
+          }
+        }
+        // 대화 영역 크기 — 패널 폭·높이를 창에 맞춘다(히트테스트 없는 background 측정).
+        .background(GeometryReader { geo in
+          Color.clear.preference(key: ChatSizeKey.self, value: geo.size)
+        })
+        .onPreferenceChange(ChatSizeKey.self) { chatSize = $0 }
         // 맨 아래가 아닐 때만 — 우하단에 "맨 아래로" 플로팅 버튼
         .overlay(alignment: .bottomTrailing) {
           if !atBottom && !store.conversation.turns.isEmpty {
@@ -702,6 +782,9 @@ struct ContentView: View {
         .onChange(of: agentFollowToken) { _, _ in followBottom() }
         // 보관함에서 다른 대화를 열 때 — 검색 결과로 열었으면 그 턴, 아니면 맨 아래부터
         .onChange(of: store.conversation.id) { _, _ in
+          // 목차 위치는 대화마다 다시 잰다.
+          outlineOffsets = [:]
+          outlineAnchor = 0
           if let req = store.searchFocus {
             focusTurn(req, proxy: proxy)
           } else {
@@ -849,6 +932,11 @@ struct ContentView: View {
         if store.shouldOfferWebRetry(t) { webRetryButton(t) }
         if !t.text.isEmpty && t.id != store.streamingTurnID {
           answerFooter(t)
+        }
+        // v0.32 — 이 답변에 준비된 후속 질문 칩(가장 최근 답변에만 붙는다).
+        if let followUps = store.activeSession.followUpStates[t.id], !followUps.chips.isEmpty {
+          FollowUpChipsRow(chips: followUps.chips) { store.sendFollowUp($0) }
+            .transition(.opacity)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -1008,6 +1096,19 @@ struct ContentView: View {
   private static let bottomID = "chat-bottom"
   /// 스크롤 위치 측정용 좌표계 이름
   private static let chatSpace = "chat-scroll-space"
+  /// 질문 턴의 y 측정용 좌표계 — **내용**에 붙어 스크롤해도 값이 변하지 않는다.
+  private static let outlineSpace = "chat-outline-space"
+
+  /// 사용자 질문 턴의 내용 좌표 y 를 Preference 로 올린다(답변 턴은 목차에 필요 없다).
+  @ViewBuilder private func outlineOffsetReader(for turn: Turn) -> some View {
+    if turn.role == .user {
+      GeometryReader { proxy in
+        Color.clear.preference(
+          key: OutlineOffsetKey.self,
+          value: [turn.id: proxy.frame(in: .named(Self.outlineSpace)).minY])
+      }
+    }
+  }
 
   // MARK: - 보낸 메시지의 첨부(썸네일 + 호버 미리보기)
 
@@ -2021,18 +2122,22 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
   let bottomToken: Int
   /// (남은 거리, 사용자가 위로 스크롤했는가)
   let onChange: (CGFloat, Bool) -> Void
+  /// 절대 스크롤 오프셋(내용 위에서부터) — 목차의 현재 위치 계산용(v0.32).
+  var onOffset: (CGFloat) -> Void = { _ in }
 
   func makeNSView(context: Context) -> ObserverView {
-    ObserverView(bottomToken: bottomToken, onChange: onChange)
+    ObserverView(bottomToken: bottomToken, onChange: onChange, onOffset: onOffset)
   }
 
   func updateNSView(_ nsView: ObserverView, context: Context) {
     nsView.onChange = onChange
+    nsView.onOffset = onOffset
     nsView.pinIfNeeded(token: bottomToken)
   }
 
   final class ObserverView: NSView {
     var onChange: (CGFloat, Bool) -> Void
+    var onOffset: (CGFloat) -> Void
     private var tokens: [NSObjectProtocol] = []
     private var lastPinToken: Int
     /// 직전 리포트의 스크롤 위치 — **위로 움직였는지** 판정한다.
@@ -2046,10 +2151,12 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
     /// 초기 핀이 늦게 확정되는 레이아웃을 따라가기 위한 짧은 타이머(최대 4초).
     private var settleTimer: Timer?
 
-    init(bottomToken: Int, onChange: @escaping (CGFloat, Bool) -> Void) {
+    init(bottomToken: Int, onChange: @escaping (CGFloat, Bool) -> Void,
+         onOffset: @escaping (CGFloat) -> Void = { _ in }) {
       // -1 로 시작해 첫 update 에서 한 번 붙인다 — onAppear 핀을 놓치지 않게.
       self.lastPinToken = -1
       self.onChange = onChange
+      self.onOffset = onOffset
       super.init(frame: .zero)
     }
 
@@ -2182,7 +2289,25 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
         pin(attempt: 0)
       }
       onChange(distance, scrolledUp)
+      onOffset(offsetY)
     }
+  }
+}
+
+/// 사용자 질문 턴의 **내용 좌표** y — 스크롤과 무관하게 고정된다(목차 현재 위치 계산용).
+private struct OutlineOffsetKey: PreferenceKey {
+  static var defaultValue: [UUID: CGFloat] = [:]
+  static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+    value.merge(nextValue(), uniquingKeysWith: { $1 })
+  }
+}
+
+/// 대화 영역의 크기 — 목차 패널 폭·높이를 창에 맞춘다.
+private struct ChatSizeKey: PreferenceKey {
+  static var defaultValue: CGSize = .zero
+  static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+    let next = nextValue()
+    if next != .zero { value = next }
   }
 }
 

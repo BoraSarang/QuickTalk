@@ -38,6 +38,8 @@ struct ShelfView: View {
 
   @Environment(\.colorScheme) private var colorScheme
   @State private var query = ""
+  /// 대화 탭의 "이 대화 목차" 펼침 상태(v0.32).
+  @State private var outlineOpen = true
   @State var clipboardFilter: ClipboardItem.Kind?
 
   /// 강조 문구 색 — 다크에서는 라벤더, 라이트에서는 진한 브랜드 퍼플(대비 확보)
@@ -283,6 +285,8 @@ struct ShelfView: View {
       .help(L("새 대화 시작 — 지금 대화는 보관함에 남습니다"))
       .padding(.horizontal, 10)
 
+      shelfOutlineSection
+
       ScrollView {
         LazyVStack(spacing: 4) {
           if !store.conversation.turns.isEmpty || store.conversation.pinned {
@@ -301,6 +305,76 @@ struct ShelfView: View {
     }
     .padding(.top, 8)
     .onAppear { if !store.isRenderHarness { store.loadArchive() } }
+  }
+
+  /// 이 대화의 질문 목차(v0.32) — 설정이 "퀵셸프" 또는 "둘 다"일 때만.
+  /// 셸프는 빠른 전환용이라 최근 6개만 보여 주고, 나머지는 개수로 알린다.
+  @ViewBuilder private var shelfOutlineSection: some View {
+    let entries = ConversationOutline.entries(from: store.conversation.turns)
+    if store.settings.outlineDisplay.showsShelf,
+       ConversationOutline.shouldShow(entries) {
+      let shown = Array(entries.suffix(6))
+      VStack(alignment: .leading, spacing: 3) {
+        Button { outlineOpen.toggle() } label: {
+          HStack(spacing: 5) {
+            Image(systemName: "list.bullet.indent").font(.system(size: 9.5))
+            Text(L("이 대화 목차")).font(.system(size: 10.5, weight: .semibold))
+            Text("\(entries.count)")
+              .font(.system(size: 9, design: .monospaced))
+              .padding(.horizontal, 4).padding(.vertical, 1)
+              .background(Capsule().fill(Color.primary.opacity(0.08)))
+            Spacer(minLength: 0)
+            Image(systemName: outlineOpen ? "chevron.up" : "chevron.down")
+              .font(.system(size: 8.5, weight: .semibold))
+          }
+          .foregroundColor(.secondary)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(outlineOpen ? L("목차 접기") : L("목차 펼치기"))
+
+        if outlineOpen {
+          ForEach(shown) { entry in
+            Button { jumpToOutline(entry) } label: {
+              HStack(spacing: 5) {
+                Circle()
+                  .fill(entry.index == entries.count - 1
+                        ? Color.purple : Color.primary.opacity(0.18))
+                  .frame(width: 4, height: 4)
+                Text(entry.preview)
+                  .font(.system(size: 10.5))
+                  .lineLimit(1)
+                  .foregroundColor(.primary.opacity(0.78))
+                Spacer(minLength: 0)
+              }
+              .padding(.horizontal, 6).padding(.vertical, 3)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(entry.preview)
+          }
+          if entries.count > shown.count {
+            Text(Lf("… 외 %d개", entries.count - shown.count))
+              .font(.system(size: 9))
+              .foregroundColor(.secondary)
+              .padding(.leading, 6)
+          }
+        }
+      }
+      .padding(8)
+      .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.04)))
+      .overlay(RoundedRectangle(cornerRadius: 9)
+        .stroke(Color.primary.opacity(0.06), lineWidth: 1))
+      .padding(.horizontal, 10)
+    }
+  }
+
+  /// 목차에서 고른 질문으로 이동 — 셸프를 닫고 대화 창을 앞으로 낸다.
+  private func jumpToOutline(_ entry: OutlineEntry) {
+    store.searchFocus = SearchFocusRequest(conversationID: store.conversation.id,
+                                           turnID: entry.id, query: "")
+    onClose()
+    NotificationCenter.default.post(name: .quickTalkOpenChat, object: nil)
   }
 
   private func chatRow(_ c: Conversation, selected: Bool) -> some View {

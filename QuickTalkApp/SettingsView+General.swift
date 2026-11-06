@@ -241,9 +241,41 @@ extension SettingsView {
   var conversationSection: some View {
     windowAttachmentSection
     windowBehaviorSection
+    outlineSection
+    followUpSection
     memorySection
     globalMemorySection
     archiveSection
+  }
+
+  // MARK: - 대화 목차 · 후속 질문 (v0.32)
+
+  @ViewBuilder
+  var outlineSection: some View {
+    groupBox(L("대화 목차")) {
+      pickerRow(L("표시 방식"), selection: $store.settings.outlineDisplay,
+                options: OutlineDisplay.allCases.map { ($0, $0.displayName) })
+      caption(L("질문이 3개 이상일 때 대화 오른쪽에 나타납니다. 레일은 질문 수만큼 눈금을 보여 주고, 눌러 펼치면 질문 목록에서 바로 이동할 수 있습니다. 퀵셸프는 대화 탭에 목차를 더합니다."))
+      if store.settings.outlineDisplay.showsRail {
+        toggleRow(L("현재 읽는 위치 표시"), isOn: $store.settings.outlineShowPosition,
+                  description: L("레일에서 지금 화면 위쪽에 걸린 질문을 보라색으로 강조합니다."))
+      }
+    }
+  }
+
+  @ViewBuilder
+  var followUpSection: some View {
+    groupBox(L("후속 질문")) {
+      toggleRow(L("응답이 끝나면 후속 질문 제안"), isOn: $store.settings.followUpsEnabled,
+                description: L("답변이 끝난 뒤 이어서 물어볼 만한 질문 3개를 칩으로 보여 줍니다. 80자보다 짧은 답변·오류·중지된 응답에는 표시하지 않습니다."))
+      if store.settings.followUpsEnabled {
+        pickerRow(L("생성 방식"), selection: $store.settings.followUpSource,
+                  options: FollowUpSource.allCases.map { ($0, $0.displayName) })
+        caption(L("모델로 생성은 응답이 끝난 뒤 짧게 1회 호출합니다(2.5초 뒤, 8초 제한). 실패하면 무료 문구로 대체합니다."))
+        toggleRow(L("칩을 누르면 바로 보내기"), isOn: $store.settings.followUpAutoSend,
+                  description: L("끄면 입력창에 질문만 채우고, 보내기 전에 고칠 수 있습니다."))
+      }
+    }
   }
 
   @ViewBuilder
