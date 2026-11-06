@@ -3,6 +3,13 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-06 KST
 
+## 수정 (2026-11-06) — v0.32.2 리포트 제안 · 후속 질문 칩 스크롤
+
+- **리포트 제안**: 비서 없는 대화에도 `[리포트 폴더]` 블록이 들어가 모델이 먼저 "파일로 남길까요?"를 제안했다 → `SystemKnowledge.reportFolderPrompt` 는 **비서가 있을 때만** 블록을 반환, 블록에 "요청 전에는 먼저 제안하지 않는다" 추가. 도구 경로는 시스템 프롬프트가 유지.
+- **후속 질문 칩 스크롤**: 칩이 응답 **뒤에** 붙을 때 문서 높이만 늘고 스크롤 핀이 유실돼 칩이 화면 밖에 잘렸다 → `pinBottom()` 이 `.quickTalkPinChatBottom` 알림으로 `ScrollOffsetObserver` 를 **직접** 깨워 즉시 재핀 + `.onChange(followUpToken)` 따라가기 트리거.
+- **검증**: `swift test` **893/893**(6 skip, 신규 2) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-followup-scroll` 실측 before/after `distance=0`.
+- **다음**: 배포 후 실측 — 비서 없는 대화에서 리포트 제안이 사라지는지 · 칩이 자동으로 보이는지 · 사고 중 하단 겹침.
+
 ## 구현 완료 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 · v0.32.1 수정
 
 `docs/qa/v0.32-outline-followups/README.md` · PLAN §7 — **구현·검증·병합·배포 완료 · 실측 대기(Q1~Q11 · F1~F9 · S1~S6).**

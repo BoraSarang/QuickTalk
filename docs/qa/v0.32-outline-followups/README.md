@@ -93,6 +93,20 @@
 
 **미실행**: `--session-test` — 실행 중 QuickTalk 인스턴스가 단일 인스턴스 잠금(`E-MAC-APP-0001`)을 잡고 있어 중복 실행이 차단됐다(사용자 앱 중단 방지). 이번 변경은 세션 분리 경로를 건드리지 않았고 `swift test` 891/891 로 대체 확인했다. 앱을 종료한 뒤 `QuickTalk --session-test` 로 재확인할 수 있다.
 
+### 1.10 v0.32.2 — 후속 질문 칩이 늦게 붙을 때 스크롤 (사용자 지적)
+
+답변 종료 뒤 칩이 **나중에** 삽입되면 문서 높이만 늘고 스크롤이 따라오지 않아, 칩이 뷰포트 아래에 잘려 "하단으로 스크롤이 안 된다"고 보였다.
+
+| 파일 | 상태 |
+| --- | --- |
+| `v0322-scroll-before.png` | 칩 없음 · `doc=1425`, `offset=956.5`, `distance=0` |
+| `v0322-scroll-after-chips.png` | 칩 삽입 수정 후 · `doc=1539`, `offset=1070.5(=max)`, `distance=0` |
+| `v0322-scroll-thinking.png` | 사고 중 · `doc=1612`, `offset=1143.5(=max)`, `distance=0` |
+
+측정 명령: `QuickTalk --render=<dir> --lang=korean --theme=dark --qa-followup-scroll` (오프스크린 창, 저장 없음).
+수정: `pinBottom()` 이 `.quickTalkPinChatBottom` 알림으로 `ScrollOffsetObserver` 를 직접 깨운다 — 스크롤 알림 안에서 바꾼 `@State` 토큰은 다음 SwiftUI 업데이트까지 묶여 핀이 유실됐다.
+
+
 ## 2. 목업에서 확인한 것 / 남은 것
 
 | 항목 | 결과 |

@@ -98,7 +98,19 @@ public enum SystemKnowledge {
     } else {
       lines.append("- 리포트 파일은 이 폴더 안에만 만든다. 다른 경로를 추측하지 않는다.")
       lines.append("- 하위 폴더로 정리해도 된다. 사용자가 다른 위치를 요구하면 승인 카드를 거쳐 그 경로에 쓴다.")
+      // v0.32.2 — 예약 실행용 폴더를 **일반 대화**에 그대로 노출하면 모델이
+      // "표로 정리해 파일로 남길까요?"를 먼저 제안한다(2026-11-06 사용자 지적).
+      lines.append("- 사용자가 파일·리포트 저장을 요청하기 전에는 먼저 저장을 제안하지 않는다.")
     }
     return lines.joined(separator: "\n")
+  }
+
+  /// 일반 대화 프롬프트 앞에 붙일 블록 — **비서가 있을 때만** 넣는다.
+  /// 비서 없는 대화에 리포트 폴더를 알려 주면 모델이 스스로 리포트를 제안했다(v0.32.2).
+  /// 도구 경로는 시스템 프롬프트(`SystemKnowledge.text`)가 같은 내용을 들고 있다.
+  public static func reportFolderPrompt(settings: QuickTalkSettings,
+                                        persona: Persona?) -> String {
+    guard persona != nil else { return "" }
+    return reportFolderText(settings: settings, persona: persona) + "\n\n"
   }
 }

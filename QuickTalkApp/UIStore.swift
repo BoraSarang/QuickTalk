@@ -1776,9 +1776,10 @@ final class UIStore: ObservableObject {
         let personaHeader = conversationPersona
           .map { PersonaPrompt.header($0) + "\n\n" } ?? ""
         // 비서가 자기 **쓰기 가능한 리포트 폴더**를 알아야 엉뚱한 곳을 뒤지지 않는다(v0.29).
-        // 도구 경로든 일반 경로든 같은 블록이 프롬프트 앞에 들어간다.
-        let reportFolderBlock = SystemKnowledge.reportFolderText(
-          settings: ws, persona: conversationPersona) + "\n\n"
+        // 단, **비서가 없는 대화에는 넣지 않는다** — 모델이 먼저 "파일로 남길까요?"를
+        // 제안하던 원인이다(v0.32.2, 2026-11-06 사용자 지적). 도구 경로는 시스템 프롬프트가 맡는다.
+        let reportFolderBlock = SystemKnowledge.reportFolderPrompt(
+          settings: ws, persona: conversationPersona)
         let memoryPrefix = reportFolderBlock + personaHeader + globalMemory.text + conversationPrefix
         if !globalMemory.isEmpty {
           NSLog("[QuickTalk] 공통 메모리 %d개 주입 (약 %d토큰)",
