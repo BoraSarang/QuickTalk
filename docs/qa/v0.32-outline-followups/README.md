@@ -1,10 +1,10 @@
-# v0.32 대화 목차 · 후속 질문 제안 — 목업 QA
+# v0.32 대화 목차 · 후속 질문 제안 — 목업 QA + 실제 화면
 
-> 상태: **제안·목업 완료 — 구현 승인 대기** (2026-11-06)
+> 상태: **구현·검증 완료 — 병합·배포 대기** (2026-11-06)
 > 계획: `docs/plans/PLAN_v0.32_outline-followups_macos.md`
-> 목업 코드: `QuickTalkApp/DesignMockView+Outline.swift` (렌더 하네스 전용, 실제 화면 미연결)
-> 재현: `QuickTalk --render=docs/qa/v0.32-outline-followups --lang=korean --theme=dark --demo-outline`
-> 실제 검증(구현 후)은 이 문서 아래 **수동 QA** 항목으로 진행한다.
+> 목업 코드: `QuickTalkApp/DesignMockView+Outline.swift` (렌더 하네스 전용)
+> 실제 화면: `live-*.png` — `QuickTalk --render=<dir> --lang=korean|english --theme=dark|light --demo-outline-live`
+> 목업 재현: `QuickTalk --render=<dir> --lang=korean --theme=dark --demo-outline`
 
 ---
 
@@ -71,6 +71,25 @@
 
 영어는 질문이 길어 40자에서 더 많이 잘린다(예: `What did the pgpsql cleanup re…`). 목록 폭을 216으로 둔 트레이드오프이며, 검색으로 보완한다.
 
+### 1.9 실제 화면 (구현 후 렌더)
+
+목업을 `ContentView`·`ShelfView`·`SettingsView` 에 연결한 결과. `--demo-outline-live` 렌더 분기로 **메모리에만** 견본 대화를 넣는다(저장 없음).
+
+| 파일 | 화면 |
+| --- | --- |
+| `live-outline-rail-ko.png` | 400×560 · 접힌 눈금 레일 + 현재 위치 |
+| `live-outline-panel-ko.png` | 400×560 · 펼친 목차(현재 질문 중심) |
+| `live-outline-panel-bottom-ko.png` | 바닥까지 내려간 상태에서 펼침 |
+| `live-outline-narrow-ko.png` | 380×420 최소 창 |
+| `live-followups-ko.png` | 답변 아래 후속 질문 칩 3개 |
+| `live-shelf-outline-ko.png` | QuickShelf 대화 탭 목차 |
+| `live-settings-conversation-ko.png` | 설정 › 대화 두 그룹(780×1500) |
+| `live-*-en.png` | 같은 화면 영어(라이트) |
+
+**렌더에서 확인한 것**: 레일이 본문을 가리지 않음(오른쪽 34pt) · 펼친 패널이 리플로우를 만들지 않음 · 380×420 에서 패널이 창을 벗어나지 않음 · 바닥에서는 마지막 질문이 강조됨 · 칩이 답변 메타 줄과 섞이지 않음 · 설정에서 레일을 끄면 위치 토글이 숨는다.
+
+**미실행**: `--session-test` — 실행 중 QuickTalk 인스턴스가 단일 인스턴스 잠금(`E-MAC-APP-0001`)을 잡고 있어 중복 실행이 차단됐다(사용자 앱 중단 방지). 이번 변경은 세션 분리 경로를 건드리지 않았고 `swift test` 883/883 로 대체 확인했다. 앱을 종료한 뒤 `QuickTalk --session-test` 로 재확인할 수 있다.
+
 ## 2. 목업에서 확인한 것 / 남은 것
 
 | 항목 | 결과 |
@@ -82,7 +101,7 @@
 | 질문이 많을 때 목록이 넘치는가 | 현재 질문 중심 9개 창 + `아래 n개 더`(구현은 스크롤) |
 | 다크/라이트 | 현재 목업은 다크만. 구현 시 라이트 렌더 추가 |
 
-## 3. 구현 후 수동 QA (예정)
+## 3. 실측 QA (구현 완료 — 사용자 확인 대기)
 
 ### 목차
 
@@ -90,14 +109,14 @@
 | --- | --- |
 | Q1 | 질문 2개 이하일 때 레일이 **보이지 않는다** |
 | Q2 | 레일에 마우스를 0.35초 올리면 펼쳐지고, 벗어나면 접힌다(깜빡임 없음) |
-| Q3 | 레일 클릭 → 펼침 고정. 바깥 클릭·Esc·전송 → 닫힘 |
+| Q3 | 레일 클릭 → 펼침 고정. 접기(›)·Esc·항목 선택 → 닫힘 |
 | Q4 | 항목 클릭 → 그 질문으로 이동 + 1.5초 강조(기존 `focusTurn`과 동일한 느낌) |
 | Q5 | 스크롤하면 눈금의 보라 막대가 **지금 읽는 질문**을 따라간다 |
 | Q6 | 목차를 펼친 순간 **현재 질문이 보인다**(맨 아래 질문을 읽는 중이면 맨 아래) |
 | Q7 | 380×420 에서 패널이 창을 벗어나지 않고, 질문 5개가 보인다 |
 | Q8 | 질문 12개 이상에서 목록 스크롤·검색이 동작한다(`다음 실행` 검색 → 1건) |
 | Q9 | 한/영 전환 시 즉시 반영, 영어 질문도 40자에서 자연스럽게 잘린다 |
-| Q10 | VoiceOver 로 레일·항목이 읽히고, 키보드 `↑↓/Return/Esc` 로 조작된다 |
+| Q10 | VoiceOver 로 레일·항목 라벨이 읽힌다(키보드 화살표 이동은 **미지원** — Tab/Return 으로 선택) |
 
 ### 후속 질문
 
@@ -128,3 +147,4 @@
 
 - 2026-11-06 — 목업 1차: 3줄 손잡이 + 펼침 패널. 최소 창에서 패널이 세로로 너무 길고, 펼칠 때 본문 폭을 줄여 글자가 끊기는 문제 확인.
 - 2026-11-06 — 목업 2차: 손잡이를 **미니맵 눈금**으로, 패널은 오버레이 고정, 창 크기 클램프, 현재 질문 중심 목록, 후속 칩과의 겹침 제거. 위 이미지가 2차.
+- 2026-11-06 — **구현 완료**: `ConversationOutline`·`FollowUpSuggest`(Core) + `ChatOutlineRail`·`FollowUpChipsRow`·`UIStore+FollowUp`(App) + 설정 2그룹 + QuickShelf 목차. `swift test` 883/883(6 skip) · Debug 경고 0 · `live-*.png` 한/영 렌더. `--session-test` 는 단일 인스턴스 잠금으로 미실행.

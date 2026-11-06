@@ -1,6 +1,6 @@
 # PLAN v0.32 — 대화 목차(질문 바로가기) + 후속 질문 제안 (macOS)
 
-> 상태: **제안 · 목업 완료 — 구현 승인 대기**
+> 상태: **구현 · 검증 완료 — 병합 · 배포 대기** (2026-11-06)
 > 작성: 2026-11-06
 > 목업: `QuickTalkApp/DesignMockView+Outline.swift` · 이미지 `docs/qa/v0.32-outline-followups/`
 > 재현: `QuickTalk --render=docs/qa/v0.32-outline-followups --lang=korean --theme=dark --demo-outline`
@@ -221,25 +221,42 @@ QuickTalk 대화 창은 기본 400×560, 최소 380×420 이다. 질문·답이 
 
 | 파일 | 내용 |
 | --- | --- |
-| `QuickTalkApp/ChatOutlineView.swift` (신규) | `ChatOutlineRail`(눈금) · `ChatOutlinePanel`(검색·목록) · `OutlinePreferenceKey` |
-| `QuickTalkApp/FollowUpChipsRow.swift` (신규) | 칩 3개·스켈레톤·라벨 |
-| `QuickTalkApp/ContentView.swift` | 대화 `ScrollView` 에 레일 오버레이, 턴별 y 수집, `focusTurn` 재사용 |
-| `QuickTalkApp/ShelfView.swift` | 대화 탭 상단 접이식 목차 |
-| `QuickTalkApp/UIStore+FollowUp.swift` (신규) | `followUps[Turn.ID]`, `requestFollowUps(after:)`, 취소·캐시 |
+| `QuickTalkApp/ChatOutlineView.swift` (신규) | `ChatOutlineRail`(눈금 + 패널) · 호버/클릭 펼침 · 검색 · QA `initiallyExpanded` |
+| `QuickTalkApp/FollowUpChipsRow.swift` (신규) | 칩 3개 + `✦ 이어서 물어보기` 라벨 |
+| `QuickTalkApp/ContentView.swift` | 레일 오버레이·`OutlineOffsetKey`·`ChatSizeKey`·`ScrollOffsetObserver.onOffset`·`outlineInset`·칩 행 |
+| `QuickTalkApp/ShelfView.swift` | 대화 탭 상단 접이식 목차(`이 대화 목차`) + `.quickTalkOpenChat` 점프 |
+| `QuickTalkApp/UIStore+FollowUp.swift` (신규) | `FollowUpState`·`scheduleFollowUps`·`sendFollowUp`·`clearFollowUps`(취소·8초 타임아웃) |
 | `QuickTalkApp/SettingsView+General.swift` | `conversationSection` 에 `outlineSection`·`followUpSection` |
-| `Sources/QuickTalkCore/Settings.swift` | 키 4개 + enum 2개 + decode 폴백 + CodingKeys |
+| `Sources/QuickTalkCore/Settings.swift` | 키 5개 + enum 2개 + decode 폴백 + CodingKeys |
 
 ### 7.3 설정 키
 
 | 키 | 형식 | 기본 | 비고 |
 | --- | --- | --- | --- |
-| `outlineDisplay` | enum `off/rail/shelf/both` | `.rail` | 모르는 값이면 `.rail` |
+| `outlineDisplay` | enum `off/rail/shelf/both` | `.both` | 모르는 값이면 `.both` |
 | `outlineShowPosition` | Bool | `true` | 레일 눈금의 현재 위치 |
 | `followUpsEnabled` | Bool | `true` | |
 | `followUpSource` | enum `model/template` | `.model` | 모르는 값이면 `.model` |
 | `followUpAutoSend` | Bool | `true` | OFF면 입력창에 채움 |
 
 > 기존 패턴 유지: `decodeEnum` 헬퍼로 **알 수 없는 값이면 그 항목만 기본값**(다운그레이드 안전), `CodingKeys` 에 추가.
+
+### 7.4 구현 결과 (2026-11-06)
+
+| 항목 | 결과 |
+| --- | --- |
+| Core 테스트 | 목차 10 · 후속 13 · 설정 6 — `swift test` **883/883**(6 skip) |
+| Debug 빌드 | **BUILD SUCCEEDED · 경고 0** |
+| 실제 화면 렌더 | `docs/qa/v0.32-outline-followups/live-*.png` — 400×560(레일·패널·칩), 380×420, 바닥에서 펼침, 셸프, 설정 780×1500 · 한/영·다크/라이트 |
+| 번역 | 한/영 37키(`LocalizationTable.swift`), 커버리지 테스트 통과 |
+| `--session-test` | **미실행** — 실행 중 앱의 단일 인스턴스 잠금(`E-MAC-APP-0001`). v0.31 경로 무변경, `swift test` 로 대체 확인 |
+
+**구현 중 바꾼 것(설계 대비)**
+
+- 패널 폭 하한을 목업의 190 → **170** 으로 낮춰 380pt 창에서도 209pt 로 맞췄다.
+- 질문이 18개를 넘으면 레일 눈금을 **균등 샘플링**하고, 현재 위치는 가장 가까운 눈금으로 표시한다(눈금이 1pt 미만으로 뭉개지지 않게).
+- 목차를 켜면 질문 3개 미만이어도 오른쪽 여백 14pt 를 유지한다(세 번째 질문에서 글자 폭이 갑자기 바뀌는 것 방지).
+- QA 전용 `initiallyExpanded` 인자와 `--demo-outline-live` 렌더 분기를 추가했다(실사용 동작에는 영향 없음).
 
 ## 8. 단계 계획
 

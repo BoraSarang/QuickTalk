@@ -1693,6 +1693,8 @@ final class UIStore: ObservableObject {
       NSLog("[QuickTalk] 응답 대기 중 — 중복 전송 무시")
       return
     }
+    // 새 질문을 시작하면 이전 답변의 후속 질문 제안은 지운다(v0.32).
+    clearFollowUps(for: activeSession)
     // 보조 명령 — 일반 사용자는 자동 정리만 쓰면 된다. `/compact`는 즉시 정리.
     let command = draft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if allowCommands, command == "/compact" {
@@ -2126,7 +2128,14 @@ final class UIStore: ObservableObject {
           session.liveReasoning = ""
           self.syncArchive(session)
           // 답변을 마친 뒤 **백그라운드로** 정리한다 — 현재 답변 지연을 만들지 않는다.
-          if !isError { self.startAutoCompact(convID: convID, session: session) }
+          if !isError {
+            self.startAutoCompact(convID: convID, session: session)
+            // v0.32 — 정상 종료된 답변에만 후속 질문 칩을 예약한다.
+            let finalAnswer = session.conversation.turns
+              .first(where: { $0.id == aid })?.text ?? ""
+            self.scheduleFollowUps(session: session, assistantTurnID: aid,
+                                   question: prompt, answer: finalAnswer)
+          }
           self.lastAICall = isError ? .failed(Self.errorCode(in: reply)) : .ok
           self.lastAIErrorDetail = isError ? Self.errorSummary(in: reply) : nil
         } catch {
@@ -2185,6 +2194,7 @@ final class UIStore: ObservableObject {
   func cancelReply() {
     guard isReplying else { return }
     NSLog("[QuickTalk] 사용자 중지 요청 — 진행 중인 응답 취소")
+    clearFollowUps(for: activeSession)
     // 승인 대기 중이면 거부로 깨우고, 셸이 돌고 있으면 프로세스를 멈춘다(v0.20).
     let executor = agentExecutor
     Task { @MainActor in executor?.cancelPending() }
@@ -3104,6 +3114,11 @@ final class ChatSession: ObservableObject, Identifiable {
   @Published var networkRetryStatus: String?
   var replyStartedAt: Date?
   var replyTask: Task<Void, Never>?
+
+  /// 후속 질문 제안(v0.32) — 답변 턴 ID → 칩 목록. 대화방마다 따로 둔다.
+  @Published var followUpStates: [UUID: FollowUpState] = [:]
+  /// 후속 질문 생성 작업 — 새 전송·중지 시 취소한다.
+  var followUpTask: Task<Void, Never>?
 
   // 도우미 도구
   @Published var agentEvents: [AgentEvent] = []

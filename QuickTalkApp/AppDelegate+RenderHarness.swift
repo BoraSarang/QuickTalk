@@ -770,6 +770,66 @@ extension AppDelegate {
                        size: NSSize(width: 560, height: 600),
                        to: "\(dir)/settings-conversation-\(suffix).png")
       }
+      // v0.32 실제 화면 — 승인된 목업을 ContentView·ShelfView 에 연결한 결과를 확인한다.
+      if CommandLine.arguments.contains("--demo-outline-live") {
+        let backup = self.store.conversation
+        let archiveBackup = self.store.archive
+        let qa: [(String, String)] = [
+          ("이번 주 예약 작업 상태 알려줘",
+           "이번 주 예약 작업은 6건 모두 정상입니다. 실패한 작업은 없고, 다음 실행은 내일 오전 9시입니다."),
+          ("실패한 작업이 있으면 다시 예약해줘",
+           "지난주 실패 2건을 다시 예약했습니다. 권한 오류로 멈춘 작업은 폴더 승인 후 재시도합니다."),
+          ("권한 오류는 어떻게 고쳐?",
+           "설정 › 도구·권한에서 해당 폴더를 승인하면 됩니다. 승인 뒤에는 앱을 다시 실행하지 않아도 됩니다."),
+          ("다음 실행은 언제야?",
+           "가장 가까운 실행은 내일 오전 9시이고, 그다음은 금요일 오후 6시입니다."),
+          ("리포트는 어디에 저장돼?",
+           "리포트는 설정한 리포트 폴더에 날짜별 Markdown 파일로 저장됩니다."),
+          ("표로 정리해줘",
+           "| 작업 | 상태 | 다음 실행 |\n| --- | --- | --- |\n| 백업 | 정상 | 내일 09:00 |\n| 리포트 | 정상 | 금요일 18:00 |")
+        ]
+        var turns: [Turn] = []
+        var lastAssistantID: UUID?
+        for (i, pair) in qa.enumerated() {
+          turns.append(Turn(role: .user, text: pair.0))
+          let answer = Turn(role: .assistant, text: pair.1, elapsedMs: 1_800 + i * 400)
+          turns.append(answer)
+          lastAssistantID = answer.id
+        }
+        self.store.conversation = Conversation(title: "대화 목차 QA", turns: turns)
+        // QA 렌더에는 실제 보관함 기록을 쓰지 않는다(개인 대화가 문서에 남지 않게).
+        self.store.archive = [self.store.conversation]
+        if let id = lastAssistantID {
+          self.store.activeSession.followUpStates[id] = FollowUpState(
+            chips: FollowUpSuggest.fallback(question: qa.last!.0, answer: qa.last!.1))
+        }
+        self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/live-outline-rail-\(suffix).png")
+        self.renderPNG(AnyView(ContentView(expandOutline: true).environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/live-outline-panel-\(suffix).png")
+        self.renderPNG(AnyView(ContentView(expandOutline: true).environmentObject(self.store)),
+                       size: NSSize(width: 380, height: 420),
+                       to: "\(dir)/live-outline-narrow-\(suffix).png")
+        self.renderChatBottomPNG(AnyView(ContentView().environmentObject(self.store)),
+                                 size: NSSize(width: 400, height: 560),
+                                 to: "\(dir)/live-followups-\(suffix).png")
+        // 바닥까지 내려간 상태에서 펼친 목차 — 현재 질문(마지막)이 강조·자동 스크롤되는지.
+        self.renderChatBottomPNG(AnyView(ContentView(expandOutline: true).environmentObject(self.store)),
+                                 size: NSSize(width: 400, height: 560),
+                                 to: "\(dir)/live-outline-panel-bottom-\(suffix).png")
+        self.renderPNG(AnyView(ShelfView(store: self.store, chrome: .docked,
+                                         onClose: {}, onSettings: {})),
+                       size: NSSize(width: 300, height: 600),
+                       to: "\(dir)/live-shelf-outline-\(suffix).png")
+        self.renderPNG(AnyView(SettingsView(initialTab: .conversation)
+                                .environmentObject(self.store)),
+                       size: NSSize(width: 780, height: 1500),
+                       to: "\(dir)/live-settings-conversation-\(suffix).png")
+        self.store.conversation = backup
+        self.store.archive = archiveBackup
+      }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)
     }

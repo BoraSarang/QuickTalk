@@ -3,14 +3,27 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-06 KST
 
-## 제안 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 [구현 승인 대기]
+## 구현 완료 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안
+
+`docs/qa/v0.32-outline-followups/README.md` · PLAN §7 — **구현·검증 완료 · 병합·배포 대기 · 실측 대기(Q1~Q10 · F1~F9 · S1~S6).**
+
+- **승인 설계**: ① 목차 = **레일 + 셸프 보조(둘 다)** ② 후속 질문 = **모델 생성 + 무료 폴백** ③ 칩 클릭 = **즉시 전송**.
+- **대화 목차**: Core `ConversationOutline`(질문 추출·현재 위치·검색) + App `ChatOutlineView`(폭 22pt 눈금 레일, 0.35초 호버/클릭으로 **오버레이** 패널, 현재 질문 중심 스크롤, `focusTurn` 재사용). 질문 3개 이상일 때만 표시, 8개 이상이면 검색.
+- **후속 질문**: Core `FollowUpSuggest`(프롬프트·파싱·무료 폴백 3개) + `UIStore+FollowUp`(정상 종료 + 80자 이상, 2.5초 뒤 모델 1회, 8초 타임아웃, 새 전송·중지 시 취소, 대화방별 캐시). `FollowUpChipsRow` 로 답변 아래 표시.
+- **QuickShelf**: 대화 탭 상단 접이식 `이 대화 목차`(최근 6개 + 나머지 개수) — 점프 시 셸프를 닫고 새 알림 `.quickTalkOpenChat` 으로 창만 연다(맨 아래 스크롤과 분리).
+- **설정 › 대화**: `outlineDisplay`(기본 `.both`) · `outlineShowPosition` · `followUpsEnabled` · `followUpSource` · `followUpAutoSend`. 한/영 37키.
+- **검증**: `swift test` **883/883**(6 skip, 신규 29) · Debug **BUILD SUCCEEDED · 경고 0** · 실제 화면 렌더 `live-*.png` 한/영(400×560·380×420·바닥·셸프·설정).
+- **한계**: `--session-test` 는 실행 중 앱의 단일 인스턴스 잠금(`E-MAC-APP-0001`)으로 미실행 — QA README 에 사유 기록.
+- **다음**: 커밋 → PR → squash merge → Release 재배포(SHA-256) → 사용자 실측.
+
+## 제안 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 [목업 단계 완료]
 
 - **대화 목차**: 기본은 **오른쪽 중앙 플로팅 레일**(질문 수만큼 눈금 + 현재 위치), 호버/클릭 시 질문 목록. 2안 QuickShelf 대화 탭 진입은 보조. 같은 `ConversationOutline` 모델 공유.
 - **후속 질문**: 정상 응답이 끝나고 2.5초 유휴 뒤 칩 3개(모델 생성 + 무료 폴백, 8초 타임아웃, 응답 중 skip, 클릭 즉시 전송).
 - **설정 › 대화**: `outlineDisplay`(끔/레일/퀵셸프/둘 다) · `outlineShowPosition` · `followUpsEnabled` · `followUpSource` · `followUpAutoSend`.
 - **목업**: `QuickTalkApp/DesignMockView+Outline.swift`(`--demo-outline`) → `docs/qa/v0.32-outline-followups/` 한/영 14장.
 - **계획**: `docs/plans/PLAN_v0.32_outline-followups_macos.md` (1안/2안 비교 · 화면 명세 · 단계 P1~P4 · 테스트 계획).
-- **다음**: 사용자 승인 → P1(목차)부터 구현.
+- **다음**: 승인 후 구현 → 위 "구현 완료" 절 참조.
 
 ## 정리 완료 (2026-11-06) — v0.31 코드·문서 정리
 

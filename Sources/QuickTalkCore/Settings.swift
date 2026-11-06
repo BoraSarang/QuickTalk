@@ -42,6 +42,43 @@ public enum ReasoningDisplayMode: String, Codable, CaseIterable, Identifiable, E
   }
 }
 
+/// 대화 목차 표시 방식(v0.32) — 설정 › 대화.
+public enum OutlineDisplay: String, Codable, CaseIterable, Identifiable, Equatable {
+  case off
+  case rail
+  case shelf
+  case both
+
+  public var id: String { rawValue }
+
+  public var displayName: String {
+    switch self {
+    case .off: return L("끔")
+    case .rail: return L("플로팅 레일")
+    case .shelf: return L("퀵셸프")
+    case .both: return L("둘 다")
+    }
+  }
+
+  public var showsRail: Bool { self == .rail || self == .both }
+  public var showsShelf: Bool { self == .shelf || self == .both }
+}
+
+/// 후속 질문 생성 방식(v0.32) — 모델 1회 호출 또는 무료 문구.
+public enum FollowUpSource: String, Codable, CaseIterable, Identifiable, Equatable {
+  case model
+  case template
+
+  public var id: String { rawValue }
+
+  public var displayName: String {
+    switch self {
+    case .model: return L("모델로 생성 (권장)")
+    case .template: return L("무료 문구")
+    }
+  }
+}
+
 public struct QuickTalkSettings: Codable, Equatable {
   public var showMenuBarIcon: Bool = true
   public var showDockIcon: Bool = false
@@ -58,6 +95,16 @@ public struct QuickTalkSettings: Codable, Equatable {
   /// 대화 창의 상단 도구(📌·🧠·🔖·▤·⋯)를 **항상** 보일지.
   /// 기본은 꺼짐 — 평소에는 숨고 마우스를 창 위쪽에 올리면 나타난다(v0.31).
   public var chatToolbarAlwaysVisible: Bool = false
+  /// 대화 목차 표시(v0.32) — 끔/플로팅 레일/퀵셸프/둘 다. 기본은 **둘 다**(레일 + 셸프 보조).
+  public var outlineDisplay: OutlineDisplay = .both
+  /// 레일 눈금에 **지금 읽는 질문**을 표시할지.
+  public var outlineShowPosition: Bool = true
+  /// 응답이 끝나면 후속 질문 3개를 제안할지(v0.32).
+  public var followUpsEnabled: Bool = true
+  /// 후속 질문 생성 방식 — 모델 1회 호출(기본) 또는 무료 문구.
+  public var followUpSource: FollowUpSource = .model
+  /// 칩을 누르면 바로 전송할지(끄면 입력창에 채운다).
+  public var followUpAutoSend: Bool = true
   public var previewLines: Int = 2
   public var keepDays: Int = 30
   public var globalShortcut: String = "Cmd+Space"
@@ -303,6 +350,8 @@ public struct QuickTalkSettings: Codable, Equatable {
   private enum CodingKeys: String, CodingKey {
     case showMenuBarIcon, showDockIcon, shortcutSessionMinutes, alwaysOnTop
     case chatToolbarAlwaysVisible
+    case outlineDisplay, outlineShowPosition
+    case followUpsEnabled, followUpSource, followUpAutoSend
     case appearance, language
     case previewLines, keepDays, globalShortcut
     case shelfShortcut, captureFullShortcut, captureRegionShortcut, captureWindowShortcut
@@ -353,6 +402,12 @@ public struct QuickTalkSettings: Codable, Equatable {
     alwaysOnTop = try c.decodeIfPresent(Bool.self, forKey: .alwaysOnTop) ?? false
     chatToolbarAlwaysVisible = try c.decodeIfPresent(Bool.self,
                                                      forKey: .chatToolbarAlwaysVisible) ?? false
+    outlineDisplay = Self.decodeEnum(OutlineDisplay.self, c, .outlineDisplay, default: .both)
+    outlineShowPosition = try c.decodeIfPresent(Bool.self,
+                                                forKey: .outlineShowPosition) ?? true
+    followUpsEnabled = try c.decodeIfPresent(Bool.self, forKey: .followUpsEnabled) ?? true
+    followUpSource = Self.decodeEnum(FollowUpSource.self, c, .followUpSource, default: .model)
+    followUpAutoSend = try c.decodeIfPresent(Bool.self, forKey: .followUpAutoSend) ?? true
     previewLines = try c.decodeIfPresent(Int.self, forKey: .previewLines) ?? 2
     keepDays = try c.decodeIfPresent(Int.self, forKey: .keepDays) ?? 30
     globalShortcut = try c.decodeIfPresent(String.self, forKey: .globalShortcut) ?? "Cmd+Space"
@@ -450,6 +505,11 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(shortcutSessionMinutes, forKey: .shortcutSessionMinutes)
     try c.encode(alwaysOnTop, forKey: .alwaysOnTop)
     try c.encode(chatToolbarAlwaysVisible, forKey: .chatToolbarAlwaysVisible)
+    try c.encode(outlineDisplay, forKey: .outlineDisplay)
+    try c.encode(outlineShowPosition, forKey: .outlineShowPosition)
+    try c.encode(followUpsEnabled, forKey: .followUpsEnabled)
+    try c.encode(followUpSource, forKey: .followUpSource)
+    try c.encode(followUpAutoSend, forKey: .followUpAutoSend)
     try c.encode(previewLines, forKey: .previewLines)
     try c.encode(keepDays, forKey: .keepDays)
     try c.encode(globalShortcut, forKey: .globalShortcut)

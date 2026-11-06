@@ -118,6 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(forName: .quickTalkOpenArchive, object: nil, queue: .main) { [weak self] _ in
       self?.openPanel(tab: 1)
     }
+    // QuickShelf 목차에서 질문을 골랐을 때 — 창이 닫혀 있으면 대화 탭을 연다.
+    // (보이는 창은 `searchFocus` 가 그 턴으로 스크롤한다. 맨 아래로 내리면 안 된다)
+    NotificationCenter.default.addObserver(forName: .quickTalkOpenChat, object: nil, queue: .main) { [weak self] _ in
+      guard let self, self.panel?.isVisible != true else { return }
+      self.openPanel(tab: 0)
+    }
     // 중복 실행 시도가 있었으면 기존 인스턴스(이 앱)가 창을 앞으로 낸다 — 두 번째 앱은 뜨지 않는다.
     DistributedNotificationCenter.default().addObserver(
       forName: SingleInstance.activateNotification, object: nil, queue: .main) { [weak self] _ in
@@ -1029,6 +1035,8 @@ extension Notification.Name {
   static let quickTalkOpenSettings = Notification.Name("quickTalkOpenSettings")
   /// QuickShelf → 창 안 보관함 탭(검색·이름 변경·삭제·비서별 정리)
   static let quickTalkOpenArchive = Notification.Name("quickTalkOpenArchive")
+  /// QuickShelf 목차 → 대화 창을 열기만 한다(맨 아래로 스크롤하지 않는다 — 고른 질문으로 이동해야 함)
+  static let quickTalkOpenChat = Notification.Name("quickTalkOpenChat")
   /// QuickShelf에서 무언가를 대화에 넣었을 때 대화 창을 보여달라는 요청
   static let quickTalkShowChat = Notification.Name("quickTalkShowChat")
   /// 대화 창을 열 때(또는 이어서 열 때) 대화 스크롤을 맨 아래로 맞추라는 요청
