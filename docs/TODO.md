@@ -5,16 +5,17 @@
 
 ## 구현 완료 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안
 
-`docs/qa/v0.32-outline-followups/README.md` · PLAN §7 — **구현·검증 완료 · 병합·배포 대기 · 실측 대기(Q1~Q10 · F1~F9 · S1~S6).**
+`docs/qa/v0.32-outline-followups/README.md` · PLAN §7 — **구현·검증·병합·배포 완료 · 실측 대기(Q1~Q10 · F1~F9 · S1~S6).**
 
 - **승인 설계**: ① 목차 = **레일 + 셸프 보조(둘 다)** ② 후속 질문 = **모델 생성 + 무료 폴백** ③ 칩 클릭 = **즉시 전송**.
 - **대화 목차**: Core `ConversationOutline`(질문 추출·현재 위치·검색) + App `ChatOutlineView`(폭 22pt 눈금 레일, 0.35초 호버/클릭으로 **오버레이** 패널, 현재 질문 중심 스크롤, `focusTurn` 재사용). 질문 3개 이상일 때만 표시, 8개 이상이면 검색.
 - **후속 질문**: Core `FollowUpSuggest`(프롬프트·파싱·무료 폴백 3개) + `UIStore+FollowUp`(정상 종료 + 80자 이상, 2.5초 뒤 모델 1회, 8초 타임아웃, 새 전송·중지 시 취소, 대화방별 캐시). `FollowUpChipsRow` 로 답변 아래 표시.
 - **QuickShelf**: 대화 탭 상단 접이식 `이 대화 목차`(최근 6개 + 나머지 개수) — 점프 시 셸프를 닫고 새 알림 `.quickTalkOpenChat` 으로 창만 연다(맨 아래 스크롤과 분리).
 - **설정 › 대화**: `outlineDisplay`(기본 `.both`) · `outlineShowPosition` · `followUpsEnabled` · `followUpSource` · `followUpAutoSend`. 한/영 37키.
-- **검증**: `swift test` **883/883**(6 skip, 신규 29) · Debug **BUILD SUCCEEDED · 경고 0** · 실제 화면 렌더 `live-*.png` 한/영(400×560·380×420·바닥·셸프·설정).
+- **검증**: `swift test` **883/883**(6 skip, 신규 29) · Debug/Release **BUILD SUCCEEDED · 경고 0** · 실제 화면 렌더 `live-*.png` 한/영(400×560·380×420·바닥·셸프·설정).
 - **한계**: `--session-test` 는 실행 중 앱의 단일 인스턴스 잠금(`E-MAC-APP-0001`)으로 미실행 — QA README 에 사유 기록.
-- **다음**: 커밋 → PR → squash merge → Release 재배포(SHA-256) → 사용자 실측.
+- **병합·배포**: **PR #114 → `a8c641d`** · **2026-11-06 18:55** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `973a6d22…`(40MB) · **앱 재실행 필요**.
+- **다음**: 앱 재실행 후 실측 Q1~Q10 · F1~F9 · S1~S6.
 
 ## 제안 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 [목업 단계 완료]
 

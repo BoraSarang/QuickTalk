@@ -1,6 +1,6 @@
 # v0.32 대화 목차 · 후속 질문 제안 — 목업 QA + 실제 화면
 
-> 상태: **구현·검증 완료 — 병합·배포 대기** (2026-11-06)
+> 상태: **구현·검증·병합·배포 완료 — 실측 대기** (2026-11-06)
 > 계획: `docs/plans/PLAN_v0.32_outline-followups_macos.md`
 > 목업 코드: `QuickTalkApp/DesignMockView+Outline.swift` (렌더 하네스 전용)
 > 실제 화면: `live-*.png` — `QuickTalk --render=<dir> --lang=korean|english --theme=dark|light --demo-outline-live`
@@ -148,3 +148,4 @@
 - 2026-11-06 — 목업 1차: 3줄 손잡이 + 펼침 패널. 최소 창에서 패널이 세로로 너무 길고, 펼칠 때 본문 폭을 줄여 글자가 끊기는 문제 확인.
 - 2026-11-06 — 목업 2차: 손잡이를 **미니맵 눈금**으로, 패널은 오버레이 고정, 창 크기 클램프, 현재 질문 중심 목록, 후속 칩과의 겹침 제거. 위 이미지가 2차.
 - 2026-11-06 — **구현 완료**: `ConversationOutline`·`FollowUpSuggest`(Core) + `ChatOutlineRail`·`FollowUpChipsRow`·`UIStore+FollowUp`(App) + 설정 2그룹 + QuickShelf 목차. `swift test` 883/883(6 skip) · Debug 경고 0 · `live-*.png` 한/영 렌더. `--session-test` 는 단일 인스턴스 잠금으로 미실행.
+- 2026-11-06 — **병합·배포**: **PR #114 → squash merge `a8c641d`** · 18:55 `~/Applications/QuickTalk.app` 교체(백업 없음) · `codesign --verify --strict --deep` OK · SHA-256 `973a6d22…`(40MB) · **앱 재실행 필요**(PID 67776 은 이전 빌드).

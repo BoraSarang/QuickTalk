@@ -6,11 +6,11 @@
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
 > **사용자 맥 사용 중** — 앱 실행/종료·스크린샷·창 조회·소리 재생 금지. 코드·빌드·오프스크린 렌더·문서만.
 >
-> **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-06 v0.32 배포**(대화 목차·후속 질문, 아래 인계 (8))**했다.
+> **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-06 18:55 배포**(v0.32 대화 목차·후속 질문, 아래 인계 (8))**했다.
 
-### 2026-11-06 인계 (8) — v0.32 **대화 목차 · 후속 질문 제안** **구현·검증 완료** (배포·실측 대기)
+### 2026-11-06 인계 (8) — v0.32 **대화 목차 · 후속 질문 제안** **병합·배포 완료** (실측 대기)
 
-- **브랜치/PR**: `feat/v0.32-outline-followups` (기준 `main` = `f0bb00f`). **`main` 직접 push 금지** 유지.
+- **브랜치/PR**: `feat/v0.32-outline-followups` (기준 `main` = `f0bb00f`) → **PR #114 → squash merge `a8c641d`**. **`main` 직접 push 금지** 유지. `main` clean.
 - **승인 설계**: ① 목차 = **레일 + 셸프 보조(둘 다)** ② 후속 질문 = **모델 생성 + 무료 폴백** ③ 칩 클릭 = **즉시 전송**. 계획 `docs/plans/PLAN_v0.32_outline-followups_macos.md`.
 - **목차(Core `ConversationOutline`)**: 사용자 질문만 `OutlineEntry(index, preview 40자)` 로. 현재 위치는 **화면 위쪽 기준선(절대 offsetY+8) 위의 마지막 질문**. 질문 3개 이상일 때만 레일, 8개 이상이면 검색.
 - **목차(App `ChatOutlineView`)**: 폭 22pt 눈금 레일(질문 18개 초과 시 균등 샘플링, 현재 눈금은 4×12 보라 막대). 호버 **0.35초**/클릭으로 패널, 클릭은 고정, Esc·접기(›)·항목 선택으로 닫힘. 패널 **오버레이**(리플로우 없음), 폭 `min(216, max(170, w×0.55))`·높이 `min(300, max(150, h−120))`, 현재 질문 중심 자동 스크롤. 항목 선택은 기존 `focusTurn` 재사용(3회 스크롤 + 테두리 깜빡임).
@@ -20,8 +20,9 @@
 - **설정 › 대화**: `outlineDisplay`(기본 **`.both`**) · `outlineShowPosition`(true) · `followUpsEnabled`(true) · `followUpSource`(model) · `followUpAutoSend`(true). 레일 미사용 시 위치 토글 숨김. 한/영 37키.
 - **검증(오프스크린)**: `swift test` **883/883**(6 skip, 신규 29 — 목차 10·후속 13·설정 6) · Debug `xcodebuild` **BUILD SUCCEEDED · 경고 0** · 실제 화면 렌더 `docs/qa/v0.32-outline-followups/live-{rail,panel,panel-bottom,narrow,followups,shelf-outline,settings-conversation}-{ko,en}.png` — 400×560/380×420, 바닥에서 펼친 목차, 한/영·다크/라이트 확인.
 - **한계(정직)**: `--session-test` 는 **실행 중 QuickTalk 인스턴스의 단일 인스턴스 잠금**(`E-MAC-APP-0001`) 때문에 이번 세션에서 미실행 — v0.31 에서 PASS 한 경로를 건드리지 않았고 `swift test` 로 대체 확인. 사용자가 앱을 종료한 뒤 실행하면 재확인 가능.
+- **배포**: **2026-11-06 18:55** `~/Applications/QuickTalk.app` 교체(**백업 복제본 없음** — 기존 번들 삭제 → 새 번들 이동, `~/Applications/` 에 `QuickTalk.app` 하나만) · `codesign --verify --strict --deep` OK · 빌드 산출물과 `diff -rq` 동일 · 설치본 SHA-256 `973a6d22216af5ea3c82b998544e3e16b45f351a0bb85054090e3295c55ba089`(40MB) · 바이너리에 `이 대화 목차`·`이어서 물어보기` 포함 확인 · **앱 재실행 필요**(실행 중 PID 67776 은 이전 빌드).
 - **실측 대기**: QA README §3 Q1~Q10 · F1~F9 · S1~S6.
-- **다음**: 브랜치 커밋 → PR → squash merge → Release 재배포(SHA-256 기록) → 사용자 실측.
+- **다음**: 앱 재실행 → 실측 Q1~Q10 · F1~F9 · S1~S6. 문제가 있으면 `fix/v0.32-*` 브랜치로 수정 → PR.
 
 ### 2026-11-06 인계 (7) — v0.31 **타임라인 · 사고 과정 표시 설정 · `⋯` 클릭 · 다중 대화 6a/6b** **병합·배포 완료** (실측 대기)
 
