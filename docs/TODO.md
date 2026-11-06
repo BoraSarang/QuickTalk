@@ -3,9 +3,9 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-06 KST
 
-## 구현 완료 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안
+## 구현 완료 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 · v0.32.1 수정
 
-`docs/qa/v0.32-outline-followups/README.md` · PLAN §7 — **구현·검증·병합·배포 완료 · 실측 대기(Q1~Q10 · F1~F9 · S1~S6).**
+`docs/qa/v0.32-outline-followups/README.md` · PLAN §7 — **구현·검증·병합·배포 완료 · 실측 대기(Q1~Q11 · F1~F9 · S1~S6).**
 
 - **승인 설계**: ① 목차 = **레일 + 셸프 보조(둘 다)** ② 후속 질문 = **모델 생성 + 무료 폴백** ③ 칩 클릭 = **즉시 전송**.
 - **대화 목차**: Core `ConversationOutline`(질문 추출·현재 위치·검색) + App `ChatOutlineView`(폭 22pt 눈금 레일, 0.35초 호버/클릭으로 **오버레이** 패널, 현재 질문 중심 스크롤, `focusTurn` 재사용). 질문 3개 이상일 때만 표시, 8개 이상이면 검색.
@@ -13,9 +13,10 @@
 - **QuickShelf**: 대화 탭 상단 접이식 `이 대화 목차`(최근 6개 + 나머지 개수) — 점프 시 셸프를 닫고 새 알림 `.quickTalkOpenChat` 으로 창만 연다(맨 아래 스크롤과 분리).
 - **설정 › 대화**: `outlineDisplay`(기본 `.both`) · `outlineShowPosition` · `followUpsEnabled` · `followUpSource` · `followUpAutoSend`. 한/영 37키.
 - **검증**: `swift test` **883/883**(6 skip, 신규 29) · Debug/Release **BUILD SUCCEEDED · 경고 0** · 실제 화면 렌더 `live-*.png` 한/영(400×560·380×420·바닥·셸프·설정).
-- **한계**: `--session-test` 는 실행 중 앱의 단일 인스턴스 잠금(`E-MAC-APP-0001`)으로 미실행 — QA README 에 사유 기록.
-- **병합·배포**: **PR #114 → `a8c641d`** · **2026-11-06 18:55** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `973a6d22…`(40MB) · **앱 재실행 필요**.
-- **다음**: 앱 재실행 후 실측 Q1~Q10 · F1~F9 · S1~S6.
+- **v0.32.1 수정(사용자 지적 2건)**: ① 질문 `⋯` 와 레일 겹침 → 본문 오른쪽 여백 **30pt** ② 바로가기 후 스크롤이 맨 아래로 튐 → Core `FollowScrollPolicy`(점프 1.0초 억제·바닥 도달 시 재개) · `swift test` **891/891**(6 skip, 신규 8) · 렌더 바이트 동일.
+- **한계**: `--session-test` 는 실행 중 앱의 단일 인스턴스 잠금(`E-MAC-APP-0001`)으로 미실행 — QA README 에 사유 기록. 스크롤 튐은 타이밍 의존이라 오프스크린 재현 대신 Core 회귀 테스트로 고정.
+- **병합·배포**: **PR #114 → `a8c641d`** · **v0.32.1 PR #116 → `d92d78e`** · **2026-11-06 19:14** `~/Applications/QuickTalk.app` 교체(**백업 없음**) · `codesign --verify --strict --deep` OK · SHA-256 `26d345f8…`(40MB) · **앱 재실행 필요**.
+- **다음**: 앱 재실행 후 실측 Q1~Q11 · F1~F9 · S1~S6 — 특히 Q4 후 Q11(바로가기 → 위·아래 스크롤 시 바닥으로 튀지 않음).
 
 ## 제안 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 [목업 단계 완료]
 
