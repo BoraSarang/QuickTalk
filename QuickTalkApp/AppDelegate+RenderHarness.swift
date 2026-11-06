@@ -812,6 +812,11 @@ extension AppDelegate {
         self.renderPNG(AnyView(ContentView(expandOutline: true).environmentObject(self.store)),
                        size: NSSize(width: 380, height: 420),
                        to: "\(dir)/live-outline-narrow-\(suffix).png")
+        // 사용자 지적(2026-11-06) — 질문 `⋯` 툴팁이 목차 레일을 덮는지.
+        // 두 번째 질문(세로 중앙 부근)에 호버한 상태로 그려 레일과의 간격을 확인한다.
+        self.renderPNG(AnyView(ContentView(hoverTurnIndex: 1).environmentObject(self.store)),
+                       size: NSSize(width: 400, height: 560),
+                       to: "\(dir)/live-outline-hover-\(suffix).png")
         self.renderChatBottomPNG(AnyView(ContentView().environmentObject(self.store)),
                                  size: NSSize(width: 400, height: 560),
                                  to: "\(dir)/live-followups-\(suffix).png")
