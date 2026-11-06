@@ -3,6 +3,15 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-06 KST
 
+## 제안 (2026-11-06) — v0.32 대화 목차 + 후속 질문 제안 [구현 승인 대기]
+
+- **대화 목차**: 기본은 **오른쪽 중앙 플로팅 레일**(질문 수만큼 눈금 + 현재 위치), 호버/클릭 시 질문 목록. 2안 QuickShelf 대화 탭 진입은 보조. 같은 `ConversationOutline` 모델 공유.
+- **후속 질문**: 정상 응답이 끝나고 2.5초 유휴 뒤 칩 3개(모델 생성 + 무료 폴백, 8초 타임아웃, 응답 중 skip, 클릭 즉시 전송).
+- **설정 › 대화**: `outlineDisplay`(끔/레일/퀵셸프/둘 다) · `outlineShowPosition` · `followUpsEnabled` · `followUpSource` · `followUpAutoSend`.
+- **목업**: `QuickTalkApp/DesignMockView+Outline.swift`(`--demo-outline`) → `docs/qa/v0.32-outline-followups/` 한/영 14장.
+- **계획**: `docs/plans/PLAN_v0.32_outline-followups_macos.md` (1안/2안 비교 · 화면 명세 · 단계 P1~P4 · 테스트 계획).
+- **다음**: 사용자 승인 → P1(목차)부터 구현.
+
 ## 정리 완료 (2026-11-06) — v0.31 코드·문서 정리
 
 - **세션 라우팅**: `AgentExecutor+Schedule`·`AgentExecutor+UI` 가 `store.appendAgentEvent(...)` 등 **활성 세션** 래퍼를 쓰던 것을 실행기 `session` 으로 통일 — 응답 중 다른 방으로 전환해도 카드가 섞이지 않는다. `approveWriteScopes`·셸 스트리밍 갱신도 동일.

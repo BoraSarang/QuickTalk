@@ -748,6 +748,28 @@ extension AppDelegate {
                        size: NSSize(width: 300, height: 520),
                        to: "\(dir)/mock-shelf-\(suffix).png")
       }
+      // v0.32 제안 목업 — 대화 목차(플로팅 레일·퀵셸프) + 후속 질문 + 설정. 실제 화면에 연결하지 않는다.
+      if CommandLine.arguments.contains("--demo-outline") {
+        for (mode, name) in [(OutlineMockView.Mode.collapsed, "outline-collapsed"),
+                             (.expanded, "outline-expanded"),
+                             (.followUps, "outline-followups"),
+                             (.both, "outline-both")] {
+          self.renderPNG(AnyView(OutlineMockView(mode: mode, lang: suffix)),
+                         size: NSSize(width: 400, height: 560),
+                         to: "\(dir)/\(name)-\(suffix).png")
+        }
+        // 최소 창(380×420)에서 레일이 대화를 얼마나 가리는지.
+        self.renderPNG(AnyView(OutlineMockView(mode: .expanded, lang: suffix,
+                                              width: 380, height: 420)),
+                       size: NSSize(width: 380, height: 420),
+                       to: "\(dir)/outline-narrow-\(suffix).png")
+        self.renderPNG(AnyView(OutlineShelfMockView(lang: suffix)),
+                       size: NSSize(width: 320, height: 600),
+                       to: "\(dir)/shelf-outline-\(suffix).png")
+        self.renderPNG(AnyView(OutlineSettingsMockView(lang: suffix)),
+                       size: NSSize(width: 560, height: 600),
+                       to: "\(dir)/settings-conversation-\(suffix).png")
+      }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)
     }
