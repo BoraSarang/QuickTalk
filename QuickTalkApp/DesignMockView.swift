@@ -474,7 +474,7 @@ struct ShelfMockView: View {
 
 // MARK: - 목업 토큰/문구
 
-private enum MockTheme {
+enum MockTheme {
   static let accent = Color(red: 0.63, green: 0.52, blue: 1.0)
   static let bubble = Color(red: 0.29, green: 0.26, blue: 0.44)
   static let background = LinearGradient(
@@ -496,7 +496,7 @@ private struct MockBubbleTail: Shape {
   }
 }
 
-private struct MockStrings {
+struct MockStrings {
   let lang: String
   private var ko: Bool { lang != "en" }
 
