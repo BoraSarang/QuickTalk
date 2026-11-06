@@ -1,6 +1,6 @@
 # PLAN v0.32 — 대화 목차(질문 바로가기) + 후속 질문 제안 (macOS)
 
-> 상태: **구현 · 검증 완료 — 병합 · 배포 대기** (2026-11-06)
+> 상태: **구현 · 검증 · 병합 · 배포 완료 — 실측 대기** (2026-11-06)
 > 작성: 2026-11-06
 > 목업: `QuickTalkApp/DesignMockView+Outline.swift` · 이미지 `docs/qa/v0.32-outline-followups/`
 > 재현: `QuickTalk --render=docs/qa/v0.32-outline-followups --lang=korean --theme=dark --demo-outline`
@@ -250,6 +250,7 @@ QuickTalk 대화 창은 기본 400×560, 최소 380×420 이다. 질문·답이 
 | 실제 화면 렌더 | `docs/qa/v0.32-outline-followups/live-*.png` — 400×560(레일·패널·칩), 380×420, 바닥에서 펼침, 셸프, 설정 780×1500 · 한/영·다크/라이트 |
 | 번역 | 한/영 37키(`LocalizationTable.swift`), 커버리지 테스트 통과 |
 | `--session-test` | **미실행** — 실행 중 앱의 단일 인스턴스 잠금(`E-MAC-APP-0001`). v0.31 경로 무변경, `swift test` 로 대체 확인 |
+| 병합·배포 | **PR #114 → `a8c641d`** · 2026-11-06 18:55 교체(백업 없음) · SHA-256 `973a6d22…`(40MB) · **앱 재실행 필요** |
 
 **구현 중 바꾼 것(설계 대비)**
 
