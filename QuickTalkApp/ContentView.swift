@@ -120,6 +120,9 @@ struct ContentView: View {
   /// 자동으로 바닥을 따라갈지 — 사용자가 위로 올려 읽는 중에는 **끌어내리지 않는다**.
   /// (스트리밍·도구 출력이 매번 스크롤을 납치하면 위로 올려도 볼 수가 없다 — 2026-11-05 사용자 지적)
   @State private var followsBottom = true
+  /// 이 시각까지는 **프로그램 이동**(목차·검색 점프) 중이라 자동 핀을 하지 않는다.
+  /// (점프 직후 중간에서 스크롤을 내리면 바닥으로 튀던 문제 — 2026-11-06 사용자 지적)
+  @State private var suppressFollowUntil = Date.distantPast
   /// "지금 맨 아래로 붙여라" 신호 — `NSScrollView`를 직접 움직인다.
   /// SwiftUI `scrollTo(anchor:.bottom)`은 내용 높이가 늦게 확정되면 끝까지 가지 못했다.
   @State private var bottomPinToken = 0
@@ -135,6 +138,8 @@ struct ContentView: View {
   var suppressArchiveLoad = false
   /// QA 렌더 전용 — 첫 질문에 마우스를 올린 상태를 재현한다(호버 시 말풍선 폭 고정 확인).
   var hoverFirstQuestion = false
+  /// QA 렌더 전용 — n번째(0부터) 사용자 질문에 마우스를 올린 상태.
+  var hoverTurnIndex: Int? = nil
   /// QA 렌더 전용 — 사고 과정 블록을 펼친 상태로 그린다.
   var expandReasoning = false
   /// QA 렌더 전용 — 대화 목차 패널을 펼친 상태로 그린다(v0.32).
@@ -142,11 +147,13 @@ struct ContentView: View {
 
   init(initialTab: Int = 0, initialInputHeight: CGFloat = 28,
        initialArchiveQuery: String = "", suppressArchiveLoad: Bool = false,
-       hoverFirstQuestion: Bool = false, expandReasoning: Bool = false,
+       hoverFirstQuestion: Bool = false, hoverTurnIndex: Int? = nil,
+       expandReasoning: Bool = false,
        expandOutline: Bool = false) {
     self.initialTab = initialTab
     self.suppressArchiveLoad = suppressArchiveLoad
     self.hoverFirstQuestion = hoverFirstQuestion
+    self.hoverTurnIndex = hoverTurnIndex
     self.expandReasoning = expandReasoning
     self.expandOutline = expandOutline
     _tab = State(initialValue: initialTab)
@@ -178,11 +185,13 @@ struct ContentView: View {
       && ConversationOutline.shouldShow(outlineEntries)
   }
 
-  /// 펼친 패널이 본문을 덮지 않도록 오른쪽 여백을 14pt 더 둔다(행 자체의 20pt 와 합쳐 34pt).
+  /// 펼친 패널·접힌 레일이 본문 글자와 질문 `⋯` 를 가리지 않도록 오른쪽 여백을 30pt 둔다.
+  /// (레일은 오른쪽 6pt + 폭 22pt = 28pt 를 차지한다. 질문 행은 여기에 20pt 를 더 비워
+  ///  `⋯` 오른쪽 끝이 레일보다 6pt 안쪽에 오게 한다.)
   /// 목차를 켠 사용자는 질문이 3개가 되기 전에도 같은 폭을 유지해, 세 번째 질문에서
   /// 글자 폭이 갑자기 바뀌지 않게 한다.
   private var outlineInset: CGFloat {
-    store.settings.outlineDisplay.showsRail ? 14 : 0
+    store.settings.outlineDisplay.showsRail ? 30 : 0
   }
 
   /// 지금 화면 위쪽에 걸린 질문의 순번.
@@ -707,7 +716,8 @@ struct ContentView: View {
             Color.clear.frame(height: 1).id(Self.bottomID)
           }
           .padding(.leading, 20)
-          // 목차 레일이 오른쪽에 떠 있어도 글자와 겹치지 않게 14pt 더 비운다(행의 20pt 와 합 34pt).
+          // 목차 레일이 오른쪽에 떠 있어도 글자·질문 `⋯` 와 겹치지 않게 30pt 비운다
+          // (레일 6+22pt 보다 넓게 — 질문 메뉴 툴팁이 레일을 덮지 않도록).
           .padding(.trailing, outlineInset)
           .padding(.vertical, 12)
           // 토큰 칩이 위에 떠 있어도 첫 메시지를 가리지 않게 그만큼 비워 둔다(헤더 높이는 그대로).
@@ -1360,6 +1370,8 @@ struct ContentView: View {
   /// 사용자가 직접 "맨 아래로"를 눌렀거나 새 메시지를 보낸 경우 — 무조건 끝으로.
   private func jumpToBottom() {
     guard focusedTurn == nil else { return }
+    // 명시적 이동은 점프 억제를 해제한다 — 이후 스트리밍은 다시 바닥을 따라간다.
+    suppressFollowUntil = .distantPast
     followsBottom = true
     atBottom = true
     pinBottom()
@@ -1382,31 +1394,42 @@ struct ContentView: View {
   }
 
   /// 사용자가 스크롤을 **위로** 올리면 자동 따라가기를 멈춘다(내용이 스크롤을 납치하지 않게).
-  /// 바닥에 닿으면 다시 따라간다.
+  /// 바닥에 닿으면 다시 따라간다. 판정 규칙은 Core(`FollowScrollPolicy`)에 있고 여기서는 적용만 한다
+  /// — 목차 점프 직후 중간에서 스크롤을 내리면 바닥으로 튀던 문제의 회귀를 테스트로 고정한다(v0.32.1).
   private func handleScrollDistance(_ distance: CGFloat, didScrollUp: Bool) {
-    if didScrollUp { followsBottom = false }
-    let atEnd = ScrollMetrics.isAtBottom(distance: distance)
-    if atEnd != atBottom {
-      withAnimation(.easeInOut(duration: 0.12)) { atBottom = atEnd }
+    let update = FollowScrollPolicy.update(followsBottom: followsBottom,
+                                           distance: distance,
+                                           didScrollUp: didScrollUp,
+                                           now: Date(),
+                                           suppressUntil: suppressFollowUntil,
+                                           lastPinAt: lastPinAt)
+    if update.atBottom != atBottom {
+      withAnimation(.easeInOut(duration: 0.12)) { atBottom = update.atBottom }
     }
-    if atEnd {
-      followsBottom = true
-      return
-    }
-    // 내용이 늘어 바닥에서 멀어진 경우 — 붙어 있던 사용자라면 다시 끝으로 붙인다.
-    // (위로 올려 읽는 중이면 followsBottom 이 false 라 건드리지 않는다)
-    guard followsBottom, Date().timeIntervalSince(lastPinAt) > 0.25 else { return }
-    pinBottom()
+    followsBottom = update.followsBottom
+    if update.shouldPin { pinBottom() }
   }
 
-  /// 보관함 검색 결과로 연 대화 — 찾은 턴을 가운데로 스크롤하고 테두리를 3회 깜빡인다.
+  /// 보관함 검색 결과·대화 목차로 연 턴 — 찾은 턴을 가운데로 스크롤하고 테두리를 3회 깜빡인다.
   /// 탭 전환·레이아웃 확정 전에는 scrollTo가 잘리므로 몇 프레임 뒤에 다시 맞춘다.
+  ///
+  /// 점프 시작 시 자동 따라가기를 **끄고** 잠시 억제한다(v0.32.1) — 억제가 없으면
+  /// 점프로 생긴 스크롤 리포트를 "내용이 늘었다"로 오판해 곧바로 바닥으로 붙였고,
+  /// 중간에서 스크롤을 내릴 때도 맨 아래로 튀었다.
   private func focusTurn(_ req: SearchFocusRequest, proxy: ScrollViewProxy) {
     guard req.conversationID == store.conversation.id else { return }
     store.searchFocus = nil
+    let jumpState = FollowScrollPolicy.jumpStarted(now: Date())
+    followsBottom = jumpState.followsBottom
+    atBottom = jumpState.atBottom
+    suppressFollowUntil = jumpState.suppressUntil
     focusedTurn = req.turnID
     focusPulse = false
-    let jump = { proxy.scrollTo(req.turnID, anchor: .center) }
+    // 다른 항목을 곧바로 눌렀으면 늦게 도착한 이전 점프는 버린다.
+    let jump = {
+      guard focusedTurn == req.turnID else { return }
+      proxy.scrollTo(req.turnID, anchor: .center)
+    }
     jump()
     DispatchQueue.main.async { jump() }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { jump() }
@@ -1468,6 +1491,11 @@ struct ContentView: View {
     if hoverFirstQuestion,
        let first = store.conversation.turns.first(where: { $0.role == .user }) {
       hoveredTurn = first.id
+    }
+    // QA 렌더 — n번째 질문에 호버한 상태(목차 레일과 `⋯` 의 간격 확인용).
+    if let index = hoverTurnIndex {
+      let questions = store.conversation.turns.filter { $0.role == .user }
+      if questions.indices.contains(index) { hoveredTurn = questions[index].id }
     }
     // QA 렌더 — 사고 과정 블록을 펼친 상태로 그린다(턴 요약 + 각 스텝 구간).
     if expandReasoning {
