@@ -162,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runSwitchPerfIfRequested() { return }
     // QA: `--switch-perf-live` — 실제 저장된 대화로 전환 비용 측정(레이아웃+그리기)
     if runSwitchPerfLiveIfRequested() { return }
+    // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
+    if runQAPasteRoutingIfRequested() { return }
     // QA: `--search-test=<질문>` — 저장된 Exa 키로 실제 검색 1회(결과 건수·지연만 로그)
     if runWebSearchSelfTestIfRequested() { return }
     // QA: `--answer-test=<질문>` — Exa `/answer` 1회(답변·인용 길이만 로그)

@@ -648,14 +648,19 @@ final class UIStore: ObservableObject {
   /// ⌘V — 클립보드의 **이미지·파일**을 대화 첨부로 붙인다(v0.28).
   /// 텍스트는 AppKit 기본 붙여넣기에 맡기려고 `false` 를 돌려준다.
   /// (QuickShelf를 열고 카드를 고르지 않아도 바로 첨부된다)
-  func pasteAttachmentFromPasteboard() -> Bool {
-    let pb = NSPasteboard.general
+  ///
+  /// `pb` 는 QA 검증용으로 갈아끼울 수 있다(기본은 시스템 클립보드).
+  func pasteAttachmentFromPasteboard(_ pb: NSPasteboard = .general) -> Bool {
 
     // 1) 파일 — Finder에서 복사한 파일들. 지원 형식만 받고, 거부는 조용히 버리지 않는다.
-    if let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
+    //    ★ 브라우저 주소창의 URL 도 `NSURL` 로 읽히지만 **파일이 아니다** — 그대로 두면
+    //      "지원하지 않는 형식"으로 판정해 붙여넣기를 삼킨다(v0.35.2 수정).
+    let urls = (pb.readObjects(forClasses: [NSURL.self]) as? [URL]) ?? []
+    let fileURLs = PasteRouting.fileURLs(from: urls)
+    if !fileURLs.isEmpty {
       var added = 0
       var rejected: [String] = []
-      for url in urls {
+      for url in fileURLs {
         let name = url.lastPathComponent
         guard Attachment.isSupported(filename: name) else {
           rejected.append(name)
@@ -674,6 +679,8 @@ final class UIStore: ObservableObject {
       }
       return true
     }
+
+    // 1-b) 웹 주소만 있으면 여기서 끝내지 않는다 — 아래 기본 붙여넣기가 URL **텍스트**를 넣는다.
 
     // 2) 이미지 — 스크린샷 붙여넣기. **원본 해상도**로 저장한다(스트립 썸네일이 아니라).
     if let image = NSImage(pasteboard: pb),

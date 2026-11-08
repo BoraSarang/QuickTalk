@@ -9,9 +9,19 @@
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-06 20:21 배포**(v0.32.2 리포트 제안·후속 질문 칩 스크롤 수정, 아래 인계 (10))**했다.
 
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
-> **현재 설치본은 Release 1.35.1**(2026-11-08 21:38) — 대화 전환 3.8초 문제를 `LazyVStack` 으로 수정해 배포했다(PID 26877).
+> **현재 설치본은 Release 1.35.1**(2026-11-08 21:38) — 1.35.2(URL 붙여넣기 수정)는 **배포 대기**.
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-08 인계 (15) — v0.35.2 **URL 붙여넣기 수정** — 구현·검증 완료, **배포 대기**
+
+- **계기(사용자 지적)**: 브라우저 주소(YouTube URL)를 대화 입력창에 붙여넣을 수 없다.
+- **원인(실측)**: 주소창 복사 → 클립보드에 `public.url` + 텍스트. `readObjects(forClasses: [NSURL.self])` 가 **웹 주소를 NSURL 로** 돌려준다(`count = 1`, `isFileURL = false`). ⌘V 처리 `UIStore.pasteAttachmentFromPasteboard` 가 이를 파일로 오인 → `lastPathComponent = watch` → "지원하지 않는 형식" 안내 후 `return true` 로 **붙여넣기를 삼켰다**.
+- **수정**: Core `PasteRouting.fileURLs(from:)`(신규) — `file://` 만 첨부 후보. 웹 주소는 `false` 로 내려 AppKit 기본 붙여넣기가 **URL 텍스트**를 넣는다. 파일 첨부 동작은 변경 없음.
+- **주의**: 새 Core 파일은 **`xcodegen generate`** 로 프로젝트에 넣어야 한다(이번에 실행, pbxproj 재생성됨 — 이전 수동 ID 항목들이 xcodegen ID 로 정리됨, 빌드·테스트로 확인).
+- **검증**: `--qa-paste-routing`(신규) → `web parsed=1 consumed=0 attachments=0` · `file consumed=1 attachments=1` · **PASS** · `swift test` **952/952**(6 skip, 신규 5 — `PasteRoutingTests`) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **버전**: `1.35.2`(build 3502) — `scripts/bump-version.sh 35 2`.
+- **다음**: PR → 병합 → Release 재배포(사용자 확인 후) → 사용자가 ⌘V 로 URL 붙여넣기 확인.
 
 ### 2026-11-08 인계 (14) — v0.35.1 **대화 전환 3.8초 → 0.3~0.7초 (LazyVStack)** — **PR #126 병합 · 배포 완료**
 
