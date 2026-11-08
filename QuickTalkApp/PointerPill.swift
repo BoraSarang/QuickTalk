@@ -167,7 +167,11 @@ final class PointerPillController {
     model.showList = false
     if let store {
       model.personas = store.settings.personas
-      model.persona = store.settings.persona(store.conversation.personaID)
+      // pill 은 **쌩 새 대화의 입구** — 지난 대화의 비서를 물려받지 않는다.
+      // (2026-11-08 사용자 확정: 아무것도 선택·설정되지 않은 초기 상태로 시작)
+      model.persona = nil
+      selectedPersonaID = nil
+      personaTouched = false
     }
     // 초안이 남아 있으면( Esc 로만 닫은 경우) 높이도 그대로 둔다 —
     // 0으로 지우면 입력창이 같은 높이를 다시 보고하지 않아 글이 잘린 채로 열린다.
@@ -260,24 +264,17 @@ final class PointerPillController {
 
   // MARK: 비서
 
-  /// pill 에서 비서 선택 — 대화 창과 같은 설정(`conversation.personaID`)을 바꾼다.
+  /// pill 에서 비서 선택 — **이번 새 대화에만** 적용할 값을 pill 안에 잠시 들고 있는다.
+  /// 여기서 `store.selectPersona` 를 부르면 지난 대화의 `updatedAt` 이 바뀌어
+  /// "새 대화" 판정이 "이어서" 로 뒤집힌다(2026-11-08 회귀 원인).
   private func selectPersona(_ id: UUID?) {
     guard let store else { return }
-    store.selectPersona(id)
     selectedPersonaID = id
     personaTouched = true
     model.persona = store.settings.persona(id)
     model.focusToken = UUID()     // 메뉴가 닫힌 뒤에도 입력을 이어갈 수 있게
-    NSLog("[QuickTalk] pill 비서 선택 — %@",
+    NSLog("[QuickTalk] pill 비서 선택(새 대화에만 적용) — %@",
           store.settings.persona(id)?.name ?? "비서 없음")
-  }
-
-  /// 세션이 만료돼 `startShortcutSession()` 이 새 대화를 시작하면 비서가 기본값으로 돌아간다.
-  /// pill 에서 **직접 고른** 경우에만 그 선택을 다시 적용한다.
-  func reapplyPersonaIfNeeded() {
-    guard personaTouched, let store else { return }
-    store.selectPersona(selectedPersonaID)
-    model.persona = store.settings.persona(selectedPersonaID)
   }
 
   /// QA 전용 — pill 을 미리 채운다(입력창 높이·위로 성장 확인용)
@@ -416,18 +413,27 @@ final class PointerPillController {
       .removeDuplicates()
       .receive(on: RunLoop.main)
       .sink { [weak self] settings in
-        guard let self, let store = self.store else { return }
+        guard let self else { return }
         self.model.personas = settings.personas
-        self.model.persona = settings.persona(store.conversation.personaID)
+        // pill 이 열려 있는 동안에는 지난 대화의 비서를 끌어오지 않는다 —
+        // pill 안에서 고른 값(또는 "비서 없음")이 이번 새 대화의 선택이다.
+        if !self.isVisible {
+          self.model.persona = self.personaTouched
+            ? settings.persona(self.selectedPersonaID)
+            : nil
+        }
       }
       .store(in: &bag)
     // 대화방이 바뀌거나 비서가 바뀌면 pill 에 반영한다.
     // (`conversation` 은 활성 세션의 계산 속성이라 objectWillChange 로 갱신을 받는다)
+    // 열려 있는 동안은 새 대화의 로컬 선택을 유지한다.
     store.objectWillChange
       .receive(on: RunLoop.main)
       .sink { [weak self] _ in
-        guard let self, let store = self.store else { return }
-        let persona = store.settings.persona(store.conversation.personaID)
+        guard let self, !self.isVisible else { return }
+        let persona = self.personaTouched
+          ? self.store?.settings.persona(self.selectedPersonaID)
+          : nil
         if self.model.persona?.id != persona?.id || self.model.persona?.name != persona?.name {
           self.model.persona = persona
         }

@@ -819,18 +819,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   /// pill에서 고른 다음 동작 — 같은 대화 창으로 이어받는다.
   /// ★ 창은 **입력한 자리(포인터)** 에서 열린다 — 중앙 모드여도 점프하지 않는다(2026-10-22 사용자 결정).
+  /// ★ pill 이 떴다는 것 자체가 **쌩 새 대화**다 — 지난 대화를 이어받지 않는다(2026-11-08 확정).
   private func handlePill(_ outcome: PillOutcome) {
     let anchor = PointerPillController.shared.lastAnchor
     switch outcome {
     case .send(let text):
-      store.startShortcutSession()
-      PointerPillController.shared.reapplyPersonaIfNeeded()
+      store.newFreshConversation(personaID: PointerPillController.shared.selectedPersonaID)
       store.draft = text
       showPanel(tab: 0, anchor: anchor)
       store.send()
     case .openChat(let draft):
-      store.startShortcutSession()
-      PointerPillController.shared.reapplyPersonaIfNeeded()
+      store.newFreshConversation(personaID: PointerPillController.shared.selectedPersonaID)
       store.draft = draft
       showPanel(tab: 0, anchor: anchor)
     case .resume(let conversation):

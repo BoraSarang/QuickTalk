@@ -937,7 +937,8 @@ struct ContentView: View {
         reasoningBlock(t)
         if !t.text.isEmpty {
           // AI 답변은 마크다운 그대로, **응답을 질문보다 크게**(15pt) 읽는다.
-          MarkdownText(text: t.text, sources: t.sources ?? [], baseSize: 15)
+          MarkdownText(text: t.text, sources: t.sources ?? [], baseSize: 15,
+                       fileDirectories: store.fileLinkDirectories)
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
         }

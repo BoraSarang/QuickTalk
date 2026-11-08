@@ -1301,6 +1301,26 @@ final class UIStore: ObservableObject {
     compactMessage = nil
   }
 
+  /// 포인터 pill(⌘Space)이 만든 **쌩 새로운 대화** — 지난 대화를 전혀 물려받지 않는다.
+  ///
+  /// pill 은 "새 대화의 입구"다(2026-11-08 사용자 확정: pill 이 떴다는 것 자체가 새 대화).
+  /// 그래서 여기서는:
+  ///   · `defaultPersonaID` 를 적용하지 않는다 — 설정 › 비서의 기본값도 물려받지 않는다.
+  ///   · pill 에서 **직접 고른** 비서만 인자로 받아 그때만 적용한다.
+  ///   · 초안·첨부·검색 모드 등 이전 대화의 상태는 새 `Conversation()` 이라 비어 있다.
+  func newFreshConversation(personaID: UUID?) {
+    stopSpeaking()
+    syncArchive()
+    var fresh = Conversation()
+    if let id = personaID, settings.persona(id) != nil {
+      fresh.personaID = id
+    }
+    activateSession(fresh)
+    compactMessage = nil
+    NSLog("[QuickTalk] pill 새 대화 — 비서 %@",
+          settings.persona(fresh.personaID)?.name ?? "비서 없음")
+  }
+
   /// 대화방으로 전환한다 — 방마다 입력·실행 상태가 따로 남는다(v0.31 6a).
   /// 같은 방을 다시 열면 **진행 중인 상태를 덮어쓰지 않는다**(응답 중인 방 보호).
   private func activateSession(_ c: Conversation) {
@@ -1337,6 +1357,15 @@ final class UIStore: ObservableObject {
     syncArchive()
     NSLog("[QuickTalk] 대화 비서 선택 — %@",
           settings.persona(id)?.name ?? "기본")
+  }
+
+  /// 답변에 파일명만 나열됐을 때 찾아볼 폴더 — 지금 대화 비서의 리포트 폴더(없으면 기본).
+  /// `MarkdownText` 가 이 폴더에서 실제로 존재하는 파일만 클릭 링크로 만든다.
+  var fileLinkDirectories: [String] {
+    let persona = settings.persona(conversation.personaID)?.normalized()
+    let raw = persona?.reportFolder ?? settings.reportFolderPath
+    let folder = (raw as NSString).expandingTildeInPath
+    return folder.isEmpty ? [] : [folder]
   }
   // MARK: - 질문 되돌리기·다시 응답 (T-72)
 
