@@ -76,6 +76,45 @@ public enum ConversationOutline {
     return current
   }
 
+  /// 지금 화면 위쪽에 걸린 질문의 순번 — **일부 좌표만 재도** 근사한다(v0.35.1).
+  ///
+  /// 대화 본문을 `LazyVStack` 으로 바꾸면서 화면에 보이는 턴만 y 좌표가 측정된다.
+  /// 측정된 좌표 사이는 선형 보간하고, 기준선 위에 측정값이 하나도 없으면(맨 아래로
+  /// 이동한 직후 등) 첫 측정값에서 평균 행 간격만큼 거슬러 올라가 추정한다.
+  /// 좌표가 모두 있으면 `currentIndex` 와 같은 값을 낸다.
+  public static func visibleIndex(offsets: [UUID: CGFloat],
+                                  anchorY: CGFloat,
+                                  entries: [OutlineEntry]) -> Int? {
+    guard !entries.isEmpty else { return nil }
+    let known: [(position: Int, y: CGFloat)] = entries.enumerated().compactMap { position, entry in
+      offsets[entry.id].map { (position, $0) }
+    }
+    guard !known.isEmpty else { return 0 }
+
+    // 기준선 위(≤ anchorY)에 있는 마지막 측정값.
+    if let below = known.last(where: { $0.y <= anchorY }) {
+      // 그 아래(다음) 측정값이 있으면 두 점 사이를 보간 — 사이의 미측정 질문을 근사한다.
+      if let above = known.first(where: { $0.position > below.position && $0.y > below.y }) {
+        let span = max(above.y - below.y, 0.5)
+        let ratio = min(max((anchorY - below.y) / span, 0), 1)
+        let estimate = Double(below.position)
+          + ratio * Double(above.position - below.position)
+        return min(entries.count - 1, max(0, Int(estimate.rounded(.down))))
+      }
+      return below.position
+    }
+
+    // 모든 측정값이 기준선 아래 — 첫 측정값에서 위로 평균 간격만큼 거슬러 올라간다.
+    guard let first = known.first else { return 0 }
+    // 측정값이 하나뿐이면 간격을 모른다 — 바로 위 질문으로 보수적으로 둔다.
+    guard known.count >= 2 else { return max(0, first.position - 1) }
+    let second = known[1]
+    let stepCount = max(second.position - first.position, 1)
+    let perIndex = max((second.y - first.y) / CGFloat(stepCount), 0.5)
+    let back = Int(((first.y - anchorY) / perIndex).rounded())
+    return min(max(0, first.position - back), first.position)
+  }
+
   /// 질문 검색 — 빈 문자열이면 전체, 아니면 미리보기 부분 일치(대소문자 무시).
   public static func filter(_ entries: [OutlineEntry], query: String) -> [OutlineEntry] {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
