@@ -11,9 +11,9 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **현재 설치본은 v0.33 Debug 테스트 빌드**(2026-11-08 13:16) — 배포는 Release 로 하고, 전환 체감은 Release 수치로 확인한다.
 
-### 2026-11-08 인계 (13) — v0.35 모델 카탈로그 · 비서별 모델 · 퀵셀프 목차 · 비서별 리포트 **구현 완료 · 병합 대기**
+### 2026-11-08 인계 (13) — v0.35 모델 카탈로그 · 비서별 모델 · 퀵셀프 목차 · 비서별 리포트 **병합 완료** (실측 대기)
 
-- **브랜치**: `feat/v0.35-model-catalog` — v0.33(PR #120 → `249e1f2`)·v0.34(PR #121 → `778a75a`) 병합 후 `main` 위로 rebase 완료. **`main` 직접 push 금지** 유지.
+- **브랜치/PR**: `feat/v0.35-model-catalog` — v0.33(PR #120 → `249e1f2`)·v0.34(PR #121 → `778a75a`) 병합 후 rebase → **PR #122 → squash merge `a1b3776`**. **`main` 직접 push 금지** 유지.
 - **PLAN**: `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13 에 구현 결과·측정값·남은 일을 기록. P4·P5·P6 는 같은 화면/파일을 건드려 **한 브랜치로 통합**했다.
 - **모델 카탈로그**: Core `ModelCatalog` — `/v1/models` ID + `models.dev` 병합(`opencode` 우선 → 상세 점수 최고), **24h TTL**, baseURL 변경 무효화, 실패 시 마지막 캐시. `QuickTalkSettings.modelCatalogAutoUpdate`(기본 켜짐). 앱 실행 시 캐시를 즉시 읽고 만료일 때만 백그라운드 갱신 — 목록을 열 때 네트워크를 기다리지 않는다. `models.dev` 는 **User-Agent 없으면 403**.
 - **모델 피커/상세**: `ProviderEditorSheet` 검색 + 컨텍스트·출력·입력 형식·도구·추론·무료 배지, `MenuBarHubView` 모델 카드, 설정 › AI `모델 정보`(마지막 갱신·[지금 새로 고침]).
@@ -24,7 +24,7 @@
 - **검증(오프스크린)**: `swift test` **931/931**(6 skip, 신규 21) · Debug/Release **BUILD SUCCEEDED · 경고 0** · QA 렌더 `provider-model`·`hub-model`·`shelf-outline-{expanded,lower,collapsed}`·`persona-folder-{shared,default}`·`settings-ai` 확인.
 - **한계(정직)**: 전환 시간은 **합성 표본**이다(실사용 11턴 = 실제형에 가깝다). 스트레스 표본은 목표를 넘지만 실제 답변보다 훨씬 긴 문서다. 설치본은 아직 **v0.33 Debug** — Release 수치가 배포 후 체감으로 확인돼야 한다.
 - **실측 대기**: ① 모델 목록이 캐시로 즉시 뜨고 ⟳ 없이 상세가 보이는지 ② 비서 모델을 코딩 모델로 고정하고 대화·예약 실행에 적용되는지(꺼진 프로바이더 폴백 포함) ③ 퀵셀프에서 다른 대화 목차 펼침 → 질문 클릭 2동작 이동 ④ 비서 3명 리포트가 각자 폴더에 쌓이고 루트에 섞이지 않는지 ⑤ 설치본 교체 후 전환 체감.
-- **다음**: v0.33 → v0.34 → v0.35 순서로 병합(rebase 필요) → Release 재배포(**사용자 확인 후**, 백업 없음).
+- **다음**: 설치본을 Release 로 교체(**사용자 확인 후**, 백업 없음) → 실측 5건 → 문제가 있으면 `fix/v0.35-*` 브랜치 → PR.
 
 ### 2026-11-08 인계 (12) — v0.34 도우미의 앱 데이터 접근 차단 (`AppDataGuard`)
 
