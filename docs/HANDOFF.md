@@ -25,7 +25,8 @@
 - **검증(오프스크린)**: `swift test` **931/931**(6 skip, 신규 21) · Debug/Release **BUILD SUCCEEDED · 경고 0** · QA 렌더 `provider-model`·`hub-model`·`shelf-outline-{expanded,lower,collapsed}`·`persona-folder-{shared,default}`·`settings-ai` 확인.
 - **한계(정직)**: 전환 시간은 **합성 표본**이다(실사용 11턴 = 실제형에 가깝다). 스트레스 표본은 목표를 넘지만 실제 답변보다 훨씬 긴 문서다. 설치본은 아직 **v0.33 Debug** — Release 수치가 배포 후 체감으로 확인돼야 한다.
 - **실측 대기**: ① 모델 목록이 캐시로 즉시 뜨고 ⟳ 없이 상세가 보이는지 ② 비서 모델을 코딩 모델로 고정하고 대화·예약 실행에 적용되는지(꺼진 프로바이더 폴백 포함) ③ 퀵셀프에서 다른 대화 목차 펼침 → 질문 클릭 2동작 이동 ④ 비서 3명 리포트가 각자 폴더에 쌓이고 루트에 섞이지 않는지 ⑤ 설치본 교체 후 전환 체감.
-- **다음**: 설치본을 Release 로 교체(**사용자 확인 후**, 백업 없음) → 실측 5건 → 문제가 있으면 `fix/v0.35-*` 브랜치 → PR.
+- **배포**: **2026-11-08 20:25** `~/Applications/QuickTalk.app` 를 **Release 1.35.0(build 3500)** 로 교체(백업 없음, 기존 번들 삭제 → 한 번에 이동) · `codesign --verify --strict --deep` OK · SHA-256 `ef72ecb3440a04694e08764c26705f065eedd5d884fd32f0bee8640d71e8a69d`(41MB) · **재실행 완료**(PID 18367).
+- **다음**: 실측 5건 → 문제가 있으면 `fix/v0.35-*` 브랜치 → PR.
 
 ### 2026-11-08 인계 (12) — v0.34 도우미의 앱 데이터 접근 차단 (`AppDataGuard`)
 
