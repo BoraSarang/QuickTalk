@@ -3,14 +3,29 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-08 KST
 
-## 구현·검증 완료 (2026-11-08) — v0.33 pill 새 대화 · 파일/폴더 열기 · 코드 복사 [병합·배포 대기]
+## 제안 (2026-11-08) — v0.35 모델 카탈로그 · 비서별 모델 · 퀵셀프 목차 · 비서별 리포트 [PLAN 작성 · 구현 전]
+
+- **PLAN**: `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` — 사용자 요청 4건(모델 목록/캐싱/상세·비서 모델·퀵셀프 목차·리포트 폴더) + 대화 전환 지연 조사.
+- **T-74** 모델 카탈로그+캐시(Core `ModelCatalog`, models.dev 서브셋 캐시 24h, 오프라인 폴백) · **T-75** 모델 피커 상세 UI(컨텍스트·입력 형식·도구·추론) · **T-76** 비서별 모델(`ProviderResolver`, 대화+예약 통합) · **T-77** 퀵셀프 목차를 대화 줄 아코디언으로(다른 대화 목차 2동작 이동) · **T-78** 비서별 리포트 하위 폴더(`PersonaReports`, 기존 파일 미이동) · **T-79** 대화 전환 성능(Release 재측정 후 결정).
+- **첫 조치(P0, 코드 0)**: 현재 설치본이 **Debug 빌드**임을 확인 — Release로 같은 전환을 재측정한 뒤 성능 수정 범위를 정한다.
+- **선행**: v0.33·v0.34 병합 후 `main` 에서 분기. 브랜치 계획 `feat/v0.35-model-catalog` · `fix/v0.35-shelf-outline` · `perf/v0.35-chat-switch`.
+
+## 구현·검증 완료 (2026-11-08) — 도우미의 앱 데이터 접근 차단 (v0.34)
+
+- **계기**: 모델이 셸로 `history.json` 을 읽어 다른 대화의 내용을 답변에 끌어온 사례(`agent-audit.log` 2026-11-05 12:16Z, 7회). 공통 메모리(🧠)와 무관한 대화 간 간섭 경로였다.
+- **구현**: Core `AppDataGuard`(신규) — `~/Library/Application Support/QuickTalk`(history·memory·schedules·secrets·audit)와 설정 plist 를 보호. `read_file`·`list_dir` 는 보호 경로면 정책과 무관하게 승인 카드, 셸은 `PolicyEngine.plan` 의 `.allow` 를 `.ask` 로 승격. 보호 요청은 `allowsAlwaysAllow=false` 로 [항상 허용]을 숨기고 규칙도 저장하지 않는다. 설정 › 도구·권한에 안내 1줄.
+- **검증**: `swift test` **910/910**(6 skip, 신규 17 — `AppDataGuardTests`) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **한계(정직)**: 셸 명령 문자열에 경로가 드러난 경우만 잡는다 — 변수 조합·`find ~ -name history.json` 같은 우회는 막지 못한다(자동 허용 차단용 최소 가드).
+- **다음**: 사용자 실측 — 보호 경로 읽기 요청 → 승인 카드 · [항상 허용] 없음 · 거부 시 읽지 않음.
+
+## 구현·검증 완료 (2026-11-08) — v0.33 pill 새 대화 · 파일/폴더 열기 · 코드 복사 [PR #120 병합 완료]
 
 - **0) pill = 쌩 새 대화**: `UIStore.newFreshConversation(personaID:)` — `defaultPersonaID` 미적용, pill 에서 고른 비서만 적용. `handlePill` 의 `.send`/`.openChat` 이 항상 이 경로를 쓴다. pill 은 열 때마다 비서 선택을 비우고(`present()`), 선택은 `selectedPersonaID` 에만 보관. `reapplyPersonaIfNeeded` 삭제(지난 대화 `updatedAt` 갱신으로 "이어서"가 되던 회귀 제거).
 - **파일·폴더 열기**: Core `LocalFileLinks`(순수, 신규) — 존재하는 경로만 링크, 코드 펜스·인라인 코드·기존 링크·웹 URL 제외, 파일명만 나열 시 언급 폴더/리포트 폴더 기준 탐색. App `LocalFileOpen`(신규) — 폴더=파인더 · 파일=기본 앱 · 앱/스크립트/설치 파일은 NSAlert 확인.
 - **코드 블록 복사**: `MarkdownText.CodeBlockView` — 복사 버튼 + 1.4초 `복사됨`.
 - **검증**: `swift test` **905/905**(6 skip, 신규 12) · 번역 3키 · Debug/Release **BUILD SUCCEEDED · 경고 0** · 렌더 `docs/qa/v0.33-file-links/markdown-{ko,en}.png`.
 - **테스트 배포**: 2026-11-08 13:16 `~/Applications/QuickTalk.app` 를 **Debug 빌드**로 교체(백업 없음, 사용자 요청) · `codesign` OK · SHA-256 `02421af8…`. Release 는 최종 배포 때만.
-- **다음**: `~/Applications/QuickTalk.app`(Debug)으로 실측 P1~P3 · F1~F3 · C1 → PR → squash merge. 최종 Release 배포는 사용자 요청 시.
+- **병합**: **PR #120 → squash merge** (2026-11-08). 최종 Release 배포는 사용자 요청 시.
 
 ## 수정 (2026-11-06) — v0.32.2 리포트 제안 · 후속 질문 칩 스크롤
 

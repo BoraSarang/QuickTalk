@@ -316,9 +316,9 @@ struct AgentCard: View {
           .foregroundColor(Color.accentColor)
           .help(Lf("이번 대화에서 %@ 앱 조작을 7일 동안 다시 묻지 않습니다", app))
       }
-      // 중요·치명적 명령은 **항상 허용할 수 없다** — 규칙을 저장해도 확인을 건너뛰지 않으므로
-      // 버튼을 숨긴다(눌러도 매번 다시 묻던 원인). 화면 조작은 명령 규칙과 무관하므로 숨긴다.
-      if request.risk == .normal && request.uiAppBundleID == nil {
+      // 중요·치명적 명령과 **앱 자기 데이터**는 항상 허용할 수 없다 — 실행할 때마다 확인한다.
+      // 화면 조작은 명령 규칙과 무관하므로 숨긴다.
+      if request.risk == .normal && request.uiAppBundleID == nil && request.allowsAlwaysAllow {
         Button(L("항상 허용")) { onAlwaysAllow() }
           .buttonStyle(.plain)
           .font(.system(size: 12))

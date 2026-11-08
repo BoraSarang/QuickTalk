@@ -77,15 +77,20 @@ public struct AgentApprovalRequest: Equatable {
   public let irreversible: Bool
   /// 무엇을 어디에 할지(카드 본문). 없으면 command 를 그대로 보여 준다.
   public let detail: String?
+  /// [한 번 허용] 외에 [항상 허용]을 보여 줄지 — 앱 자기 데이터처럼 **매번 물어야 하는**
+  /// 요청은 false 로 두어 규칙 저장 버튼을 숨긴다(2026-11-08 AppDataGuard).
+  public let allowsAlwaysAllow: Bool
 
   public init(command: String, level: AgentPermissionLevel, risk: AgentRiskLevel,
               capability: AgentCapability, writablePaths: [String], reason: String,
               uiAppName: String? = nil, uiAppBundleID: String? = nil,
-              irreversible: Bool = false, detail: String? = nil) {
+              irreversible: Bool = false, detail: String? = nil,
+              allowsAlwaysAllow: Bool = true) {
     self.command = command; self.level = level; self.risk = risk
     self.capability = capability; self.writablePaths = writablePaths; self.reason = reason
     self.uiAppName = uiAppName; self.uiAppBundleID = uiAppBundleID
     self.irreversible = irreversible; self.detail = detail
+    self.allowsAlwaysAllow = allowsAlwaysAllow
   }
 
   /// 승인하면 열어 줄 **폴더 범위** — "이 폴더 허용" 버튼이 쓴다.

@@ -8,9 +8,22 @@
 >
 > **2026-10-29 승인 폴더 기억(①)** 은 PR **#55 → `5589105`**, **Exa `/answer` 정리(②)** 는 PR **#58 → `c6f04a2`**, **Shortcuts 자동 전송(③)** 은 PR **#60 → `0fda8a4`**, **컴퓨터 제어 Phase 1(④)** 은 PR **#63 → `8bed1ef`** 로 병합됐다. **컴퓨터 제어 Phase 2 는 PR #66 → `cf5728b`**, **승인 단순화는 PR #70 → `43a4c42`**, **⌘Space 토글 수정은 PR #72 → `7802cfc`**, **User-Agent `QuickTalk/<버전>` 수정은 PR #75 → `5a616c6`**, 최신 빌드는 **2026-11-06 20:21 배포**(v0.32.2 리포트 제안·후속 질문 칩 스크롤 수정, 아래 인계 (10))**했다.
 
-### 2026-11-08 인계 (11) — v0.33 **⌘Space pill = 쌩 새 대화 · 답변 파일/폴더 열기 · 코드 블록 복사** (구현·검증 완료, **병합·배포 대기**)
+> **다음 예정 (2026-11-08 제안, 구현 전)**: **v0.35** — 모델 카탈로그·캐시·상세(OpenCode 방식, models.dev) · 비서별 모델(대화+예약) · 퀵셀프 목차를 대화 줄 아코디언으로(2동작 이동) · 비서별 리포트 하위 폴더 · 대화 전환 지연은 **Release 재측정 먼저**. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md`, TODO T-74~T-79. **v0.33·v0.34 병합 후 분기.**
+> **현재 설치본은 v0.33 Debug 테스트 빌드**(2026-11-08 13:16, `QuickTalk.debug.dylib`) — 퀵셀프 대화 전환 3초 체감의 유력한 원인. Release 비교가 먼저다.
 
-- **브랜치**: `feat/v0.33-fresh-pill-file-links` (기준 `main`). **`main` 직접 push 금지** — 사용자 확인 후 PR → squash merge → Release 재배포.
+### 2026-11-08 인계 (12) — v0.34 도우미의 앱 데이터 접근 차단 (`AppDataGuard`)
+
+- **브랜치**: `fix/v0.34-agent-appdata-guard` — v0.33 병합 후 `main` 위로 rebase 완료. **`main` 직접 push 금지** 유지.
+- **계기(사용자 지적)**: "대화가 섞여 보인다 · 🧠가 매번 켜져 있다". ① 🧠는 `globalMemoryEnabled` 한 값(당시 `true` → 사용자가 `false` 로 끔) — 헤더 🧠 클릭이 전역 OFF 일 때 **전역을 켜는** UX 함정이 있었다. ② 실제 대화 간 간섭 경로는 **모델이 셸로 `history.json` 을 읽은 것**(`~/Library/Application Support/QuickTalk/agent-audit.log` 2026-11-05 12:16–12:17Z, read_file/shell 7회, 권한은 read/execute `alwaysAllow`).
+- **구현**: Core `AppDataGuard.swift`(신설) — 보호 대상 `~/Library/Application Support/QuickTalk/**`(history·memory·schedules·secrets·audit) + `~/Library/Preferences/com.borasarang.QuickTalk.plist`. `~`·`$HOME`·이스케이프 공백 정규화, `QuickTalkReport` 같은 이름 겹침 폴더는 **경계 검사**로 제외. `AgentExecutor.runShell` 은 `PolicyEngine.plan` 결과를 `AppDataGuard.guardedPlan` 으로 통과시켜 `.allow` → `.ask` 승격(기존 `.ask` 는 사유만 교체, `.deny` 는 유지). `read_file`·`list_dir` 는 보호 경로면 정책과 무관하게 승인 카드. `AgentApprovalRequest.allowsAlwaysAllow`(기본 true) 신설 → `AgentCard` 가 보호 요청의 **[항상 허용] 버튼을 숨기고**, 실행기는 보호 명령의 `alwaysAllow` 규칙을 저장하지 않는다. 설정 › 도구·권한에 안내 1줄, 한/영 4키.
+- **검증(오프스크린)**: `swift test` **910/910**(6 skip, 신규 17 — `AppDataGuardTests`: 보호 경로·`~`·plist·형제 폴더 오탐·셸/`defaults` 탐지·정책 승격·`.ask`/`.deny` 보존·전역 자동 수락에서도 승격) · Debug clean/Release `xcodebuild` **BUILD SUCCEEDED · 경고 0**.
+- **한계(정직)**: 셸 명령 문자열에 경로가 **드러난 경우만** 잡는다. 변수 조합·난독화·`find ~ -name history.json` 같은 우회는 막지 못한다(자동 허용 차단용 **최소 가드**). 필요하면 다음 단계에서 셸 프로세스 자체의 파일 접근(sandbox-exec 프로파일)으로 넓힌다.
+- **실측 대기**: 앱 배포 후 ① 보호 경로 읽기 요청 → 승인 카드에 "저장 데이터" 사유 표시 · ② 카드에 **[항상 허용] 없음** · ③ 거부 시 읽지 않음 · ④ 일반 경로 읽기는 예전처럼 자동 통과(회귀 없음).
+- **다음**: PR → squash merge → Release 재배포(**사용자 확인 후**, 백업 없음).
+
+### 2026-11-08 인계 (11) — v0.33 **⌘Space pill = 쌩 새 대화 · 답변 파일/폴더 열기 · 코드 블록 복사** **병합 완료** (실측 대기)
+
+- **브랜치/PR**: `feat/v0.33-fresh-pill-file-links` (기준 `main` = `b5288a6`) → **PR #120 → squash merge `249e1f2`**. **`main` 직접 push 금지** 유지.
 - **0) pill = 새 대화(사용자 확정)**: *"pill 대화가 나왔다는 것은 그냥 새로운 대화 … 그 전꺼 무시"*. 기존에는 pill 을 열어도 제출 시 `startShortcutSession()` 이 **다시 세션 시간을 검사**했고, pill 에서 비서를 고르면 `store.selectPersona` 가 **지난 대화의 `updatedAt` 을 갱신**해 "새 대화" 판정이 "이어서"로 뒤집혔다(v0.30 `reapplyPersonaIfNeeded` 회귀). 수정 — `UIStore.newFreshConversation(personaID:)` 신설: `defaultPersonaID` 를 **적용하지 않고**, pill 에서 직접 고른 비서만 새 대화에 넣는다. `QuickTalkApp.handlePill` 의 `.send`/`.openChat` 은 항상 이 경로를 쓴다. pill 은 열릴 때마다 `model.persona = nil` 로 **초기 상태**를 보여 주고(`present()`), 선택은 `PointerPillController.selectedPersonaID` 에만 담아 두었다가 새 대화에 적용한다. `reapplyPersonaIfNeeded` 삭제. `.resume(대화)` 는 사용자가 목록에서 고른 명시적 이어가기라 예외.
 - **파일·폴더 열기**: 답변의 **존재하는 로컬 경로만** 클릭 링크가 된다 — Core `LocalFileLinks`(순수·신규). 절대 경로(`/…`·`~/…`)는 파일/폴더 모두 링크, **파일명만 나열**된 경우 같은 답변에서 먼저 언급된 폴더(또는 `fileDirectories` = 지금 비서의 리포트 폴더) 기준으로 찾는다. 코드 펜스·인라인 코드·기존 마크다운 링크·웹 URL 은 건드리지 않는다. 인라인 코드 안 경로는 **모노 글꼴 그대로** `MarkdownText.styled` 에서 링크로 만든다. 클릭은 `OpenURLAction` 이 `LocalFileOpen` 으로 넘겨 **폴더 = 파인더 · 파일 = 기본 앱**. `.app`·`.sh`·`.command`·`.pkg`·`.dmg`·`.terminal`·실행 권한 파일은 **NSAlert 확인** 후 연다.
 - **코드 블록 복사**: `CodeBlockView`(신규) — 언어 라벨 오른쪽에 **복사 버튼**, 누르면 블록 내용만 `NSPasteboard` 로 복사하고 1.4초 동안 `복사됨` 으로 바뀐다. 버튼은 호버 시 배경이 진해지고 `이 코드 블록을 클립보드에 복사` 도움말·접근성 라벨이 붙는다.
@@ -18,7 +31,7 @@
 - **한계(정직)**: 파일 링크는 **렌더 시점에 존재하는 경로만** 링크한다(답변 뒤 파일이 지워지면 눌러도 무반응·beep). 공백이 포함된 절대 경로는 첫 공백에서 끊겨 링크되지 않는다(현재 답변 예시 기준). 실제 클릭·NSAlert·파인더 열기는 오프스크린에서 확인할 수 없어 **사용자 실측 필요**.
 - **실측 대기**: P1) ⌘Space pill → 비서 없이 Enter = **새 대화** · P2) pill 에서 비서 선택 후 Enter = 새 대화에 **그 비서만** 적용 · P3) pill 열기 전 대화의 비서가 pill 에 **체크되어 보이지 않음** · F1) 리포트 폴더 경로 클릭 = 파인더 · F2) 파일명 클릭 = 열림 · F3) `.command`/`.app` 클릭 = 확인 창 · C1) 코드 블록 `복사` = 클립보드에 블록만.
 - **테스트 배포(Debug)**: **2026-11-08 13:16** `~/Applications/QuickTalk.app` 교체(**백업 없음**) — 사용자 요청에 따라 **Debug 빌드**(`~/Library/Developer/Xcode/DerivedData/QuickTalk-…/Build/Products/Debug/QuickTalk.app`, 13:14)로 설치. `codesign --verify --strict --deep` OK · SHA-256 `02421af8082cc4f34f0fdfee232e9b9311022f661d3d5f2009c3e2512f8ce548`(바이너리). Release 는 최종 배포 때만 사용.
-- **다음**: 사용자가 `~/Applications/QuickTalk.app`(Debug)으로 실측 → 통과 후 `git add`(문서) → 커밋 → PR → squash merge. 최종 Release 배포는 사용자가 명시적으로 요청할 때만.
+- **다음**: 설치본(Debug)으로 실측 P1~P3·F1~F3·C1. 최종 Release 배포는 사용자가 명시적으로 요청할 때만.
 
 ### 2026-11-06 인계 (10) — v0.32.2 **비서 없는 대화의 리포트 제안 · 후속 질문 칩 스크롤** **병합·배포 완료** (실측 대기)
 
