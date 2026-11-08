@@ -69,6 +69,8 @@
 		75CF26174AAAD2BF7A503831 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91CCBD1D34A85E35E22F25E6 /* Models.swift */; };
 		762190C867DDF6CEB39D55A7 /* PersonaChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D921B01A80E01801140A170 /* PersonaChip.swift */; };
 		7958CF55C473A7ACD4510CF4 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2923600C30D5D38ED1A950 /* MarkdownText.swift */; };
+		A0DD1B76B11C45F1BD151B88 /* LocalFileLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235391E458D242538CC40134 /* LocalFileLinks.swift */; };
+		F5BC333656E14260A520F454 /* LocalFileOpen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D464D0814344249970F208 /* LocalFileOpen.swift */; };
 		7964EE720816B7E2F379CA8C /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C68BF0B37038A795DA94C559 /* LLMProvider.swift */; };
 		7C7D875E3C4C6D701A815180 /* MenuBarHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3BA3DBC6AFA968606E34D9B /* MenuBarHubView.swift */; };
 		7CFB381D3FA16803B49530CD /* WindowPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C3CD8DAF5148FE466D1AA21 /* WindowPickerSheet.swift */; };
@@ -205,6 +207,8 @@
 		7769090FD3EC124EF25C5BEE /* ChatOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatOutlineView.swift; sourceTree = "<group>"; };
 		77FD8D1869EDCE96703FD11E /* CaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlay.swift; sourceTree = "<group>"; };
 		7C2923600C30D5D38ED1A950 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
+		235391E458D242538CC40134 /* LocalFileLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileLinks.swift; sourceTree = "<group>"; };
+		B5D464D0814344249970F208 /* LocalFileOpen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileOpen.swift; sourceTree = "<group>"; };
 		7DC587988647CE6F5108E9E8 /* UiAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiAction.swift; sourceTree = "<group>"; };
 		7F68FFC1BB0BE6E9BDD9D620 /* ChatInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputField.swift; sourceTree = "<group>"; };
 		805003EED0F85E535E94DD1C /* AppDelegate+RenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+RenderHarness.swift"; sourceTree = "<group>"; };
@@ -322,6 +326,7 @@
 				8694BF8B9A52EA9597BA72EC /* Info.plist */,
 				6C9C2E8044DF78F78332F411 /* LoginItem.swift */,
 				7C2923600C30D5D38ED1A950 /* MarkdownText.swift */,
+				B5D464D0814344249970F208 /* LocalFileOpen.swift */,
 				E3BA3DBC6AFA968606E34D9B /* MenuBarHubView.swift */,
 				9FB4BFBF6DBA8F39FF3FCBBA /* NotificationService.swift */,
 				3D921B01A80E01801140A170 /* PersonaChip.swift */,
@@ -408,6 +413,7 @@
 				C68BF0B37038A795DA94C559 /* LLMProvider.swift */,
 				6A6AD7A5FD9FEE38DBEFCCA6 /* Localization.swift */,
 				6935F2B383353B720E54F016 /* LocalizationTable.swift */,
+				235391E458D242538CC40134 /* LocalFileLinks.swift */,
 				11322B1559F34D94C359655E /* Markdown.swift */,
 				91CCBD1D34A85E35E22F25E6 /* Models.swift */,
 				43B2E8E186ACF3F03733F7DE /* NetworkRetry.swift */,
@@ -578,9 +584,11 @@
 				7964EE720816B7E2F379CA8C /* LLMProvider.swift in Sources */,
 				41C9DFB768BFB22D67D26C70 /* Localization.swift in Sources */,
 				5180DDF4D060619C2AA87067 /* LocalizationTable.swift in Sources */,
+				A0DD1B76B11C45F1BD151B88 /* LocalFileLinks.swift in Sources */,
 				F65D50602C8C67E60D444886 /* LoginItem.swift in Sources */,
 				626D6FE27DBBED777C9F9850 /* Markdown.swift in Sources */,
 				7958CF55C473A7ACD4510CF4 /* MarkdownText.swift in Sources */,
+				F5BC333656E14260A520F454 /* LocalFileOpen.swift in Sources */,
 				7C7D875E3C4C6D701A815180 /* MenuBarHubView.swift in Sources */,
 				75CF26174AAAD2BF7A503831 /* Models.swift in Sources */,
 				DE4AA2CB4E6172195413E217 /* NetworkRetry.swift in Sources */,

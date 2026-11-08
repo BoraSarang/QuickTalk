@@ -1386,6 +1386,8 @@ extension AppDelegate {
 
   긴 인라인 코드: `/Users/lee/Documents/QuickTalkReport` — 줄바꿈·대비 확인용.
 
+  로컬 파일: /etc/hosts · 폴더: /Applications — 눌러서 열기(링크) 확인용.
+
   - [x] Done item
   - [ ] Open item
   - Plain bullet
@@ -1403,6 +1405,10 @@ extension AppDelegate {
 
   ```swift
   let answer = 42
+  ```
+
+  ```sh
+  ls -la /etc/hosts
   ```
   """
 

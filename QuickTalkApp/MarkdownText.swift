@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// 앱 공통 강조색 토큰 — 마크다운과 QuickShelf가 **같은 적응형 색**을 쓴다.
@@ -23,20 +24,34 @@ struct MarkdownText: View {
   /// 웹 검색 출처 — 답변의 `[n]`을 클릭 가능한 링크로 표시한다.
   var sources: [TurnSource] = []
   var baseSize: CGFloat = 13
+  /// 파일명만 나열된 답변에서 찾아볼 폴더(예: 지금 대화의 리포트 폴더).
+  var fileDirectories: [String] = []
 
   @Environment(\.colorScheme) private var colorScheme
   @State private var segments: [MarkdownSegment]
+  /// 인라인 코드 안의 경로를 링크로 만들 때 기준이 되는 폴더 목록.
+  @State private var searchDirectories: [String] = []
 
-  init(text: String, sources: [TurnSource] = [], baseSize: CGFloat = 13) {
+  init(text: String, sources: [TurnSource] = [], baseSize: CGFloat = 13,
+       fileDirectories: [String] = []) {
     self.text = text
     self.sources = sources
     self.baseSize = baseSize
-    _segments = State(initialValue: MarkdownSegment.parse(
-      CitationLinks.link(text, urls: sources.map(\.url))))
+    self.fileDirectories = fileDirectories
+    let linked = Self.linked(text, urls: sources.map(\.url), directories: fileDirectories)
+    _segments = State(initialValue: MarkdownSegment.parse(linked))
+    _searchDirectories = State(initialValue: LocalFileLinks.directories(
+      in: text, extraDirectories: fileDirectories))
+  }
+
+  private static func linked(_ raw: String, urls: [String], directories: [String]) -> String {
+    let cited = CitationLinks.link(raw, urls: urls)
+    return LocalFileLinks.link(cited, extraDirectories: directories)
   }
 
   private func rendered(_ raw: String, urls: [String]) -> [MarkdownSegment] {
-    MarkdownSegment.parse(CitationLinks.link(raw, urls: urls))
+    searchDirectories = LocalFileLinks.directories(in: raw, extraDirectories: fileDirectories)
+    return MarkdownSegment.parse(Self.linked(raw, urls: urls, directories: fileDirectories))
   }
 
   private var base: Font { .system(size: baseSize) }
@@ -58,11 +73,22 @@ struct MarkdownText: View {
     }
     .fixedSize(horizontal: false, vertical: true)
     .textSelection(.enabled)
+    // 파일 링크는 기본 브라우저 대신 로컬에서 연다 — 위험한 형식은 확인 후.
+    .environment(\.openURL, OpenURLAction { url in
+      if url.isFileURL {
+        LocalFileOpen.open(url)
+        return .handled
+      }
+      return .systemAction
+    })
     .onChange(of: text) { _, new in
       segments = rendered(new, urls: sources.map(\.url))
     }
     .onChange(of: sources) { _, new in
       segments = rendered(text, urls: new.map(\.url))
+    }
+    .onChange(of: fileDirectories) { _, _ in
+      segments = rendered(text, urls: sources.map(\.url))
     }
   }
 
@@ -72,7 +98,8 @@ struct MarkdownText: View {
   private func segmentView(_ segment: MarkdownSegment) -> some View {
     switch segment {
     case .heading(let level, let text):
-      Self.styled(text, base: headingFont(level), accent: accent, mono: mono)
+      Self.styled(text, base: headingFont(level), accent: accent, mono: mono,
+                  directories: searchDirectories)
         .foregroundColor(.primary)
         .padding(.top, level == 1 ? 4 : 2)
 
@@ -81,7 +108,8 @@ struct MarkdownText: View {
         RoundedRectangle(cornerRadius: 1.5)
           .fill(accent.opacity(0.55))
           .frame(width: 3)
-        Self.styled(lines.joined(separator: "\n"), base: base, accent: accent, mono: mono)
+        Self.styled(lines.joined(separator: "\n"), base: base, accent: accent, mono: mono,
+                    directories: searchDirectories)
           .italic()
           .foregroundColor(muted)
       }
@@ -93,31 +121,21 @@ struct MarkdownText: View {
       itemList(items, numbered: true)
 
     case .code(let language, let lines):
-      VStack(alignment: .leading, spacing: 5) {
-        if !language.isEmpty {
-          Text(language.uppercased())
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundColor(muted)
-        }
-        // 중첩 ScrollView는 채팅 스크롤과 충돌하고 렌더도 비어 나왔다 → 줄바꿈으로 보여준다
-        Text(lines.joined(separator: "\n"))
-          .font(mono)
-          .foregroundColor(codeInk)
-          .lineSpacing(2)
-          .textSelection(.enabled)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .padding(10)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(RoundedRectangle(cornerRadius: 8).fill(blockFill))
-      .overlay(RoundedRectangle(cornerRadius: 8).stroke(lineColor, lineWidth: 1))
+      CodeBlockView(language: language,
+                    code: lines.joined(separator: "\n"),
+                    mono: mono,
+                    ink: codeInk,
+                    muted: muted,
+                    fill: blockFill,
+                    line: lineColor,
+                    accent: accent)
 
     case .table(let header, let rows):
       tableView(header: header, rows: rows)
 
     case .paragraph(let lines):
-      Self.styled(lines.joined(separator: "\n"), base: base, accent: accent, mono: mono)
+      Self.styled(lines.joined(separator: "\n"), base: base, accent: accent, mono: mono,
+                  directories: searchDirectories)
         .foregroundColor(.primary)
         .lineSpacing(3)
 
@@ -153,7 +171,8 @@ struct MarkdownText: View {
               .foregroundColor(muted)
               .frame(minWidth: numbered ? 16 : 8, alignment: .trailing)
           }
-          Self.styled(item.text, base: base, accent: accent, mono: mono)
+          Self.styled(item.text, base: base, accent: accent, mono: mono,
+                      directories: searchDirectories)
             .foregroundColor(.primary)
         }
         .padding(.leading, CGFloat(item.depth) * 14)
@@ -180,7 +199,7 @@ struct MarkdownText: View {
           ForEach(0..<max(columnCount, 1), id: \.self) { index in
             Self.styled(index < header.count ? header[index] : "",
                         base: .system(size: baseSize - 1, weight: .semibold),
-                        accent: accent, mono: mono)
+                        accent: accent, mono: mono, directories: searchDirectories)
               .foregroundColor(.primary)
               .padding(.horizontal, 9)
               .padding(.vertical, 5)
@@ -193,7 +212,8 @@ struct MarkdownText: View {
           GridRow {
             ForEach(0..<max(columnCount, 1), id: \.self) { colIndex in
               Self.styled(colIndex < shown[rowIndex].count ? shown[rowIndex][colIndex] : "",
-                          base: .system(size: baseSize - 1), accent: accent, mono: mono)
+                          base: .system(size: baseSize - 1), accent: accent, mono: mono,
+                          directories: searchDirectories)
                 .foregroundColor(.primary)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
@@ -220,7 +240,9 @@ struct MarkdownText: View {
   // MARK: - 인라인
 
   /// `**굵게**` · `*기울임*` · `` `코드` `` · `[라벨](주소)` 을 `Text`로 잇는다.
-  static func styled(_ raw: String, base: Font, accent: Color, mono: Font) -> Text {
+  /// `directories` 가 주어지면 인라인 코드 안의 경로도 **모노 글꼴 그대로** 클릭 링크가 된다.
+  static func styled(_ raw: String, base: Font, accent: Color, mono: Font,
+                     directories: [String] = []) -> Text {
     var result = Text("")
     for token in MarkdownInline.tokenize(raw) {
       switch token {
@@ -231,8 +253,17 @@ struct MarkdownText: View {
       case .italic(let string):
         result = result + Text(string).font(base).italic()
       case .code(let string):
-        // Text 연결이라 배경 필은 못 넣는다 — 모노 + 색으로 구분
-        result = result + Text(string).font(mono).foregroundColor(accent)
+        // 인라인 코드가 실제 파일·폴더면 — 모노 글꼴을 유지한 채 링크로 만든다.
+        if let url = LocalFileLinks.url(for: string, directories: directories) {
+          var attributed = AttributedString(string)
+          attributed.link = url
+          attributed.underlineStyle = .single
+          attributed.foregroundColor = accent
+          result = result + Text(attributed).font(mono)
+        } else {
+          // Text 연결이라 배경 필은 못 넣는다 — 모노 + 색으로 구분
+          result = result + Text(string).font(mono).foregroundColor(accent)
+        }
       case .link(let label, let url):
         var attributed = AttributedString(label)
         if let parsed = URL(string: url) {
@@ -244,5 +275,77 @@ struct MarkdownText: View {
       }
     }
     return result
+  }
+}
+
+// MARK: - 코드 블록 (복사 버튼)
+
+/// 셸·코드 블록 — 오른쪽 위 복사 버튼으로 **블록 내용만** 클립보드에 넣는다.
+private struct CodeBlockView: View {
+  let language: String
+  let code: String
+  let mono: Font
+  let ink: Color
+  let muted: Color
+  let fill: Color
+  let line: Color
+  let accent: Color
+
+  @State private var copied = false
+  @State private var hover = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 5) {
+      HStack(spacing: 6) {
+        if !language.isEmpty {
+          Text(language.uppercased())
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundColor(muted)
+        }
+        Spacer(minLength: 0)
+        Button(action: copy) {
+          HStack(spacing: 4) {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+              .font(.system(size: 10, weight: .semibold))
+            Text(copied ? L("복사됨") : L("복사"))
+              .font(.system(size: 10, weight: .medium))
+          }
+          .foregroundColor(copied ? accent : muted)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 3)
+          .background(
+            RoundedRectangle(cornerRadius: 5)
+              .fill(Color.primary.opacity(hover ? 0.10 : 0.04))
+          )
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .help(L("이 코드 블록을 클립보드에 복사"))
+        .accessibilityLabel(L("이 코드 블록을 클립보드에 복사"))
+      }
+      // 중첩 ScrollView는 채팅 스크롤과 충돌하고 렌더도 비어 나왔다 → 줄바꿈으로 보여준다
+      Text(code)
+        .font(mono)
+        .foregroundColor(ink)
+        .lineSpacing(2)
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 8).fill(fill))
+    .overlay(RoundedRectangle(cornerRadius: 8).stroke(line, lineWidth: 1))
+  }
+
+  private func copy() {
+    let pb = NSPasteboard.general
+    pb.clearContents()
+    pb.setString(code, forType: .string)
+    copied = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+      copied = false
+    }
   }
 }

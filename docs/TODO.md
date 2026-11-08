@@ -1,7 +1,16 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-06 KST
+> 마지막 갱신: 2026-11-08 KST
+
+## 구현·검증 완료 (2026-11-08) — v0.33 pill 새 대화 · 파일/폴더 열기 · 코드 복사 [병합·배포 대기]
+
+- **0) pill = 쌩 새 대화**: `UIStore.newFreshConversation(personaID:)` — `defaultPersonaID` 미적용, pill 에서 고른 비서만 적용. `handlePill` 의 `.send`/`.openChat` 이 항상 이 경로를 쓴다. pill 은 열 때마다 비서 선택을 비우고(`present()`), 선택은 `selectedPersonaID` 에만 보관. `reapplyPersonaIfNeeded` 삭제(지난 대화 `updatedAt` 갱신으로 "이어서"가 되던 회귀 제거).
+- **파일·폴더 열기**: Core `LocalFileLinks`(순수, 신규) — 존재하는 경로만 링크, 코드 펜스·인라인 코드·기존 링크·웹 URL 제외, 파일명만 나열 시 언급 폴더/리포트 폴더 기준 탐색. App `LocalFileOpen`(신규) — 폴더=파인더 · 파일=기본 앱 · 앱/스크립트/설치 파일은 NSAlert 확인.
+- **코드 블록 복사**: `MarkdownText.CodeBlockView` — 복사 버튼 + 1.4초 `복사됨`.
+- **검증**: `swift test` **905/905**(6 skip, 신규 12) · 번역 3키 · Debug/Release **BUILD SUCCEEDED · 경고 0** · 렌더 `docs/qa/v0.33-file-links/markdown-{ko,en}.png`.
+- **테스트 배포**: 2026-11-08 13:16 `~/Applications/QuickTalk.app` 를 **Debug 빌드**로 교체(백업 없음, 사용자 요청) · `codesign` OK · SHA-256 `02421af8…`. Release 는 최종 배포 때만.
+- **다음**: `~/Applications/QuickTalk.app`(Debug)으로 실측 P1~P3 · F1~F3 · C1 → PR → squash merge. 최종 Release 배포는 사용자 요청 시.
 
 ## 수정 (2026-11-06) — v0.32.2 리포트 제안 · 후속 질문 칩 스크롤
 
