@@ -13,6 +13,10 @@ struct ProviderEditorSheet: View {
   @State private var keyStatus = ""
   @State private var modelList: [String] = []
   @State private var loadingModels = false
+  /// 편집 중인 프로바이더의 모델 상세(v0.35) — 캐시에서 즉시 채운다.
+  @State private var catalogEntry: ModelCatalogEntry?
+  @State private var modelSearch = ""
+  @State private var modelCatalogNote = ""
   @State private var testResult = ""
   @State private var testing = false
   /// 컨텍스트 토큰 입력(선택) — 비우면 종류별 기본값
@@ -44,20 +48,40 @@ struct ProviderEditorSheet: View {
             }
           }
           if draft.type.needsModel {
-            row(L("모델")) { TextField(L("모델 이름"), text: $draft.model).textFieldStyle(.roundedBorder) }
-            HStack {
-              Button(loadingModels ? L("불러오는 중…") : modelButtonTitle) { loadModels() }
-                .disabled(loadingModels || !draft.type.needsBaseURL)
-              if !modelList.isEmpty {
-                Picker(L("불러온 모델"), selection: $draft.model) {
-                  ForEach(modelList, id: \.self) { Text($0).tag($0) }
+            row(L("모델")) {
+              VStack(alignment: .leading, spacing: 6) {
+                // 직접 입력도 허용한다 — 서버가 목록에 없는 ID를 받는 경우가 있다.
+                TextField(L("모델 이름"), text: $draft.model)
+                  .textFieldStyle(.roundedBorder)
+                HStack(spacing: 6) {
+                  Button {
+                    loadModels()
+                  } label: {
+                    Label(loadingModels ? L("불러오는 중…") : modelButtonTitle,
+                          systemImage: "arrow.clockwise")
+                  }
+                  .disabled(loadingModels || !draft.type.needsBaseURL)
+                  if !modelCatalogNote.isEmpty {
+                    Text(modelCatalogNote)
+                      .font(.caption).foregroundColor(.secondary).lineLimit(1)
+                  }
+                  Spacer(minLength: 0)
                 }
-                .labelsHidden().pickerStyle(.menu).frame(maxWidth: 260)
+                if !modelList.isEmpty {
+                  TextField(L("모델 검색"), text: $modelSearch)
+                    .textFieldStyle(.roundedBorder)
+                  modelListBox
+                }
+                if let info = selectedInfo {
+                  modelDetailBlock(info)
+                } else if !draft.type.needsBaseURL {
+                  caption(L("Apple FM은 시스템 모델을 쓰므로 고를 모델이 없습니다."))
+                }
               }
             }
             caption(draft.type == .ollama
                     ? L("`ollama serve` 실행 중이어야 목록을 불러올 수 있습니다.")
-                    : L("주소와 키가 맞아야 서버의 모델 목록을 불러옵니다."))
+                    : L("목록은 캐시에서 바로 보여 줍니다. 새로 고치려면 [모델 목록 불러오기]를 누르세요."))
           }
           if draft.type.needsModel {
             row(L("컨텍스트 토큰 (선택)")) {
@@ -104,11 +128,161 @@ struct ProviderEditorSheet: View {
       }
       .padding(16)
     }
-    .frame(width: 520, height: 460)
+    .frame(width: 540, height: 600)
     .onAppear {
       keyStatus = keyStateText()
       if isNew { apiKeyInput = "" }
+      loadCachedModels()
     }
+  }
+
+  // MARK: - 모델 목록·상세 (v0.35)
+
+  /// 캐시에 있는 목록은 **즉시** 보여 준다(네트워크를 기다리지 않는다).
+  private func loadCachedModels() {
+    guard draft.type.needsModel else { return }
+    catalogEntry = store.cachedCatalog(for: draft)
+    modelList = catalogEntry?.models.map(\.id) ?? []
+    modelCatalogNote = catalogEntry.map(catalogNote) ?? ""
+  }
+
+  private func catalogNote(_ entry: ModelCatalogEntry) -> String {
+    let stamp = Self.catalogStamp.string(from: entry.fetchedAt)
+    return entry.isFresh()
+      ? Lf("모델 %d개 · %@ 기준", entry.models.count, stamp)
+      : Lf("모델 %d개 · %@ 기준 · 오래된 목록", entry.models.count, stamp)
+  }
+
+  private static let catalogStamp: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.dateFormat = "MM-dd HH:mm"
+    return f
+  }()
+
+  private var filteredModels: [ModelInfo] {
+    guard let entry = catalogEntry else { return [] }
+    let q = modelSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !q.isEmpty else { return entry.models }
+    return entry.models.filter {
+      $0.id.localizedCaseInsensitiveContains(q) || $0.name.localizedCaseInsensitiveContains(q)
+    }
+  }
+
+  private var selectedInfo: ModelInfo? {
+    guard let entry = catalogEntry, !draft.model.isEmpty else { return nil }
+    return entry.models.first { $0.id == draft.model }
+      ?? entry.models.first { $0.id.caseInsensitiveCompare(draft.model) == .orderedSame }
+  }
+
+  /// 검색·선택 목록 — 모델 이름과 ID를 함께 보여 주고, 고르면 상세가 아래에 붙는다.
+  private var modelListBox: some View {
+    ScrollView {
+      LazyVStack(spacing: 1) {
+        ForEach(filteredModels, id: \.id) { info in
+          let selected = info.id == draft.model
+          Button { draft.model = info.id } label: {
+            HStack(spacing: 6) {
+              Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 10))
+                .foregroundColor(selected ? .purple : .secondary)
+              Text(info.name)
+                .font(.system(size: 11.5, weight: selected ? .semibold : .regular))
+                .lineLimit(1)
+              if info.name != info.id {
+                Text(info.id)
+                  .font(.system(size: 9.5, design: .monospaced))
+                  .foregroundColor(.secondary)
+                  .lineLimit(1).truncationMode(.middle)
+              }
+              Spacer(minLength: 0)
+              if info.looksFree { freeBadge }
+            }
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 5)
+              .fill(selected ? Color.purple.opacity(0.10) : Color.clear))
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+        if filteredModels.isEmpty {
+          Text(L("일치하는 모델이 없습니다"))
+            .font(.caption).foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 6).padding(.vertical, 5)
+        }
+      }
+      .padding(3)
+    }
+    .frame(maxHeight: 150)
+    .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.04)))
+    .overlay(RoundedRectangle(cornerRadius: 7)
+      .stroke(Color.primary.opacity(0.10), lineWidth: 1))
+  }
+
+  private var freeBadge: some View {
+    Text(L("무료"))
+      .font(.system(size: 8.5, weight: .semibold))
+      .foregroundColor(.green)
+      .padding(.horizontal, 4).padding(.vertical, 1)
+      .background(Capsule().fill(Color.green.opacity(0.12)))
+  }
+
+  /// 선택한 모델의 능력 — 정보가 없으면 **추측하지 않고** "정보 없음"으로 둔다.
+  private func modelDetailBlock(_ info: ModelInfo) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 5) {
+        Text(info.name).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+        if info.looksFree { freeBadge }
+        Spacer(minLength: 0)
+      }
+      if info.hasDetails {
+        if info.context != nil || info.output != nil {
+          Text(Self.sizeLine(info))
+            .font(.system(size: 10.5)).foregroundColor(.secondary)
+        }
+        Text(Self.capabilityLine(info))
+          .font(.system(size: 10.5)).foregroundColor(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        Text(L("정보 없음")).font(.system(size: 10.5)).foregroundColor(.secondary)
+      }
+      Text(info.source.map { Lf("참고: models.dev · %@", $0) } ?? L("참고: models.dev"))
+        .font(.system(size: 9)).foregroundColor(.secondary.opacity(0.8))
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.05)))
+  }
+
+  static func sizeLine(_ info: ModelInfo) -> String {
+    var parts: [String] = []
+    if let c = info.context { parts.append(Lf("%@ 컨텍스트", compact(c))) }
+    if let o = info.output { parts.append(Lf("%@ 출력", compact(o))) }
+    return parts.joined(separator: " · ")
+  }
+
+  static func capabilityLine(_ info: ModelInfo) -> String {
+    var parts: [String] = []
+    if !info.input.isEmpty { parts.append(Lf("입력 %@", info.input.joined(separator: "·"))) }
+    if info.toolCall { parts.append(L("도구")) }
+    if info.reasoning {
+      parts.append(info.effort.isEmpty ? L("추론") : Lf("추론 %@", info.effort.joined(separator: "/")))
+    }
+    return parts.isEmpty ? L("추가 정보 없음") : parts.joined(separator: " · ")
+  }
+
+  /// 200000 → "200K", 1000000 → "1M" (표시용 축약)
+  static func compact(_ n: Int) -> String {
+    if n >= 1_000_000 {
+      let v = Double(n) / 1_000_000
+      return v == v.rounded() ? String(format: "%.0fM", v) : String(format: "%.1fM", v)
+    }
+    if n >= 1_000 {
+      let v = Double(n) / 1_000
+      return v == v.rounded() ? String(format: "%.0fK", v) : String(format: "%.1fK", v)
+    }
+    return "\(n)"
   }
 
   private var modelButtonTitle: String {
@@ -154,27 +328,24 @@ struct ProviderEditorSheet: View {
   }
 
   private func loadModels() {
-    guard let host = URL(string: draft.baseURL) else { modelList = []; return }
+    guard draft.type.needsBaseURL else {
+      modelList = []; catalogEntry = nil; modelCatalogNote = ""; return
+    }
     loadingModels = true
+    let probe = draft
     Task { @MainActor in
       defer { loadingModels = false }
-      do {
-        switch draft.type {
-        case .ollama:
-          modelList = try await OllamaClient.listModels(host: host)
-        case .openAICompatible:
-          let key = SecretStore.load(account: secretID()) ?? ""
-          modelList = try await OpenAIClient.listModels(baseURL: host, apiKey: key)
-        case .appleFM:
-          modelList = []
-        }
-        if draft.model.isEmpty, let first = modelList.first { draft.model = first }
-        if modelList.isEmpty { testResult = L("모델 목록이 비어 있습니다 (E-MAC-NET-0002)") }
-      } catch {
+      let entry = await store.fetchCatalog(for: probe, force: true)
+      guard probe.id == draft.id else { return }
+      catalogEntry = entry
+      if let entry {
+        modelList = entry.models.map(\.id)
+        modelCatalogNote = catalogNote(entry)
+        if draft.model.isEmpty, let first = entry.models.first { draft.model = first.id }
+      } else {
         modelList = []
-        testResult = Lf("모델 목록 조회 실패 (%@): %@",
-                        AIErrorText.code(for: error),
-                        AIErrorText.detail(for: error, url: URL(string: draft.baseURL)))
+        modelCatalogNote = ""
+        testResult = L("모델 목록 조회 실패 (E-MAC-NET-0002)")
       }
     }
   }

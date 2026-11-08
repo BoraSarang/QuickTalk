@@ -85,18 +85,20 @@ public enum SystemKnowledge {
   }
 
   /// 모델이 **실제로 쓸 수 있는** 리포트 폴더를 알려 주는 블록.
-  /// 비서가 자기 폴더를 지정했으면 그 폴더, 아니면 설정의 기본 폴더다.
+  /// v0.35부터 비서 폴더를 지정하지 않아도 **비서별 하위 폴더**를 쓴다(`PersonaReports`).
   public static func reportFolderText(settings: QuickTalkSettings,
                                       persona: Persona?) -> String {
     let p = persona?.normalized()
-    let raw = p?.reportFolder ?? settings.reportFolderPath
     // 비서 폴더에도 `~` 를 쓸 수 있다 — 모델에게는 **실제 경로**를 준다.
-    let folder = (raw as NSString).expandingTildeInPath
+    let folder = PersonaReports.folder(settings: settings, persona: p)
     var lines = ["[리포트 폴더]", "- 쓰기 가능한 경로: \(folder)"]
     if let p, !p.tools.write {
       lines.append("- 이 비서는 파일 쓰기가 꺼져 있다. 리포트 파일을 만들지 말고 답변으로만 전달한다.")
     } else {
       lines.append("- 리포트 파일은 이 폴더 안에만 만든다. 다른 경로를 추측하지 않는다.")
+      if p != nil {
+        lines.append("- 이 폴더가 이 비서의 폴더다. 다른 비서의 폴더를 추측하지 않는다.")
+      }
       lines.append("- 하위 폴더로 정리해도 된다. 사용자가 다른 위치를 요구하면 승인 카드를 거쳐 그 경로에 쓴다.")
       // v0.32.2 — 예약 실행용 폴더를 **일반 대화**에 그대로 노출하면 모델이
       // "표로 정리해 파일로 남길까요?"를 먼저 제안한다(2026-11-06 사용자 지적).

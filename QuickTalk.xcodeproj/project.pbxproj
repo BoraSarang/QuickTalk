@@ -134,6 +134,9 @@
 		E8A9671CEFC939AAFDE3D6E2 /* SettingsView+GlobalMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF55B43D80EAFAC168EDAD2F /* SettingsView+GlobalMemory.swift */; };
 		E8D75A9AF63DC2A6654DBE71 /* AIErrorText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8746541C562CA7E95084B3 /* AIErrorText.swift */; };
 		A1B2C3D4E5F60718293A4B5C /* AppDataGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* AppDataGuard.swift */; };
+		C35000000000000000000001 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35000000000000000000002 /* ModelCatalog.swift */; };
+		C35000000000000000000003 /* ProviderResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35000000000000000000004 /* ProviderResolver.swift */; };
+		C35000000000000000000005 /* PersonaReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35000000000000000000006 /* PersonaReports.swift */; };
 		E9E1987CAB9109729E1D986A /* WriteScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84B6C711CC4B17306428FA2 /* WriteScope.swift */; };
 		EB20E54DEE3DDAEF4B5E0ED7 /* AttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BAB723416C088EFEEE3C3E /* AttachmentPreview.swift */; };
 		F06A7D16B0027C4E173E3A35 /* ShelfPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B27D2AFFA346E1FB886FED /* ShelfPanel.swift */; };
@@ -201,6 +204,9 @@
 		6A6AD7A5FD9FEE38DBEFCCA6 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		6B8746541C562CA7E95084B3 /* AIErrorText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIErrorText.swift; sourceTree = "<group>"; };
 		B2C3D4E5F60718293A4B5C6D /* AppDataGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataGuard.swift; sourceTree = "<group>"; };
+		C35000000000000000000002 /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
+		C35000000000000000000004 /* ProviderResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderResolver.swift; sourceTree = "<group>"; };
+		C35000000000000000000006 /* PersonaReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaReports.swift; sourceTree = "<group>"; };
 		6C9C2E8044DF78F78332F411 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItem.swift; sourceTree = "<group>"; };
 		6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShelfView+Files.swift"; sourceTree = "<group>"; };
 		727D6C34B22D436052197628 /* ShelfModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfModel.swift; sourceTree = "<group>"; };
@@ -401,6 +407,9 @@
 				4AEB9B4D98927B08C68C5DDA /* AgentTypes.swift */,
 				6B8746541C562CA7E95084B3 /* AIErrorText.swift */,
 				B2C3D4E5F60718293A4B5C6D /* AppDataGuard.swift */,
+				C35000000000000000000002 /* ModelCatalog.swift */,
+				C35000000000000000000004 /* ProviderResolver.swift */,
+				C35000000000000000000006 /* PersonaReports.swift */,
 				C1B2D0681DEA0AF92CD486A7 /* AttachmentRetry.swift */,
 				B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */,
 				0B3BA0ADF75FC7F4E2B4013D /* Clipboard.swift */,
@@ -546,6 +555,9 @@
 			files = (
 				E8D75A9AF63DC2A6654DBE71 /* AIErrorText.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* AppDataGuard.swift in Sources */,
+				C35000000000000000000001 /* ModelCatalog.swift in Sources */,
+				C35000000000000000000003 /* ProviderResolver.swift in Sources */,
+				C35000000000000000000005 /* PersonaReports.swift in Sources */,
 				88DF45B79D41EFF330B5F8EC /* AXAccess.swift in Sources */,
 				1E59182AC749D0A7093FFE0E /* AccessibilityService.swift in Sources */,
 				27F58EA21C0F5824B8D811D7 /* AgentAudit.swift in Sources */,

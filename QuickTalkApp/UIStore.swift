@@ -628,6 +628,7 @@ final class UIStore: ObservableObject {
     memoryEntries = GlobalMemoryFile.load()
     loadArchive()
     restoreLastConversation()
+    loadModelCatalogOnLaunch()
   }
 
   // MARK: - 클립보드 스트립 → 입력/첨부 (PLAN_v0.12)
@@ -999,8 +1000,23 @@ final class UIStore: ObservableObject {
   }
 
   /// QA 렌더 전용 — 상단 도구를 항상 보이는 상태로 **메모리에서만** 재현한다(설정 저장 없음).
-  func applyRenderOverride(chatToolbarAlwaysVisible: Bool) {    suppressSettingsSave = true
+  func applyRenderOverride(chatToolbarAlwaysVisible: Bool) {
+    suppressSettingsSave = true
     settings.chatToolbarAlwaysVisible = chatToolbarAlwaysVisible
+    suppressSettingsSave = false
+  }
+
+  /// QA 렌더·성능 측정 전용 — 자동 대화 정리를 **메모리에서만** 끈다(불필요한 모델 호출 방지).
+  func applyRenderOverride(autoCompact: Bool) {
+    suppressSettingsSave = true
+    settings.autoCompact = autoCompact
+    suppressSettingsSave = false
+  }
+
+  /// QA 렌더·성능 측정 전용 — 목차 표시 방식을 **메모리에서만** 바꾼다(설정 저장 없음).
+  func applyRenderOverride(outlineDisplay: OutlineDisplay) {
+    suppressSettingsSave = true
+    settings.outlineDisplay = outlineDisplay
     suppressSettingsSave = false
   }
 
@@ -1057,6 +1073,26 @@ final class UIStore: ObservableObject {
     suppressSettingsSave = false
   }
 
+  /// QA 렌더 전용 — 프로바이더 목록·활성 ID를 **메모리에서만** 바꾼다(설정 저장 없음).
+  func applyRenderOverride(providers: [LLMProviderConfig], activeProviderID: String?) {
+    suppressSettingsSave = true
+    settings.providers = providers
+    if let activeProviderID { settings.activeProviderID = activeProviderID }
+    suppressSettingsSave = false
+  }
+
+  /// QA 렌더 전용 — 모델 카탈로그를 **메모리에만** 넣는다(디스크 캐시 저장 없음).
+  /// 실제 앱은 앱 실행 시 캐시를 읽고 만료되면 백그라운드로 갱신한다.
+  func applyRenderCatalog(_ models: [ModelInfo], for provider: LLMProviderConfig,
+                          fetchedAt: Date = Date()) {
+    let entry = ModelCatalogEntry(providerID: provider.id, baseURL: provider.baseURL,
+                                  fetchedAt: fetchedAt, models: models)
+    catalogEntries[provider.id] = entry
+    if settings.activeProvider?.id == provider.id {
+      applyCatalog(entry, provider: provider)
+    }
+  }
+
   /// QA 실검증용 — 프로바이더 **종류**로 활성 프로바이더를 고른다(예: Apple FM).
   func applyRenderOverride(providerType: LLMProviderType) {
     guard let p = settings.providers.first(where: { $0.type == providerType && $0.enabled })
@@ -1109,6 +1145,13 @@ final class UIStore: ObservableObject {
   @Published var modelOptions: [String] = []
   @Published var loadingModels = false
   @Published var modelNote: String?
+  /// 활성 프로바이더의 모델 상세(v0.35) — 캐시에서 즉시 채우고, 만료면 백그라운드로 갱신한다.
+  @Published private(set) var modelCatalog: [ModelInfo] = []
+  @Published private(set) var modelCatalogFetchedAt: Date?
+  /// 프로바이더 ID별 캐시(메모리) — 디스크 `model-catalog.json`과 같은 내용.
+  private var catalogEntries: [String: ModelCatalogEntry] = [:]
+  /// models.dev 레지스트리 — 앱 실행 중 한 번만 내려받아 재사용한다.
+  private static var registryCache: (registry: ModelsDevRegistry, at: Date)?
 
   /// 모델 픽커 후보 — 저장된 모델명 + 조회해 온 목록
   var activeModelChoices: [String] {
@@ -1118,13 +1161,49 @@ final class UIStore: ObservableObject {
     return list
   }
 
+  /// 활성 프로바이더의 모델 상세 — 목록에 없으면 nil.
+  func modelInfo(for modelID: String) -> ModelInfo? {
+    modelCatalog.first { $0.id == modelID }
+  }
+
+  /// 편집 중인(활성 아닌) 프로바이더의 캐시 — 편집 시트가 쓴다.
+  func cachedCatalog(for provider: LLMProviderConfig) -> ModelCatalogEntry? {
+    guard let entry = catalogEntries[provider.id],
+          entry.baseURL == provider.baseURL else { return nil }
+    return entry
+  }
+
+  /// 비서 편집의 모델 후보 — 그 프로바이더의 저장된 모델 + 캐시 목록.
+  func modelChoices(for provider: LLMProviderConfig?) -> [String] {
+    guard let provider else { return [] }
+    var list: [String] = []
+    if !provider.model.isEmpty { list.append(provider.model) }
+    for m in (cachedCatalog(for: provider)?.models.map(\.id) ?? []) where !list.contains(m) {
+      list.append(m)
+    }
+    return list
+  }
+
+  /// 앱 시작 — 캐시를 즉시 보여 주고, 만료면 **백그라운드**로 갱신한다(화면은 기다리지 않는다).
+  func loadModelCatalogOnLaunch() {
+    catalogEntries = ModelCatalog.load()
+    applyCatalog(activeEntry(), provider: settings.activeProvider)
+    guard settings.modelCatalogAutoUpdate,
+          let p = settings.activeProvider, p.type != .appleFM,
+          !isFresh(catalogEntries[p.id], for: p) else { return }
+    refreshActiveCatalog(force: true)
+  }
+
   func setActiveProvider(_ id: String) {
     settings.activeProviderID = id
-    modelOptions = []
-    modelNote = nil
     providerTestResult = nil
     lastAIErrorDetail = nil
     lastAICall = .none
+    applyCatalog(activeEntry(), provider: settings.activeProvider)
+    guard settings.modelCatalogAutoUpdate,
+          let p = settings.provider(id), p.enabled, p.type != .appleFM,
+          !isFresh(catalogEntries[p.id], for: p) else { return }
+    refreshActiveCatalog(force: true)
   }
 
   func setActiveModel(_ model: String) {
@@ -1138,41 +1217,165 @@ final class UIStore: ObservableObject {
     lastAICall = .none
   }
 
-  /// 모델 목록 조회 — 사용자가 ⟳를 눌렀을 때만 요청한다(상주 요청 금지).
+  /// 모델 목록 새로고침 — 화면의 ⟳는 **강제** 갱신이다.
   func refreshModels() {
+    refreshActiveCatalog(force: true)
+  }
+
+  /// 활성 모델 카탈로그를 화면에 반영한다. 네트워크는 부르지 않는다.
+  private func refreshActiveCatalog(force: Bool) {
     guard let p = settings.activeProvider else {
-      modelOptions = []; modelNote = L("활성 AI가 없습니다 (E-MAC-NET-0002)"); return
+      modelOptions = []; modelCatalog = []; modelCatalogFetchedAt = nil
+      modelNote = L("활성 AI가 없습니다 (E-MAC-NET-0002)"); return
     }
     guard p.type != .appleFM else {
-      modelOptions = []; modelNote = L("온디바이스 모델은 자동 선택됩니다"); return
+      modelOptions = []; modelCatalog = []; modelCatalogFetchedAt = nil
+      modelNote = L("온디바이스 모델은 자동 선택됩니다"); return
     }
-    guard let host = URL(string: p.baseURL) else {
-      modelOptions = []; modelNote = L("주소가 올바르지 않습니다 (E-MAC-NET-0002)"); return
+    // 캐시가 신선하면 네트워크를 부르지 않는다(수동 ⟳만 예외).
+    if !force, isFresh(catalogEntries[p.id], for: p) {
+      applyCatalog(catalogEntries[p.id], provider: p)
+      return
     }
+    guard !loadingModels else { return }
     loadingModels = true
     modelNote = nil
+    let provider = p
     Task { @MainActor in
       defer { self.loadingModels = false }
-      do {
-        switch p.type {
-        case .ollama:
-          self.modelOptions = try await OllamaClient.listModels(host: host)
-        case .openAICompatible:
-          let key = p.secretID.isEmpty ? "" : (SecretStore.load(account: p.secretID) ?? "")
-          self.modelOptions = try await OpenAIClient.listModels(baseURL: host, apiKey: key)
-        case .appleFM:
-          self.modelOptions = []
-        }
-        self.modelNote = self.modelOptions.isEmpty
-          ? L("모델 목록이 비어 있습니다 (E-MAC-NET-0002)")
-          : Lf("모델 %d개", self.modelOptions.count)
-      } catch {
-        self.modelOptions = []
+      let entry = await self.fetchCatalog(for: provider, force: force)
+      // 도중에 활성 프로바이더가 바뀌었으면 화면은 건드리지 않는다(캐시는 저장됨).
+      guard self.settings.activeProvider?.id == provider.id else { return }
+      if let entry {
+        self.applyCatalog(entry, provider: provider)
+      } else if let cached = self.cachedCatalog(for: provider) {
+        // 실패·오프라인 — 마지막 캐시를 유지하고 상태만 알린다(R4).
+        self.applyCatalog(cached, provider: provider)
+        let error = L("모델 목록 조회 실패 (E-MAC-NET-0002)")
+        self.modelNote = cached.isFresh()
+          ? Lf("%@ · 이전 목록", error)
+          : Lf("%@ · 오래된 목록", error)
+      } else {
+        self.modelOptions = []; self.modelCatalog = []; self.modelCatalogFetchedAt = nil
         self.modelNote = L("모델 목록 조회 실패 (E-MAC-NET-0002)")
-        NSLog("[ERROR] E-MAC-NET-0002 모델 목록 조회 실패: \(error)")
       }
     }
   }
+
+  /// 편집 시트·활성 화면이 함께 쓰는 수집 경로.
+  /// 1) 서버 `/models`로 ID 목록  2) models.dev에서 상세  3) 프로바이더별 캐시 저장.
+  /// 실패하면 nil — 호출자는 **마지막 캐시를 유지**해야 한다.
+  func fetchCatalog(for provider: LLMProviderConfig, force: Bool) async -> ModelCatalogEntry? {
+    guard provider.type != .appleFM else { return nil }
+    if !force, let entry = cachedCatalog(for: provider), entry.isFresh() { return entry }
+    guard let host = URL(string: provider.baseURL) else { return nil }
+
+    let ids: [String]
+    do {
+      ids = try await Self.listModelIDs(provider: provider, host: host)
+    } catch {
+      NSLog("[ERROR] E-MAC-NET-0002 모델 목록 조회 실패: \(error)")
+      return cachedCatalog(for: provider)
+    }
+    guard !ids.isEmpty else {
+      NSLog("[QuickTalk] 모델 목록이 비어 있습니다 — 마지막 캐시 유지")
+      return cachedCatalog(for: provider)
+    }
+
+    let models: [ModelInfo]
+    if let registry = await Self.loadRegistry() {
+      models = ModelCatalog.merge(ids: ids, registry: registry)
+    } else {
+      // 레지스트리 실패 — 이전에 알던 상세는 유지하고, 모르는 모델만 ID로 채운다.
+      models = ModelCatalog.merge(ids: ids, previous: cachedCatalog(for: provider))
+    }
+    let entry = ModelCatalogEntry(providerID: provider.id, baseURL: provider.baseURL,
+                                  models: models)
+    catalogEntries[provider.id] = entry
+    do {
+      try ModelCatalog.save(catalogEntries)
+    } catch {
+      NSLog("[WARN] E-MAC-PERSIST-0001 모델 캐시 저장 실패: %@", String(describing: error))
+    }
+    return entry
+  }
+
+  /// 저장된 모델 ID 목록만 가져온다 — 프로바이더 종류별 기존 클라이언트를 그대로 쓴다.
+  private static func listModelIDs(provider: LLMProviderConfig, host: URL) async throws -> [String] {
+    switch provider.type {
+    case .ollama:
+      return try await OllamaClient.listModels(host: host)
+    case .openAICompatible:
+      let key = provider.secretID.isEmpty ? "" : (SecretStore.load(account: provider.secretID) ?? "")
+      return try await OpenAIClient.listModels(baseURL: host, apiKey: key)
+    case .appleFM:
+      return []
+    }
+  }
+
+  /// models.dev 레지스트리 — 24시간 메모리 캐시. 실패하면 이전 캐시를 쓴다.
+  private static func loadRegistry(force: Bool = false) async -> ModelsDevRegistry? {
+    if !force, let cached = registryCache,
+       Date().timeIntervalSince(cached.at) < ModelCatalog.ttl {
+      return cached.registry
+    }
+    do {
+      var req = URLRequest(url: ModelCatalog.registryURL)
+      req.timeoutInterval = 30
+      QuickTalkUserAgent.apply(to: &req)
+      let (data, resp) = try await URLSession.shared.data(for: req)
+      guard (resp as? HTTPURLResponse)?.statusCode == 200,
+            data.count <= ModelCatalog.maxRegistryBytes else {
+        NSLog("[WARN] E-MAC-NET-0002 models.dev 응답 무시(status=%@, %d bytes)",
+              String(describing: (resp as? HTTPURLResponse)?.statusCode), data.count)
+        return registryCache?.registry
+      }
+      // 6MB 파싱은 메인 스레드 밖에서 — 첫 페인트를 막지 않는다.
+      let registry = try await Task.detached(priority: .utility) {
+        try ModelsDevRegistry(data: data)
+      }.value
+      registryCache = (registry, Date())
+      NSLog("[QuickTalk] models.dev 갱신 — 프로바이더 %d개", registry.providerCount)
+      return registry
+    } catch {
+      NSLog("[WARN] E-MAC-NET-0002 models.dev 조회 실패: %@", String(describing: error))
+      return registryCache?.registry
+    }
+  }
+
+  private func activeEntry() -> ModelCatalogEntry? {
+    guard let p = settings.activeProvider else { return nil }
+    return cachedCatalog(for: p)
+  }
+
+  private func isFresh(_ entry: ModelCatalogEntry?, for provider: LLMProviderConfig) -> Bool {
+    guard let entry, entry.baseURL == provider.baseURL else { return false }
+    return entry.isFresh()
+  }
+
+  /// 화면 상태 반영 — 목록·상세·기준 시각·요약 문구를 한 번에 맞춘다.
+  private func applyCatalog(_ entry: ModelCatalogEntry?, provider: LLMProviderConfig?) {
+    guard provider?.type != .appleFM else {
+      modelOptions = []; modelCatalog = []; modelCatalogFetchedAt = nil
+      modelNote = provider == nil ? nil : L("온디바이스 모델은 자동 선택됩니다")
+      return
+    }
+    modelCatalog = entry?.models ?? []
+    modelOptions = modelCatalog.map(\.id)
+    modelCatalogFetchedAt = entry?.fetchedAt
+    guard let entry, !entry.models.isEmpty else { modelNote = nil; return }
+    let stamp = Self.catalogStamp.string(from: entry.fetchedAt)
+    modelNote = entry.isFresh()
+      ? Lf("모델 %d개 · %@ 기준", entry.models.count, stamp)
+      : Lf("모델 %d개 · %@ 기준 · 오래된 목록", entry.models.count, stamp)
+  }
+
+  private static let catalogStamp: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.dateFormat = "MM-dd HH:mm"
+    return f
+  }()
 
   /// 선택한 AI·모델로 실제 질문(ping) 1건을 보내 연결을 확인한다.
   /// 설정 창의 '연결 테스트'(ProviderEditorSheet)와 같은 응답 경로를 쓴다.
@@ -1430,15 +1633,37 @@ final class UIStore: ObservableObject {
   }
   /// 모든 대화 기록(자동 저장분 + 보관분). 화면에는 `syncArchive`/`loadArchive`로 반영된다.
   @Published var archive: [Conversation] = []
+  /// 디스크 다시 읽기 캐시(v0.35) — 파일 수정 시각이 같으면 649KB 디코드를 건너뛴다.
+  private var archiveCache: [Conversation]?
+  private var archiveCacheStamp: Date?
 
   func loadArchive() {
-    var list = PersistenceService.load(keepDays: settings.keepDays)
+    let stamp = Self.archiveModificationDate()
+    var list: [Conversation]
+    if let cached = archiveCache, let stamp, stamp == archiveCacheStamp {
+      list = cached
+    } else {
+      list = PersistenceService.load(keepDays: settings.keepDays)
+      archiveCache = list
+      archiveCacheStamp = stamp
+    }
     if !conversation.turns.isEmpty || conversation.pinned {
       list.removeAll { $0.id == conversation.id }
       list.insert(conversation, at: 0)
     }
     archive = ConversationHistory.ordered(list)
   }
+
+  private static func archiveModificationDate() -> Date? {
+    try? FileManager.default.attributesOfItem(atPath: PersistenceService.storeURL.path)[.modificationDate] as? Date
+  }
+
+  /// 파일을 쓴 뒤 캐시를 지금 메모리 내용으로 맞춘다(다음 `loadArchive`가 다시 읽지 않게).
+  private func refreshArchiveCacheStamp() {
+    archiveCache = archive
+    archiveCacheStamp = Self.archiveModificationDate()
+  }
+
 
   /// 앱 시작 시 마지막 대화를 이어서 연다(2026-10-20 "언제나 새 대화" 수정).
   func restoreLastConversation() {
@@ -1478,6 +1703,7 @@ final class UIStore: ObservableObject {
     } catch {
       NSLog("[WARN] E-MAC-RENDER-0001 대화 기록 저장 실패: %@", String(describing: error))
     }
+    refreshArchiveCacheStamp()
   }
 
   /// 예약 실행 대화를 보관함에 반영한다(v0.26).
@@ -1489,6 +1715,7 @@ final class UIStore: ObservableObject {
     if !c.turns.isEmpty || c.pinned { archive.insert(c, at: 0) }
     archive = ConversationHistory.ordered(archive)
     try? PersistenceService.save(archive)
+    refreshArchiveCacheStamp()
     if conversation.id == c.id {
       core.open(c)
       conversation = core.conversation
@@ -1569,6 +1796,7 @@ final class UIStore: ObservableObject {
     if deletingCurrent { cancelReply() }
     archive.removeAll { $0.id == c.id }
     try? PersistenceService.save(archive)
+    refreshArchiveCacheStamp()
     // 현재 대화를 지웠다면 그 자리에서 **새 대화**로 비운다(syncArchive로 되살아나지 않게).
     if deletingCurrent {
       stopSpeaking()
@@ -1587,6 +1815,7 @@ final class UIStore: ObservableObject {
   func clearArchive() {
     archive.removeAll()
     try? PersistenceService.save(archive)
+    refreshArchiveCacheStamp()
   }
 
   /// 보관함에서 대화를 연다. `searching`이 있으면 그 검색어와 일치하는 첫 턴으로 포커스를 요청한다.
@@ -1598,6 +1827,15 @@ final class UIStore: ObservableObject {
     } else {
       searchFocus = nil
     }
+    startAutoCompact(convID: c.id)
+  }
+
+  /// 목차·검색에서 고른 **특정 질문**으로 이동한다(v0.35).
+  /// 활성화·포커스 요청·자동 정리를 한 번에 처리한다.
+  func openConversation(_ c: Conversation, focusing turnID: UUID) {
+    activateSession(c)
+    compactMessage = nil
+    searchFocus = SearchFocusRequest(conversationID: c.id, turnID: turnID, query: "")
     startAutoCompact(convID: c.id)
   }
 
@@ -1767,11 +2005,19 @@ final class UIStore: ObservableObject {
         guard session.conversation.id == convID else { return }
         // 사용자가 [중지]를 눌렀으면 여기서 멈춘다(모델 호출 없이 종료).
         if Task.isCancelled { return }
-        guard let provider = self.settings.activeProvider else {
+        // 비서별 AI(v0.35) — 대화·예약이 같은 해석을 쓴다. 비서가 없으면 설정의 활성 AI.
+        let conversationPersona = self.settings.persona(session.conversation.personaID)
+        let resolution = ProviderResolver.resolve(settings: self.settings,
+                                                   persona: conversationPersona)
+        guard let provider = resolution.provider else {
           self.compactMessage = L("활성 AI가 없습니다. 설정 > AI에서 프로바이더를 켜 주세요.")
           self.lastAICall = .failed("E-MAC-MODEL-0002")
           self.lastAIErrorDetail = L("활성 AI가 없습니다.")
           return
+        }
+        if let warning = resolution.warning {
+          self.compactMessage = warning
+          NSLog("[QuickTalk] 비서 AI 폴백 — 활성 AI로 동작")
         }
         // 이번 질문은 `prompt`로 따로 싣는다 — 기록에서 사용자 턴까지 빼야 같은 질문이 두 번 들어가지 않는다
         // 요약이 있으면 경계 이후만 원문으로 싣고, 요약은 프롬프트 앞에 고정한다.
@@ -1801,7 +2047,7 @@ final class UIStore: ObservableObject {
         let conversationPrefix = Self.memoryPromptPrefix(session.conversation)
         // 비서 — 대화마다 고른 성격·말투를 **프롬프트 앞**에 붙인다.
         // 도구가 꺼진 일반 클라이언트에도 적용되도록 시스템 프롬프트가 아니라 여기에 둔다.
-        let conversationPersona = self.settings.persona(session.conversation.personaID)
+        // (`conversationPersona` 는 위에서 AI 해석과 함께 구했다)
         let personaHeader = conversationPersona
           .map { PersonaPrompt.header($0) + "\n\n" } ?? ""
         // 비서가 자기 **쓰기 가능한 리포트 폴더**를 알아야 엉뚱한 곳을 뒤지지 않는다(v0.29).
@@ -1809,6 +2055,10 @@ final class UIStore: ObservableObject {
         // 제안하던 원인이다(v0.32.2, 2026-11-06 사용자 지적). 도구 경로는 시스템 프롬프트가 맡는다.
         let reportFolderBlock = SystemKnowledge.reportFolderPrompt(
           settings: ws, persona: conversationPersona)
+        // 비서별 폴더(v0.35) — 앱이 미리 만든다. 에이전트가 만들려 하면 승인 카드가 뜬다.
+        if conversationPersona != nil {
+          PersonaReports.ensureFolder(settings: ws, persona: conversationPersona)
+        }
         let memoryPrefix = reportFolderBlock + personaHeader + globalMemory.text + conversationPrefix
         if !globalMemory.isEmpty {
           NSLog("[QuickTalk] 공통 메모리 %d개 주입 (약 %d토큰)",
@@ -2043,9 +2293,7 @@ final class UIStore: ObservableObject {
           session.networkRetryStatus = progress.map { Self.retryStatusText($0) }
         }
         do {
-          guard let p = self.settings.activeProvider else {
-            throw QuickTalkError.providerNotConfigured()
-          }
+          let p = provider
           let reply: String
           if let precomputedAnswer {
             // 툴 콜링이 검색 없이 답한 경우 — 그대로 표시한다(스트리밍 없음).
@@ -2192,7 +2440,7 @@ final class UIStore: ObservableObject {
           // 모두 NET-0001로 뭉개지지 않게(URLError 상세는 AIErrorText가 만든다).
           flush(true)
           let code = AIErrorText.code(for: error)
-          let url = self.settings.activeProvider.flatMap { URL(string: $0.baseURL) }
+          let url = provider.baseURL.isEmpty ? nil : URL(string: provider.baseURL)
           let text = AIErrorText.userText(for: error, url: url)
           NSLog("[ERROR] %@ LLM 호출 실패 — %@", code, AIErrorText.logLabel(for: error))
           let current = session.conversation.turns.first(where: { $0.id == aid })?.text ?? ""
@@ -2385,7 +2633,9 @@ final class UIStore: ObservableObject {
     guard settings.autoCompact, !isCompacting else { return }
     let s = session ?? activeSession
     guard s.id == convID, !s.conversation.autoCompactPaused else { return }
-    guard let provider = settings.activeProvider else { return }
+    // 비서별 AI(v0.35) — 대화가 쓰는 모델과 같은 예산으로 정리한다.
+    guard let provider = ProviderResolver.provider(settings: settings,
+                                                   personaID: s.conversation.personaID) else { return }
     let keep = effectiveKeepTurns(for: provider)
     guard ConversationMemory.shouldCompact(s.conversation, provider: provider, keepTurns: keep) else {
       return
@@ -2396,7 +2646,8 @@ final class UIStore: ObservableObject {
   /// 정리 실행 — 원문은 그대로 두고 `summary`만 갱신한다(실패하면 아무것도 바꾸지 않는다).
   private func runCompaction(conversation target: Conversation, manual: Bool,
                              session: ChatSession? = nil) {
-    guard let provider = settings.activeProvider else {
+    guard let provider = ProviderResolver.provider(settings: settings,
+                                                   personaID: target.personaID) else {
       if manual { compactMessage = L("활성 AI가 없습니다. 설정 > AI에서 프로바이더를 켜 주세요.") }
       return
     }

@@ -36,6 +36,7 @@ enum SingleInstance {
       "--search-test=", "--answer-test=", "--tool-test=", "--search-decide-test=",
       "--search-answer-test=", "--agent-test=", "--selftest=",
       "--compact-test", "--compact-auto-test=", "--fallback-test",
+      "--switch-perf-test",
     ]
     return CommandLine.arguments.contains { arg in
       headlessPrefixes.contains { arg.hasPrefix($0) }

@@ -161,24 +161,13 @@ final class ScheduledRunRunner {
   }
 
   private func provider(for persona: Persona?) -> LLMProviderConfig? {
-    let base: LLMProviderConfig?
-    if let id = persona?.providerID, let p = store.settings.provider(id), p.enabled {
-      base = p
-    } else {
-      base = store.settings.activeProvider
-    }
-    guard var provider = base else { return nil }
-    // 비서별 모델 덮어쓰기(v0.27) — 예약 실행에만 적용한다(일반 대화는 설정 › AI).
-    if let model = persona?.normalized().model, !model.isEmpty {
-      provider.model = model
-    }
-    return provider
+    // 대화와 **같은 해석**을 쓴다(v0.35) — 비서 프로바이더/모델이 예약에도 그대로 적용된다.
+    ProviderResolver.provider(settings: store.settings, persona: persona)
   }
 
-  /// 리포트 폴더 — 비서 덮어쓰기 → 설정 기본값.
+  /// 리포트 폴더 — 비서별 해석은 `PersonaReports` 한 곳에서만 한다(v0.35).
   static func folder(for persona: Persona?, settings: QuickTalkSettings) -> String {
-    let custom = persona?.reportFolder?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    return custom.isEmpty ? settings.reportFolderPath : (custom as NSString).expandingTildeInPath
+    PersonaReports.folder(settings: settings, persona: persona)
   }
 
   /// 공통 메모리 + 이 대화의 요약 — **모든 비서가 같은 기억**을 본다(PLAN §14.8).

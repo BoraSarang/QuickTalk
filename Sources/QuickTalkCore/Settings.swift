@@ -123,6 +123,8 @@ public struct QuickTalkSettings: Codable, Equatable {
   // AI 프로바이더 — 기본 3종(Local Apple FM / Local Ollama / Remote OpenAI 호환) 시드 후 추가·삭제 가능
   public var providers: [LLMProviderConfig] = LLMProviderConfig.defaultProviders()
   public var activeProviderID: String = LLMProviderConfig.appleFMID
+  /// 모델 카탈로그를 앱 실행 시 백그라운드로 갱신할지(v0.35). 끄면 수동 ⟳만.
+  public var modelCatalogAutoUpdate: Bool = true
   /// 예비 프로바이더 ID("" = 사용 안 함). 주 모델이 429·5xx·시간 초과로 실패하면 **1회만** 넘어간다.
   /// 구버전 설정에는 없는 값이므로 비어 있으면 폴백하지 않는다(동작 변화 없음).
   public var fallbackProviderID: String = ""
@@ -356,7 +358,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case previewLines, keepDays, globalShortcut
     case shelfShortcut, captureFullShortcut, captureRegionShortcut, captureWindowShortcut
     case newWindowPosition
-    case providers, activeProviderID, fallbackProviderID
+    case providers, activeProviderID, fallbackProviderID, modelCatalogAutoUpdate
     case voiceEngine, whisperModelPath
     case whisperBackend, whisperMLXModelPath, whisperLanguage, whisperModelFolder
     case appleSpeechLocale, ttsLanguage, ttsVoiceID, ttsRate
@@ -493,6 +495,9 @@ public struct QuickTalkSettings: Codable, Equatable {
       providers = try Self.migratedProviders(from: c, legacy: legacy)
       activeProviderID = legacy?.providerID ?? LLMProviderConfig.appleFMID
     }
+    // v0.35 — 없는 설정은 자동 갱신(기본 켜짐)으로 읽는다.
+    modelCatalogAutoUpdate = try c.decodeIfPresent(Bool.self,
+                                                   forKey: .modelCatalogAutoUpdate) ?? true
   }
 
   /// 구버전 키(llmProvider 등)는 다시 쓰지 않는다 — 신규 키만 기록.
@@ -521,6 +526,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(providers, forKey: .providers)
     try c.encode(activeProviderID, forKey: .activeProviderID)
     try c.encode(fallbackProviderID, forKey: .fallbackProviderID)
+    try c.encode(modelCatalogAutoUpdate, forKey: .modelCatalogAutoUpdate)
     try c.encode(voiceEngine, forKey: .voiceEngine)
     try c.encode(whisperModelPath, forKey: .whisperModelPath)
     try c.encode(whisperBackend, forKey: .whisperBackend)

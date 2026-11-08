@@ -41,6 +41,18 @@ extension SettingsView {
         store.settings.fallbackProviderID = ""
       }
     }
+    groupBox(L("모델 정보")) {
+      toggleRow(L("모델 정보 자동 업데이트"),
+                isOn: $store.settings.modelCatalogAutoUpdate,
+                description: L("앱을 켤 때 모델 목록과 능력을 백그라운드로 갱신합니다. 끄면 ⟳로 직접 불러올 때만 갱신합니다."))
+      if let note = store.modelNote {
+        valueRow(L("모델 목록"), note)
+      }
+      caption(L("모델 능력은 models.dev의 참고 정보입니다. 실제 제공 모델과 다를 수 있으며, 정보가 없으면 '정보 없음'으로 표시합니다."))
+    }
+    .onChange(of: store.settings.modelCatalogAutoUpdate) { _, on in
+      if on { store.refreshModels() }
+    }
     groupBox(L("사고 과정 표시")) {
       pickerRow(L("표시 방식"), selection: Binding(
         get: { store.settings.reasoningDisplay.rawValue },
