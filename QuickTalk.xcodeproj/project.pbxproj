@@ -41,6 +41,7 @@
 		383446CB170F6CF76CE851E3 /* PointerPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36FB7D6B72920A828D78C84 /* PointerPill.swift */; };
 		39717BDB98AB7E8BD6EA0C03 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9370ED6612F49EC6C6433957 /* Keychain.swift */; };
 		3A29D6B52BA10E0CCDCF36D8 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46AB59036E6CDC9C1D797893 /* WhisperService.swift */; };
+		3AE6ED2B88F76F0532BB025D /* ChatWindowing.swift in Sources */ = {isa = PBXBuildFile; fileRef = D120B6771B5AB0EFDBF66347 /* ChatWindowing.swift */; };
 		3D6ADFAB8BED5713579BC330 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF188D635D4F46E486935089 /* Persistence.swift */; };
 		410AA30912EEB3B505AD0C11 /* UIStore+FollowUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CCA65F4AB4CF7B2E6313AE /* UIStore+FollowUp.swift */; };
 		4128C50BE2DA848837F56DEB /* SlashCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89015FB0E8F76C04A874CFB2 /* SlashCommand.swift */; };
@@ -272,6 +273,7 @@
 		CCC6202DA471E06B93A3E247 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		CF440F448282A93D1CFE776C /* SandboxRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxRunner.swift; sourceTree = "<group>"; };
 		CF78945CBB50D93456CC3BA7 /* UiAppGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiAppGrant.swift; sourceTree = "<group>"; };
+		D120B6771B5AB0EFDBF66347 /* ChatWindowing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWindowing.swift; sourceTree = "<group>"; };
 		D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstance.swift; sourceTree = "<group>"; };
 		D365FF5FF18A22A715651BBC /* ServerFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailure.swift; sourceTree = "<group>"; };
 		D36FB7D6B72920A828D78C84 /* PointerPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerPill.swift; sourceTree = "<group>"; };
@@ -411,6 +413,7 @@
 				774B8A73592B2BB441E7660C /* AppDataGuard.swift */,
 				C1B2D0681DEA0AF92CD486A7 /* AttachmentRetry.swift */,
 				B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */,
+				D120B6771B5AB0EFDBF66347 /* ChatWindowing.swift */,
 				0B3BA0ADF75FC7F4E2B4013D /* Clipboard.swift */,
 				8AE0D8197FF437735FFD029E /* ConversationMemory.swift */,
 				B0C81351C347B42147D7EE69 /* ConversationOutline.swift */,
@@ -579,6 +582,7 @@
 				989D731C586EC0079F02E54E /* CaptureService.swift in Sources */,
 				0589B0A959CFE05D0734F0B1 /* ChatInputField.swift in Sources */,
 				5A028D17024555E80B21C6CF /* ChatOutlineView.swift in Sources */,
+				3AE6ED2B88F76F0532BB025D /* ChatWindowing.swift in Sources */,
 				355B656C93CB1A5C46A93134 /* Clipboard.swift in Sources */,
 				0766EFD159A4F7B587D8A786 /* ClipboardService.swift in Sources */,
 				DCEF44C46F220F3F88100FF6 /* ContentView.swift in Sources */,

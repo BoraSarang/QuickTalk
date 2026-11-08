@@ -80,7 +80,7 @@ final class ConversationOutlineTests: XCTestCase {
     XCTAssertEqual(ConversationOutline.currentIndex(offsets: offsets, anchorY: 500, entries: entries), 1)
   }
 
-  // MARK: - visibleIndex (LazyVStack — 일부 좌표만 측정된 경우)
+  // MARK: - visibleIndex (윈도잉 — 일부 좌표만 측정된 경우)
 
   func testVisibleIndexMatchesCurrentIndexWhenAllOffsetsKnown() {
     let turns = [turn("q1"), turn("a1", role: .assistant), turn("q2"),
