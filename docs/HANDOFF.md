@@ -17,7 +17,8 @@
 - **검증(오프스크린)**: `swift test` **905/905**(6 skip, 신규 12 — `LocalFileLinksTests`: 절대 파일/폴더·없는 경로·폴더 기준 파일명·추가 폴더·코드 펜스·인라인 코드·기존 링크·웹 URL·문장 끝 점·인라인 해석) · 번역 커버리지 통과(신규 3키) · Debug/Release `xcodebuild` **BUILD SUCCEEDED · 경고 0** · 렌더 `docs/qa/v0.33-file-links/markdown-{ko,en}.png`(파일 링크 밑줄·코드 블록 복사 버튼 한/영·다크/라이트).
 - **한계(정직)**: 파일 링크는 **렌더 시점에 존재하는 경로만** 링크한다(답변 뒤 파일이 지워지면 눌러도 무반응·beep). 공백이 포함된 절대 경로는 첫 공백에서 끊겨 링크되지 않는다(현재 답변 예시 기준). 실제 클릭·NSAlert·파인더 열기는 오프스크린에서 확인할 수 없어 **사용자 실측 필요**.
 - **실측 대기**: P1) ⌘Space pill → 비서 없이 Enter = **새 대화** · P2) pill 에서 비서 선택 후 Enter = 새 대화에 **그 비서만** 적용 · P3) pill 열기 전 대화의 비서가 pill 에 **체크되어 보이지 않음** · F1) 리포트 폴더 경로 클릭 = 파인더 · F2) 파일명 클릭 = 열림 · F3) `.command`/`.app` 클릭 = 확인 창 · C1) 코드 블록 `복사` = 클립보드에 블록만.
-- **다음**: 사용자 실측 통과 후 `git add` → 커밋 → PR → squash merge → Release 빌드 → 사용자 확인 후 `~/Applications/QuickTalk.app` 교체(백업 없음).
+- **테스트 배포(Debug)**: **2026-11-08 13:16** `~/Applications/QuickTalk.app` 교체(**백업 없음**) — 사용자 요청에 따라 **Debug 빌드**(`~/Library/Developer/Xcode/DerivedData/QuickTalk-…/Build/Products/Debug/QuickTalk.app`, 13:14)로 설치. `codesign --verify --strict --deep` OK · SHA-256 `02421af8082cc4f34f0fdfee232e9b9311022f661d3d5f2009c3e2512f8ce548`(바이너리). Release 는 최종 배포 때만 사용.
+- **다음**: 사용자가 `~/Applications/QuickTalk.app`(Debug)으로 실측 → 통과 후 `git add`(문서) → 커밋 → PR → squash merge. 최종 Release 배포는 사용자가 명시적으로 요청할 때만.
 
 ### 2026-11-06 인계 (10) — v0.32.2 **비서 없는 대화의 리포트 제안 · 후속 질문 칩 스크롤** **병합·배포 완료** (실측 대기)
 
