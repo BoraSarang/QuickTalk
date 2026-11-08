@@ -405,17 +405,30 @@ struct PersonaEditorSheet: View {
     _useCustomFolder = State(initialValue: persona.reportFolder != nil)
   }
 
-  /// 비서가 실제로 쓸 프로바이더 — 비어 있으면 설정의 활성 AI.
-  private var resolvedProvider: LLMProviderConfig? {
-    if let id = draft.providerID, let p = store.settings.provider(id), p.enabled { return p }
-    return store.settings.activeProvider
+  /// 비서가 실제로 쓸 AI — 꺼진 프로바이더는 활성 AI로 폴백한다(`ProviderResolver`).
+  private var resolution: ProviderResolution {
+    ProviderResolver.resolve(settings: store.settings, persona: draft)
   }
 
-  /// "프로바이더 · 모델" — 모델 덮어쓰기가 있으면 그 값을 보여 준다.
+  private var resolvedProvider: LLMProviderConfig? { resolution.provider }
+
+  /// "프로바이더 · 모델" — 비서가 모델을 덮어쓰면 그 값을 보여 준다.
   private var aiLabel: String {
-    let name = resolvedProvider?.displayName ?? L("설정의 활성 AI")
-    let model = draft.normalized().model ?? resolvedProvider?.model ?? ""
-    return model.isEmpty ? name : "\(name) · \(model)"
+    guard let provider = resolvedProvider else { return L("설정의 활성 AI") }
+    return provider.model.isEmpty ? provider.displayName
+      : "\(provider.displayName) · \(provider.model)"
+  }
+
+  /// 이 비서의 실제 저장 경로(아직 저장하지 않은 초안도 포함해 계산).
+  private var effectiveReportFolder: String {
+    var all = store.settings.personas
+    all.removeAll { $0.id == draft.id }
+    all.append(draft)
+    return PersonaReports.folder(settings: store.settings, persona: draft, all: all)
+  }
+
+  private var sharedFolderPeers: [Persona] {
+    PersonaReports.sharedExplicitPeers(persona: draft, all: store.settings.personas)
   }
 
   var body: some View {
@@ -463,7 +476,7 @@ struct PersonaEditorSheet: View {
           Divider()
 
           VStack(alignment: .leading, spacing: 4) {
-            Text(L("예약 실행에 사용할 AI")).font(.body)
+            Text(L("이 비서의 AI")).font(.body)
             Picker("", selection: Binding(
               get: { draft.providerID ?? "" },
               set: { draft.providerID = $0.isEmpty ? nil : $0 }
@@ -477,13 +490,29 @@ struct PersonaEditorSheet: View {
             Text(aiLabel)
               .font(.caption).foregroundColor(.secondary)
               .textSelection(.enabled)
+            if let warning = resolution.warning {
+              Text(warning)
+                .font(.caption).foregroundColor(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             TextField(L("모델 (비우면 프로바이더 모델)"), text: Binding(
               get: { draft.model ?? "" },
               set: { draft.model = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? nil : $0 }
             ))
             .textFieldStyle(.roundedBorder)
-            caption(L("이 설정은 예약 실행에만 적용됩니다. 일반 대화는 설정 › AI의 활성 AI를 씁니다."))
+            let choices = store.modelChoices(for: resolvedProvider)
+            if !choices.isEmpty {
+              Picker(L("불러온 모델"), selection: Binding(
+                get: { draft.model ?? "" },
+                set: { draft.model = $0.isEmpty ? nil : $0 }
+              )) {
+                Text(L("프로바이더 모델")).tag("")
+                ForEach(choices, id: \.self) { Text($0).tag($0) }
+              }
+              .labelsHidden().pickerStyle(.menu)
+            }
+            caption(L("대화와 예약 실행 모두에 적용됩니다. 비우면 설정 › AI의 활성 AI를 따릅니다."))
           }
 
           Divider()
@@ -517,8 +546,12 @@ struct PersonaEditorSheet: View {
             .padding(8)
             .background(Color.primary.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            if !sharedFolderPeers.isEmpty {
+              Text(L("여러 비서가 같은 폴더를 씁니다."))
+                .font(.caption).foregroundColor(.orange)
+            }
           } else {
-            caption(Lf("저장 위치: %@ (설정의 기본 리포트 폴더)", displayPath(store.settings.reportFolderPath)))
+            caption(Lf("저장 위치: %@ (이 비서의 폴더)", displayPath(effectiveReportFolder)))
           }
         }
         .padding(16)

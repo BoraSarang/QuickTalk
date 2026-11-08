@@ -456,3 +456,35 @@ public enum CitationLinks {
        .replacingOccurrences(of: " ", with: "%20")
   }
 }
+
+/// 마크다운 파싱 캐시(v0.35) — 대화를 다시 그릴 때 **같은 답변을 다시 파싱하지 않는다**.
+///
+/// 대화 전환·스크롤에서 `MarkdownText.init` 이 매번 호출되던 비용을 줄인다.
+/// 키는 인용 링크 변환까지 끝난 문자열이라 내용이 같으면 결과도 같다. `NSCache` 라
+/// 메모리 경고 시 스스로 비워진다(대화 내용을 디스크에 남기지 않는다).
+public enum MarkdownParseCache {
+  private final class Box: NSObject {
+    let segments: [MarkdownSegment]
+    init(_ segments: [MarkdownSegment]) { self.segments = segments }
+  }
+
+  private static let cache: NSCache<NSString, Box> = {
+    let c = NSCache<NSString, Box>()
+    c.countLimit = 400
+    c.totalCostLimit = 4 * 1024 * 1024
+    return c
+  }()
+
+  public static func segments(for text: String, urls: [String]) -> [MarkdownSegment] {
+    segments(linkedText: CitationLinks.link(text, urls: urls))
+  }
+
+  /// 이미 링크 변환(인용·로컬 파일)을 마친 문자열을 그대로 키로 쓴다.
+  public static func segments(linkedText: String) -> [MarkdownSegment] {
+    let key = linkedText as NSString
+    if let hit = cache.object(forKey: key) { return hit.segments }
+    let parsed = MarkdownSegment.parse(linkedText)
+    cache.setObject(Box(parsed), forKey: key, cost: linkedText.utf8.count + parsed.count * 64)
+    return parsed
+  }
+}

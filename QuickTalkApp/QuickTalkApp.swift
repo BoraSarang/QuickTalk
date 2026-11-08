@@ -158,6 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     // QA 편의: `--open-settings` 로 실행하면 설정 창을 바로 연다 (메뉴바 클릭 없이 확인용)
     runQARenderIfRequested()
+    // QA: `--switch-perf-test` — 대화 전환 비용 측정(헤드리스)
+    if runSwitchPerfIfRequested() { return }
     // QA: `--search-test=<질문>` — 저장된 Exa 키로 실제 검색 1회(결과 건수·지연만 로그)
     if runWebSearchSelfTestIfRequested() { return }
     // QA: `--answer-test=<질문>` — Exa `/answer` 1회(답변·인용 길이만 로그)

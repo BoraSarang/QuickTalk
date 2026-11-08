@@ -35,12 +35,30 @@ struct ShelfView: View {
   var onSettings: () -> Void
   /// 보관함 전체 보기(검색·이름 변경·삭제·비서별 정리) — 창 안 보관함 탭으로 이동한다.
   var onOpenArchive: () -> Void = {}
+  /// QA 렌더 전용 — 특정 대화의 목차를 펼친 상태로 그린다(v0.35).
+  var initialExpandedOutlineID: UUID?
+  /// QA 렌더 전용 — 지금 대화의 목차를 자동으로 펼치지 않는다.
+  var suppressAutoExpand = false
 
   @Environment(\.colorScheme) private var colorScheme
   @State private var query = ""
-  /// 대화 탭의 "이 대화 목차" 펼침 상태(v0.32).
-  @State private var outlineOpen = true
+  /// 대화 탭의 목차 아코디언 — **한 번에 하나만** 펼친다(v0.35).
+  @State private var expandedOutlineID: UUID?
   @State var clipboardFilter: ClipboardItem.Kind?
+
+  init(store: UIStore, chrome: ShelfChrome = .floating,
+       onClose: @escaping () -> Void, onSettings: @escaping () -> Void,
+       onOpenArchive: @escaping () -> Void = {},
+       initialExpandedOutlineID: UUID? = nil, suppressAutoExpand: Bool = false) {
+    self.store = store
+    self.chrome = chrome
+    self.onClose = onClose
+    self.onSettings = onSettings
+    self.onOpenArchive = onOpenArchive
+    self.initialExpandedOutlineID = initialExpandedOutlineID
+    self.suppressAutoExpand = suppressAutoExpand
+    _expandedOutlineID = State(initialValue: initialExpandedOutlineID)
+  }
 
   /// 강조 문구 색 — 다크에서는 라벤더, 라이트에서는 진한 브랜드 퍼플(대비 확보)
   var accentText: Color { ShelfTheme.accentText(colorScheme) }
@@ -285,154 +303,188 @@ struct ShelfView: View {
       .help(L("새 대화 시작 — 지금 대화는 보관함에 남습니다"))
       .padding(.horizontal, 10)
 
-      shelfOutlineSection
-
-      ScrollView {
-        LazyVStack(spacing: 4) {
-          if !store.conversation.turns.isEmpty || store.conversation.pinned {
-            chatRow(store.conversation, selected: true)
+      ScrollViewReader { proxy in
+        ScrollView {
+          LazyVStack(spacing: 4) {
+            if !store.conversation.turns.isEmpty || store.conversation.pinned {
+              chatRow(store.conversation, selected: true).id(store.conversation.id)
+            }
+            ForEach(chatItems, id: \.id) { c in
+              chatRow(c, selected: false).id(c.id)
+            }
+            if store.conversation.turns.isEmpty && !store.conversation.pinned && chatItems.isEmpty {
+              emptyState(L("보관된 대화가 없습니다"), L("새 대화를 시작하면 여기에 쌓입니다"))
+                .frame(height: 180)
+            }
           }
-          ForEach(chatItems, id: \.id) { c in
-            chatRow(c, selected: false)
-          }
-          if store.conversation.turns.isEmpty && !store.conversation.pinned && chatItems.isEmpty {
-            emptyState(L("보관된 대화가 없습니다"), L("새 대화를 시작하면 여기에 쌓입니다"))
-              .frame(height: 180)
+          .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 6)
+        }
+        .onChange(of: expandedOutlineID) { _, id in
+          // 아래쪽 대화를 펼치면 목차가 잘리지 않게 그 줄을 위로 올린다.
+          guard let id else { return }
+          withAnimation(.easeInOut(duration: 0.15)) {
+            proxy.scrollTo(id, anchor: .top)
           }
         }
-        .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 6)
       }
     }
     .padding(.top, 8)
-    .onAppear { if !store.isRenderHarness { store.loadArchive() } }
-  }
-
-  /// 이 대화의 질문 목차(v0.32) — 설정이 "퀵셸프" 또는 "둘 다"일 때만.
-  /// 셸프는 빠른 전환용이라 최근 6개만 보여 주고, 나머지는 개수로 알린다.
-  @ViewBuilder private var shelfOutlineSection: some View {
-    let entries = ConversationOutline.entries(from: store.conversation.turns)
-    if store.settings.outlineDisplay.showsShelf,
-       ConversationOutline.shouldShow(entries) {
-      let shown = Array(entries.suffix(6))
-      VStack(alignment: .leading, spacing: 3) {
-        Button { outlineOpen.toggle() } label: {
-          HStack(spacing: 5) {
-            Image(systemName: "list.bullet.indent").font(.system(size: 9.5))
-            Text(L("이 대화 목차")).font(.system(size: 10.5, weight: .semibold))
-            Text("\(entries.count)")
-              .font(.system(size: 9, design: .monospaced))
-              .padding(.horizontal, 4).padding(.vertical, 1)
-              .background(Capsule().fill(Color.primary.opacity(0.08)))
-            Spacer(minLength: 0)
-            Image(systemName: outlineOpen ? "chevron.up" : "chevron.down")
-              .font(.system(size: 8.5, weight: .semibold))
-          }
-          .foregroundColor(.secondary)
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(outlineOpen ? L("목차 접기") : L("목차 펼치기"))
-
-        if outlineOpen {
-          ForEach(shown) { entry in
-            Button { jumpToOutline(entry) } label: {
-              HStack(spacing: 5) {
-                Circle()
-                  .fill(entry.index == entries.count - 1
-                        ? Color.purple : Color.primary.opacity(0.18))
-                  .frame(width: 4, height: 4)
-                Text(entry.preview)
-                  .font(.system(size: 10.5))
-                  .lineLimit(1)
-                  .foregroundColor(.primary.opacity(0.78))
-                Spacer(minLength: 0)
-              }
-              .padding(.horizontal, 6).padding(.vertical, 3)
-              .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(entry.preview)
-          }
-          if entries.count > shown.count {
-            Text(Lf("… 외 %d개", entries.count - shown.count))
-              .font(.system(size: 9))
-              .foregroundColor(.secondary)
-              .padding(.leading, 6)
-          }
-        }
+    .onAppear {
+      if !store.isRenderHarness { store.loadArchive() }
+      // 셸프를 열면 **지금 대화**의 목차를 펼쳐 둔다(질문 3개 이상일 때만).
+      // QA 렌더는 원하는 대화를 직접 펼친 상태로 그릴 수 있다.
+      if expandedOutlineID == nil, !suppressAutoExpand,
+         store.settings.outlineDisplay.showsShelf,
+         ConversationOutline.shouldShow(ConversationOutline.entries(from: store.conversation.turns)) {
+        expandedOutlineID = store.conversation.id
       }
-      .padding(8)
-      .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.04)))
-      .overlay(RoundedRectangle(cornerRadius: 9)
-        .stroke(Color.primary.opacity(0.06), lineWidth: 1))
-      .padding(.horizontal, 10)
     }
   }
 
-  /// 목차에서 고른 질문으로 이동 — 셸프를 닫고 대화 창을 앞으로 낸다.
-  private func jumpToOutline(_ entry: OutlineEntry) {
-    store.searchFocus = SearchFocusRequest(conversationID: store.conversation.id,
-                                           turnID: entry.id, query: "")
+  /// 이 대화의 질문 수 — 접힌 줄에서는 이 값만 센다(목차 미리보기는 펼칠 때 계산).
+  private func questionCount(_ c: Conversation) -> Int {
+    c.turns.reduce(0) { $0 + ($1.role == .user ? 1 : 0) }
+  }
+
+  /// 목차를 펼칠 수 있는 대화인가 — 설정 + 질문 3개 이상.
+  private func canShowOutline(_ c: Conversation) -> Bool {
+    store.settings.outlineDisplay.showsShelf
+      && questionCount(c) >= ConversationOutline.minimumQuestions
+  }
+
+  private func toggleOutline(_ c: Conversation) {
+    guard canShowOutline(c) else { return }
+    withAnimation(.easeInOut(duration: 0.15)) {
+      expandedOutlineID = expandedOutlineID == c.id ? nil : c.id
+    }
+  }
+
+  /// 펼친 대화의 목차 — 최근 6개만 그리고 나머지는 개수로 알린다.
+  @ViewBuilder private func outlineList(_ c: Conversation) -> some View {
+    let entries = ConversationOutline.entries(from: c.turns)
+    let shown = Array(entries.suffix(6))
+    VStack(alignment: .leading, spacing: 2) {
+      ForEach(shown) { entry in
+        Button { jumpToOutline(entry, in: c) } label: {
+          HStack(spacing: 5) {
+            Circle()
+              .fill(entry.index == entries.count - 1
+                    ? Color.purple : Color.primary.opacity(0.18))
+              .frame(width: 4, height: 4)
+            Text(entry.preview)
+              .font(.system(size: 10.5))
+              .lineLimit(1)
+              .foregroundColor(.primary.opacity(0.78))
+            Spacer(minLength: 0)
+          }
+          .padding(.horizontal, 6).padding(.vertical, 3)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(entry.preview)
+      }
+      if entries.count > shown.count {
+        Text(Lf("… 외 %d개", entries.count - shown.count))
+          .font(.system(size: 9))
+          .foregroundColor(.secondary)
+          .padding(.leading, 6)
+      }
+    }
+    .padding(.leading, 30).padding(.trailing, 6).padding(.bottom, 4)
+  }
+
+  /// 목차에서 고른 질문으로 이동 — 그 대화를 활성화하고 그 턴으로 스크롤한 뒤 셸프를 닫는다.
+  private func jumpToOutline(_ entry: OutlineEntry, in c: Conversation) {
+    store.openConversation(c, focusing: entry.id)
     onClose()
     NotificationCenter.default.post(name: .quickTalkOpenChat, object: nil)
   }
 
   private func chatRow(_ c: Conversation, selected: Bool) -> some View {
-    let running = store.isSessionReplying(conversationID: c.id)
-    let persona = store.settings.persona(personaID(for: c))
-    return Button { openChat(c) } label: {
-      HStack(spacing: 8) {
-        ZStack(alignment: .bottomTrailing) {
-          Circle()
-            .fill(Color.primary.opacity(0.08))
-            .frame(width: 26, height: 26)
-            .overlay {
-              if let persona {
-                Text(persona.displayEmoji).font(.system(size: 12))
-              } else {
-                Image(systemName: "person.crop.circle")
-                  .font(.system(size: 12)).foregroundColor(.secondary)
-              }
-            }
-          if running {
-            Circle()
-              .fill(Color.green)
-              .frame(width: 8, height: 8)
-              .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
-              .offset(x: 1, y: 1)
-          }
+    let expanded = expandedOutlineID == c.id
+    let showsOutline = canShowOutline(c)
+    return VStack(alignment: .leading, spacing: 2) {
+      HStack(spacing: 2) {
+        Button { openChat(c) } label: {
+          chatRowLabel(c, selected: selected)
         }
-        VStack(alignment: .leading, spacing: 2) {
-          Text(c.displayTitle)
-            .font(.system(size: 11.5, weight: .medium))
-            .lineLimit(1)
-          HStack(spacing: 5) {
-            if running {
-              Text(L("응답 중"))
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(.green)
+        .buttonStyle(.plain)
+        .help(c.displayTitle)
+
+        if showsOutline {
+          // 목차 펼치기는 **대화를 열지 않는다** — 역할을 분리한다(v0.35).
+          Button { toggleOutline(c) } label: {
+            HStack(spacing: 2) {
+              Text(Lf("목차 %d", questionCount(c)))
+              Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                .font(.system(size: 7.5, weight: .semibold))
             }
-            Text(RelativeTime.text(for: c.updatedAt))
-              .font(.system(size: 9))
-              .foregroundColor(.secondary)
+            .font(.system(size: 9.5, weight: .medium))
+            .foregroundColor(expanded ? .purple : .secondary)
+            .padding(.horizontal, 5).padding(.vertical, 4)
+            .contentShape(Rectangle())
           }
-        }
-        Spacer(minLength: 0)
-        if selected {
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 10))
-            .foregroundColor(.purple)
+          .buttonStyle(.plain)
+          .help(expanded ? L("목차 접기") : L("목차 펼치기"))
         }
       }
-      .padding(.horizontal, 8).padding(.vertical, 7)
-      .background(RoundedRectangle(cornerRadius: 9)
-        .fill(Color.primary.opacity(selected ? 0.07 : 0.03)))
-      .overlay(RoundedRectangle(cornerRadius: 9)
-        .stroke(Color.purple.opacity(selected ? 0.25 : 0), lineWidth: 1))
-      .contentShape(Rectangle())
+      if expanded { outlineList(c) }
     }
-    .buttonStyle(.plain)
-    .help(c.displayTitle)
+  }
+
+  private func chatRowLabel(_ c: Conversation, selected: Bool) -> some View {
+    let running = store.isSessionReplying(conversationID: c.id)
+    let persona = store.settings.persona(personaID(for: c))
+    return HStack(spacing: 8) {
+      ZStack(alignment: .bottomTrailing) {
+        Circle()
+          .fill(Color.primary.opacity(0.08))
+          .frame(width: 26, height: 26)
+          .overlay {
+            if let persona {
+              Text(persona.displayEmoji).font(.system(size: 12))
+            } else {
+              Image(systemName: "person.crop.circle")
+                .font(.system(size: 12)).foregroundColor(.secondary)
+            }
+          }
+        if running {
+          Circle()
+            .fill(Color.green)
+            .frame(width: 8, height: 8)
+            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
+            .offset(x: 1, y: 1)
+        }
+      }
+      VStack(alignment: .leading, spacing: 2) {
+        Text(c.displayTitle)
+          .font(.system(size: 11.5, weight: .medium))
+          .lineLimit(1)
+        HStack(spacing: 5) {
+          if running {
+            Text(L("응답 중"))
+              .font(.system(size: 9, weight: .semibold))
+              .foregroundColor(.green)
+          }
+          Text(RelativeTime.text(for: c.updatedAt))
+            .font(.system(size: 9))
+            .foregroundColor(.secondary)
+        }
+      }
+      Spacer(minLength: 0)
+      if selected {
+        Image(systemName: "checkmark.circle.fill")
+          .font(.system(size: 10))
+          .foregroundColor(.purple)
+      }
+    }
+    .padding(.horizontal, 8).padding(.vertical, 7)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 9)
+      .fill(Color.primary.opacity(selected ? 0.07 : 0.03)))
+    .overlay(RoundedRectangle(cornerRadius: 9)
+      .stroke(Color.purple.opacity(selected ? 0.25 : 0), lineWidth: 1))
+    .contentShape(Rectangle())
   }
 
   private func openChat(_ c: Conversation) {

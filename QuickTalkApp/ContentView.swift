@@ -454,7 +454,8 @@ struct ContentView: View {
 
   /// 헤더에 보여 줄 현재 토큰/자동 정리 기준 — 설정을 열지 않아도 진행도를 확인한다.
   private var memoryStatus: (current: Int, trigger: Int, ratio: Double)? {
-    guard let provider = store.settings.activeProvider else { return nil }
+    guard let provider = ProviderResolver.provider(settings: store.settings,
+                                                   personaID: store.conversation.personaID) else { return nil }
     let current = ConversationMemory.contextTokens(store.conversation)
     let trigger = Int(Double(ConversationMemory.promptBudget(for: provider))
                       * ConversationMemory.triggerRatio)

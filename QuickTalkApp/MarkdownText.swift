@@ -38,8 +38,10 @@ struct MarkdownText: View {
     self.sources = sources
     self.baseSize = baseSize
     self.fileDirectories = fileDirectories
-    let linked = Self.linked(text, urls: sources.map(\.url), directories: fileDirectories)
-    _segments = State(initialValue: MarkdownSegment.parse(linked))
+    // 인용 링크(`[n]`)와 로컬 파일 링크를 **먼저** 적용한 뒤 파싱 결과를 캐시한다.
+    // 캐시 키가 최종 문자열이므로 폴더 목록이 달라지면 자연히 다른 키가 된다.
+    _segments = State(initialValue: MarkdownParseCache.segments(
+      linkedText: Self.linked(text, urls: sources.map(\.url), directories: fileDirectories)))
     _searchDirectories = State(initialValue: LocalFileLinks.directories(
       in: text, extraDirectories: fileDirectories))
   }
@@ -51,7 +53,8 @@ struct MarkdownText: View {
 
   private func rendered(_ raw: String, urls: [String]) -> [MarkdownSegment] {
     searchDirectories = LocalFileLinks.directories(in: raw, extraDirectories: fileDirectories)
-    return MarkdownSegment.parse(Self.linked(raw, urls: urls, directories: fileDirectories))
+    return MarkdownParseCache.segments(
+      linkedText: Self.linked(raw, urls: urls, directories: fileDirectories))
   }
 
   private var base: Font { .system(size: baseSize) }

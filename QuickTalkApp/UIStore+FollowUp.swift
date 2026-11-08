@@ -34,7 +34,9 @@ extension UIStore {
     }
 
     let convID = session.conversation.id
-    let provider = settings.activeProvider
+    // 비서별 AI(v0.35) — 답변을 만든 모델과 같은 AI로 후속 질문을 만든다.
+    let provider = ProviderResolver.provider(settings: settings,
+                                             personaID: session.conversation.personaID)
     let count = FollowUpSuggest.defaultCount
     session.followUpTask = Task { @MainActor [weak self, weak session] in
       // 답변을 읽기 시작한 사용자를 방해하지 않게 잠깐 기다린다.

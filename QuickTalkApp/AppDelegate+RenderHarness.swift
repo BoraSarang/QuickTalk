@@ -887,9 +887,221 @@ extension AppDelegate {
         self.store.conversation = backup
         self.store.archive = archiveBackup
       }
+      // v0.35 — 모델 카탈로그 상세(픽커·Hub) · 퀵셸프 인라인 목차 · 비서별 리포트 폴더.
+      if CommandLine.arguments.contains("--demo-catalog") {
+        let models = [
+          ModelInfo(id: "deepseek-v4.1-flash-free",
+                    name: "DeepSeek V4.1 Flash Free",
+                    context: 200_000, output: 32_000,
+                    input: ["text", "image"], toolCall: true, reasoning: true,
+                    attachment: true, effort: ["low", "high", "max"],
+                    inputCost: 0, outputCost: 0, source: "opencode"),
+          ModelInfo(id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5",
+                    context: 200_000, output: 64_000,
+                    input: ["text", "image", "pdf"], toolCall: true, reasoning: true,
+                    attachment: true, inputCost: 3, outputCost: 15, source: "anthropic"),
+          ModelInfo(id: "local-qwen3", name: "local-qwen3"),
+        ]
+        let provider = LLMProviderConfig(id: "qa-openai", name: "OpenCode Zen",
+                                         type: .openAICompatible,
+                                         baseURL: "https://opencode.ai/zen/v1",
+                                         model: "deepseek-v4.1-flash-free",
+                                         secretID: "qa-secret", enabled: true)
+        let providerBackup = store.settings.providers
+        let activeBackup = store.settings.activeProviderID
+        store.applyRenderOverride(providers: [provider], activeProviderID: provider.id)
+        store.applyRenderCatalog(models, for: provider)
+        self.renderPNG(AnyView(ProviderEditorSheet(provider: provider, isNew: false)
+                                .environmentObject(self.store)),
+                       size: NSSize(width: 540, height: 600),
+                       to: "\(dir)/provider-model-\(suffix).png")
+        self.renderPNG(AnyView(QuickTalkHubView(initialTab: .settings)
+                                .environmentObject(self.store)),
+                       size: HubMetrics.popoverSize,
+                       to: "\(dir)/hub-model-\(suffix).png")
+        store.applyRenderOverride(providers: providerBackup, activeProviderID: activeBackup)
+      }
+      if CommandLine.arguments.contains("--demo-shelf-outline") {
+        let archiveBackup = store.archive
+        let conversationBackup = store.conversation
+        let tabBackup = store.shelfTab
+        store.shelfTab = .chats
+        let now = Date()
+        func demoChat(_ title: String, _ questions: [String], minutesAgo: Double) -> Conversation {
+          var turns: [Turn] = []
+          for (i, q) in questions.enumerated() {
+            turns.append(Turn(role: .user, text: q,
+                              createdAt: now.addingTimeInterval(-minutesAgo * 60 - Double(questions.count - i) * 60)))
+            turns.append(Turn(role: .assistant,
+                              text: "\(q)에 대한 답변입니다. 핵심만 세 줄로 정리했습니다.",
+                              elapsedMs: 1_200,
+                              createdAt: now.addingTimeInterval(-minutesAgo * 60 - Double(questions.count - i) * 60 + 30)))
+          }
+          return Conversation(title: title, turns: turns,
+                              updatedAt: now.addingTimeInterval(-minutesAgo * 60))
+        }
+        let active = demoChat("부산 2박 3일 여행 준비", [
+          "부산 2박 3일 여행 일정을 짜줘",
+          "숙소는 조용한 곳으로 잡아줘",
+          "둘째 날 저녁은 뭐가 좋아?",
+          "비 오면 실내 일정으로 바꿔줘",
+          "마지막 날은 몇 시에 출발하면 돼?"
+        ], minutesAgo: 5)
+        let lower = demoChat("이번 주 논문 요약", [
+          "이 논문을 3줄로 요약해줘",
+          "한계점은 뭐야?",
+          "후속 연구는 어떤 방향이야?",
+          "표로 정리해줘"
+        ], minutesAgo: 90)
+        let short = demoChat("맥 단축키 정리", ["맥 단축키 알려줘"], minutesAgo: 1_440)
+        store.conversation = active
+        store.archive = [active, lower, short]
+        self.renderPNG(AnyView(ShelfView(store: self.store, chrome: .docked,
+                                         onClose: {}, onSettings: {},
+                                         initialExpandedOutlineID: active.id)),
+                       size: NSSize(width: 300, height: 600),
+                       to: "\(dir)/shelf-outline-expanded-\(suffix).png")
+        self.renderPNG(AnyView(ShelfView(store: self.store, chrome: .docked,
+                                         onClose: {}, onSettings: {},
+                                         initialExpandedOutlineID: lower.id)),
+                       size: NSSize(width: 300, height: 600),
+                       to: "\(dir)/shelf-outline-lower-\(suffix).png")
+        self.renderPNG(AnyView(ShelfView(store: self.store, chrome: .docked,
+                                         onClose: {}, onSettings: {},
+                                         suppressAutoExpand: true)),
+                       size: NSSize(width: 300, height: 600),
+                       to: "\(dir)/shelf-outline-collapsed-\(suffix).png")
+        store.archive = archiveBackup
+        store.conversation = conversationBackup
+        store.shelfTab = tabBackup
+      }
+      if CommandLine.arguments.contains("--demo-persona-folder") {
+        let personaBackup = store.settings.personas
+        let a = Persona(name: "개발", role: "코딩·리뷰", emoji: "🛠",
+                        reportFolder: "~/Documents/Reports/shared")
+        let b = Persona(name: "개발", role: "리서치", emoji: "🔎",
+                        reportFolder: "~/Documents/Reports/shared")
+        store.applyRenderOverride(personas: [a, b])
+        // 아래쪽 리포트 폴더 영역까지 보이도록 스크롤을 바닥에 둔 채 렌더한다.
+        self.renderChatBottomPNG(AnyView(PersonaEditorSheet(persona: a, isNew: false,
+                                                            onSave: { _ in }, onCancel: {})
+                                          .environmentObject(self.store)),
+                                 size: NSSize(width: 540, height: 600),
+                                 to: "\(dir)/persona-folder-shared-\(suffix).png")
+        let c = Persona(name: "코딩 비서", role: "Swift·리뷰", emoji: "🧑‍💻")
+        store.applyRenderOverride(personas: [a, b, c])
+        self.renderChatBottomPNG(AnyView(PersonaEditorSheet(persona: c, isNew: false,
+                                                            onSave: { _ in }, onCancel: {})
+                                          .environmentObject(self.store)),
+                                 size: NSSize(width: 540, height: 600),
+                                 to: "\(dir)/persona-folder-default-\(suffix).png")
+        store.applyRenderOverride(personas: personaBackup)
+      }
       NSLog("[QuickTalk] QA 렌더 완료: %@ (lang=%@)", dir, L10n.effective.rawValue)
       NSApp.terminate(nil)
     }
+  }
+
+  /// QA: `--switch-perf-test` — 대화 전환 비용을 헤드리스로 측정한다(v0.35).
+  /// 실제 기록 파일은 읽기만 하고 쓰지 않는다(억제 플래그). 결과는 `[SWITCH-PERF]` 로그.
+  func runSwitchPerfIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--switch-perf-test") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    store.applyRenderOverride(autoCompact: false)
+    // 변형 측정 — 목차 레일/셸프를 끈 상태의 전환 비용(레이아웃 병목 분해용).
+    if CommandLine.arguments.contains("--switch-perf-no-outline") {
+      store.applyRenderOverride(outlineDisplay: .off)
+      NSLog("[SWITCH-PERF] variant=no-outline")
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+      guard let self else { return }
+      let now = Date()
+      // 두 가지 표본 — (a) 헤비: 18개 섹션 × 4문답(스트레스), (b) 실제형: 11턴·짧은 답변.
+      let realistic = CommandLine.arguments.contains("--switch-perf-realistic")
+      let sections = realistic ? 4 : 18
+      let pairs = realistic ? 5 : 4
+      let body = (1...sections).map { i in
+        "### 섹션 \(i)\n\n- **항목 \(i)** 설명입니다. `inline code` 와 [링크](https://example.com/\(i))를 포함합니다.\n- 두 번째 줄은 조금 더 길게 적어 실제 답변과 비슷한 분량을 만듭니다.\n\n본문 문단 \(i): 대화 전환 시 마크다운 파싱과 레이아웃 비용을 재현하기 위한 문장입니다."
+      }.joined(separator: "\n\n")
+      if realistic { NSLog("[SWITCH-PERF] variant=realistic turns=%d", pairs * 2) }
+      func chat(_ index: Int) -> Conversation {
+        var turns: [Turn] = []
+        for q in 0..<pairs {
+          turns.append(Turn(role: .user, text: "질문 \(index)-\(q): 이번 주 계획을 정리해 줘",
+                            createdAt: now.addingTimeInterval(-Double(index * 60 + q))))
+          turns.append(Turn(role: .assistant, text: body,
+                            elapsedMs: 1_200,
+                            createdAt: now.addingTimeInterval(-Double(index * 60 + q) + 20)))
+        }
+        return Conversation(title: "전환 QA \(index)", turns: turns,
+                            updatedAt: now.addingTimeInterval(-Double(index * 60)))
+      }
+      let chats = (0..<30).map(chat)
+      self.store.archive = chats
+      self.store.conversation = chats[0]
+
+      // 1) 디스크 디코드(649KB 기준) vs mtime 캐시가 적용된 loadArchive.
+      self.store.loadArchive()   // 캐시 워밍
+      let directMs = Self.measureMs { _ = PersistenceService.load(keepDays: 30) }
+      let cachedMs = Self.measureMs { self.store.loadArchive() }
+      NSLog("[SWITCH-PERF] loadArchive direct=%.1fms cached=%.1fms", directMs, cachedMs)
+
+      // 2) 마크다운 파싱 — 첫 파싱 vs 캐시 적중.
+      let sample = body + "\n\n고유 표본 \(UUID().uuidString)"
+      let coldParse = Self.measureMs {
+        _ = MarkdownSegment.parse(CitationLinks.link(sample, urls: []))
+      }
+      let warmParse = Self.measureMs { _ = MarkdownParseCache.segments(for: sample, urls: []) }
+      let hitParse = Self.measureMs { _ = MarkdownParseCache.segments(for: sample, urls: []) }
+      NSLog("[SWITCH-PERF] markdown cold=%.1fms cacheMiss=%.1fms cacheHit=%.1fms",
+            coldParse, warmParse, hitParse)
+
+      // 3) 실제 전환 — 모델 상태 변경 + ContentView 오프스크린 레이아웃.
+      let host = NSHostingView(rootView: ContentView().environmentObject(self.store))
+      host.frame = NSRect(x: 0, y: 0, width: 400, height: 560)
+      let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: 400, height: 560),
+                            styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.contentView = host
+      window.layoutIfNeeded()
+      host.layoutSubtreeIfNeeded()
+      RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+
+      func switchTo(_ c: Conversation, _ tag: String) -> Double {
+        var modelMs = 0.0, layoutMs = 0.0, runMs = 0.0, layout2Ms = 0.0
+        let total = Self.measureMs {
+          modelMs = Self.measureMs { self.store.openConversation(c) }
+          layoutMs = Self.measureMs { host.layoutSubtreeIfNeeded() }
+          runMs = Self.measureMs {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.04))
+          }
+          layout2Ms = Self.measureMs { host.layoutSubtreeIfNeeded() }
+          _ = window
+        }
+        NSLog("[SWITCH-PERF] %@ title=%@ total=%.1f model=%.1f layout=%.1f run=%.1f layout2=%.1f",
+              tag, c.title, total, modelMs, layoutMs, runMs, layout2Ms)
+        return total
+      }
+      // 첫 방문(콜드) → 다시 방문(캐시 적중) 순서로 측정한다.
+      var cold: [Double] = []
+      for c in chats.prefix(4) { cold.append(switchTo(c, "cold")) }
+      var warm: [Double] = []
+      for c in chats.prefix(4) { warm.append(switchTo(c, "warm")) }
+      let coldAvg = cold.reduce(0, +) / Double(cold.count)
+      let warmAvg = warm.reduce(0, +) / Double(warm.count)
+      NSLog("[SWITCH-PERF] summary coldAvg=%.1fms warmAvg=%.1fms coldMax=%.1fms warmMax=%.1fms",
+            coldAvg, warmAvg, cold.max() ?? 0, warm.max() ?? 0)
+      _ = window
+      NSApp.terminate(nil)
+    }
+    return true
+  }
+
+  private static func measureMs(_ work: () -> Void) -> Double {
+    let start = CFAbsoluteTimeGetCurrent()
+    work()
+    return (CFAbsoluteTimeGetCurrent() - start) * 1000
   }
 
   /// QA: `--search-test=<질문>` — 저장된 Exa 키로 실제 검색 1회.

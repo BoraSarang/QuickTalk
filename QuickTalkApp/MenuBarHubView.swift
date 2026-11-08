@@ -438,6 +438,13 @@ struct QuickSettingsCardsView: View {
           Text(L("활성 AI 없음")).font(.system(size: 12.5)).foregroundStyle(.secondary)
         }
       }
+      // 선택한 모델의 능력 한 줄 — 목록은 캐시에서 오므로 기다리지 않는다.
+      if let p, !locked, !p.model.isEmpty {
+        Text(store.modelInfo(for: p.model).map(Self.modelDetailText) ?? L("정보 없음"))
+          .font(.system(size: 10.5)).foregroundStyle(.secondary)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
+      }
       // 선택한 AI·모델이 실제로 응답하는지 ping 1건으로 확인한다(전면 설정의 '연결 테스트'와 동일)
       HStack(spacing: 8) {
         Button { store.testActiveProvider() } label: {
@@ -484,8 +491,16 @@ struct QuickSettingsCardsView: View {
   private func modelCaption(_ p: LLMProviderConfig?, locked: Bool) -> String {
     if locked { return L("Apple FM은 시스템 모델을 쓰므로 고를 모델이 없습니다.") }
     guard let p else { return L("설정 > AI에서 프로바이더를 등록하세요.") }
-    return Lf("%@ 목록은 새로고침 버튼을 누를 때만 읽습니다. 바꾸면 다음 질문부터 적용됩니다.",
+    return Lf("%@ 목록은 캐시에서 바로 보여 주고, 필요할 때 자동으로 갱신합니다. 바꾸면 다음 질문부터 적용됩니다.",
               p.type == .ollama ? L("설치된 모델") : L("서버 모델"))
+  }
+
+  /// 모델 능력 한 줄 — 상세가 없으면 "정보 없음"(추측하지 않는다).
+  static func modelDetailText(_ info: ModelInfo) -> String {
+    guard info.hasDetails else { return L("정보 없음") }
+    return [ProviderEditorSheet.sizeLine(info), ProviderEditorSheet.capabilityLine(info)]
+      .filter { !$0.isEmpty }
+      .joined(separator: " · ")
   }
 
   /// custom 드롭다운 — 현재 모델 행을 누르면 아래로 목록이 펼쳐진다(자체 카드 스타일, 가로 꽉 채움).
@@ -532,22 +547,36 @@ struct QuickSettingsCardsView: View {
               }
             }
           }
-          .frame(maxHeight: 112)
+          .frame(maxHeight: 150)
         }
       }
     }
   }
 
-  /// 모델 행 — 프로바이더 행과 같은 라디오 스타일(선택만)
+  /// 모델 행 — 프로바이더 행과 같은 라디오 스타일(선택만). 아래에 능력 한 줄을 붙인다.
   private func modelRow(_ model: String, isOn: Bool) -> some View {
-    Button { store.setActiveModel(model); withAnimation(.easeInOut(duration: 0.12)) { modelExpanded = false } } label: {
+    let info = store.modelInfo(for: model)
+    return Button { store.setActiveModel(model); withAnimation(.easeInOut(duration: 0.12)) { modelExpanded = false } } label: {
       HStack(spacing: 8) {
         Image(systemName: isOn ? "largecircle.fill.circle" : "circle")
           .font(.system(size: 11))
           .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.5))
-        Text(model).font(.system(size: 12, weight: isOn ? .semibold : .regular))
-          .lineLimit(1).truncationMode(.middle)
+        VStack(alignment: .leading, spacing: 1) {
+          Text(info?.name ?? model).font(.system(size: 12, weight: isOn ? .semibold : .regular))
+            .lineLimit(1).truncationMode(.middle)
+          if let info, info.hasDetails {
+            Text(Self.shortDetail(info))
+              .font(.system(size: 9.5)).foregroundStyle(.secondary)
+              .lineLimit(1).truncationMode(.tail)
+          }
+        }
         Spacer(minLength: 4)
+        if info?.looksFree == true {
+          Text(L("무료")).font(.system(size: 8.5, weight: .semibold))
+            .foregroundStyle(.green)
+            .padding(.horizontal, 4).padding(.vertical, 1)
+            .background(Capsule().fill(Color.green.opacity(0.12)))
+        }
       }
       .padding(.horizontal, 7).padding(.vertical, 3)
       .background(isOn ? Color.accentColor.opacity(0.12) : Color.clear)
@@ -555,6 +584,16 @@ struct QuickSettingsCardsView: View {
       .contentShape(RoundedRectangle(cornerRadius: 7))
     }
     .buttonStyle(.plain)
+  }
+
+  /// 드롭다운 한 줄용 짧은 상세 — 컨텍스트·출력·도구·추론만.
+  private static func shortDetail(_ info: ModelInfo) -> String {
+    var parts: [String] = []
+    if let c = info.context { parts.append(ProviderEditorSheet.compact(c)) }
+    if let o = info.output { parts.append("→" + ProviderEditorSheet.compact(o)) }
+    if info.toolCall { parts.append(L("도구")) }
+    if info.reasoning { parts.append(L("추론")) }
+    return parts.joined(separator: " · ")
   }
 
   // MARK: 상태 (읽기 전용)
