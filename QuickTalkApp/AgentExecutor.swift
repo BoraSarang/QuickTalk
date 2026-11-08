@@ -131,7 +131,12 @@ final class AgentExecutor: AgentToolExecutor {
       PolicyEngine.plan(command: command, policy: policy, approvedScopes: approvedScopes)
     }.value
 
-    switch plan {
+    // ★ 앱 자기 데이터(history.json·memory.json …)는 **자동 허용에서 제외**한다.
+    //   모델이 셸로 지난 대화를 전부 읽어 다른 대화 내용을 답변에 끌어온 사례가 있었다
+    //   (2026-11-08 AppDataGuard). 정책이 허용한 명령도 여기서 승인 카드로 승격한다.
+    let touchesAppData = AppDataGuard.commandTouchesProtectedData(command)
+    let guardedPlan = AppDataGuard.guardedPlan(plan, command: command)
+    switch guardedPlan {
     case .deny(let reason):
       // 상승 권한(sudo)은 앱이 실행하지 않는다 — 대신 **터미널로 넘길 수 있게** 한다.
       let handoff = RiskClassifier.requiresElevation(command) ? command : nil
@@ -157,7 +162,8 @@ final class AgentExecutor: AgentToolExecutor {
         return AgentToolOutcome(output: text, denied: true, level: request.level, risk: risk)
       }
       if choice == .alwaysAllow {
-        store.addAgentRule(pattern: command)
+        // 앱 데이터 접근은 "항상 허용"을 저장하지 않는다 — 다음에도 반드시 확인한다.
+        if !touchesAppData { store.addAgentRule(pattern: command) }
       }
       if choice == .allowScope {
         // 이 폴더를 이번 대화 동안 허용 — 같은 폴더의 다음 쓰기는 다시 묻지 않는다.
@@ -409,11 +415,17 @@ final class AgentExecutor: AgentToolExecutor {
     let path = call.stringArgument("path") ?? ""
     let level = AgentPermissionLevel.read
     let risk = AgentRiskLevel.normal
-    // 읽기는 기본 자동 허용 — 정책이 "매번 확인"이면 확인 카드(판정은 스크린샷과 같은 곳)
-    if AgentToolPermission.needsApproval(tool: call.name, policy: store.effectiveAgentPolicy(for: session)) {
+    // 읽기는 기본 자동 허용 — 정책이 "매번 확인"이면 확인 카드(판정은 스크린샷과 같은 곳).
+    // 앱 자기 데이터(대화 기록·공통 메모리)는 정책과 무관하게 **항상** 확인한다(2026-11-08).
+    let protected = AppDataGuard.isProtected(path: path)
+    if protected || AgentToolPermission.needsApproval(tool: call.name,
+                                                      policy: store.effectiveAgentPolicy(for: session)) {
       let request = AgentApprovalRequest(command: path, level: level, risk: risk,
                                          capability: .read, writablePaths: [],
-                                         reason: L("파일을 읽으려면 확인이 필요합니다."))
+                                         reason: protected
+                                           ? L("QuickTalk의 저장 데이터(대화 기록·공통 메모리)에 접근하려면 확인이 필요합니다.")
+                                           : L("파일을 읽으려면 확인이 필요합니다."),
+                                         allowsAlwaysAllow: !protected)
       upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
                                   command: path, level: level, risk: risk,
                                   state: .pending, output: request.reason))
@@ -472,6 +484,25 @@ final class AgentExecutor: AgentToolExecutor {
     let level = AgentPermissionLevel.read
     let risk = AgentRiskLevel.normal
     let fm = FileManager.default
+    // 폴더 목록도 읽기다 — 정책("매번 확인")과 앱 자기 데이터 보호를 read_file 과 똑같이 적용한다.
+    let protected = AppDataGuard.isProtected(path: path)
+    if protected || AgentToolPermission.needsApproval(tool: call.name,
+                                                      policy: store.effectiveAgentPolicy(for: session)) {
+      let request = AgentApprovalRequest(command: path, level: level, risk: risk,
+                                         capability: .read, writablePaths: [],
+                                         reason: protected
+                                           ? L("QuickTalk의 저장 데이터(대화 기록·공통 메모리)에 접근하려면 확인이 필요합니다.")
+                                           : L("폴더를 읽으려면 확인이 필요합니다."),
+                                         allowsAlwaysAllow: !protected)
+      upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
+                                  command: path, level: level, risk: risk,
+                                  state: .pending, output: request.reason))
+      if await requestApproval(request) == .deny {
+        let text = L("사용자가 폴더 읽기를 거부했습니다.")
+        updateEvent(call.id) { $0.state = .denied; $0.output = text }
+        return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+      }
+    }
     updateEvent(call.id) { $0.state = .running }
     guard let items = try? fm.contentsOfDirectory(atPath: path) else {
       let text = Lf("폴더를 읽을 수 없습니다: %@", path)

@@ -69,6 +69,7 @@ extension SettingsView {
       caption(AgentPermissionLevel.execute.explanation)
 
       caption(L("확인이 필요한 명령은 대화 카드에 나타나고, [한 번 허용] [이 폴더 허용] [항상 허용] [거부] 중 고를 수 있습니다. [이 폴더 허용] 은 이번 대화에서 그 폴더의 쓰기를 다시 묻지 않습니다."))
+      caption(L("QuickTalk의 대화 기록·공통 메모리·설정은 자동 허용에서 제외됩니다 — 접근할 때마다 확인합니다."))
     }
 
     groupBox(L("제한")) {
