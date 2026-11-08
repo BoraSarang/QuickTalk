@@ -1179,6 +1179,51 @@ extension AppDelegate {
     return true
   }
 
+  /// QA: `--qa-paste-routing` — 클립보드의 **웹 주소**가 첨부로 오인되지 않는지 확인한다(v0.35.2).
+  ///
+  /// 시스템 클립보드는 건드리지 않고 이름 있는 임시 페이스트보드로 같은 모양
+  /// (`public.url` + 텍스트)을 만들어 ⌘V 처리 로직을 직접 호출한다.
+  func runQAPasteRoutingIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-paste-routing") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    store.attached = []
+
+    let board = NSPasteboard(name: .init("QuickTalk.qa.paste.\(UUID().uuidString)"))
+    let link = "https://www.youtube.com/watch?v=9zOwUT1PdKY"
+
+    // 1) 브라우저 주소창 복사와 같은 모양 — 웹 주소 + 텍스트
+    board.clearContents()
+    board.declareTypes([.URL, .string], owner: nil)
+    board.setString(link, forType: .string)
+    board.setString(link, forType: .URL)
+    let webParsed = (board.readObjects(forClasses: [NSURL.self]) as? [URL])?.count ?? 0
+    let webConsumed = store.pasteAttachmentFromPasteboard(board)
+    NSLog("[QA-PASTE] web parsed=%d consumed=%d attachments=%d — 기대: consumed=0 attachments=0",
+          webParsed, webConsumed ? 1 : 0, store.attached.count)
+    let webOK = (webParsed == 1) && !webConsumed && store.attached.isEmpty
+    store.attached = []
+
+    // 2) Finder 파일 복사 — 첨부로 소비되어야 한다.
+    let tmp = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-paste-\(UUID().uuidString).md")
+    try? "# QA".write(to: tmp, atomically: true, encoding: .utf8)
+    board.clearContents()
+    board.declareTypes([.fileURL], owner: nil)
+    board.setString(tmp.absoluteString, forType: .fileURL)
+    let fileConsumed = store.pasteAttachmentFromPasteboard(board)
+    NSLog("[QA-PASTE] file consumed=%d attachments=%d name=%@ — 기대: consumed=1 attachments=1",
+          fileConsumed ? 1 : 0, store.attached.count,
+          store.attached.first?.name ?? "nil")
+    let fileOK = fileConsumed && store.attached.count == 1
+    store.attached = []
+    try? FileManager.default.removeItem(at: tmp)
+
+    NSLog("[QA-PASTE] result=%@", (webOK && fileOK) ? "PASS" : "FAIL")
+    NSApp.terminate(nil)
+    return true
+  }
+
   private static func measureMs(_ work: () -> Void) -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     work()
