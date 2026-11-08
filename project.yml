@@ -28,6 +28,8 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         OTHER_LDFLAGS: -weak_framework FoundationModels
+    # ⚠️ `xcodegen generate`는 이 블록으로 Info.plist를 **다시 쓴다** — 버전 키가 1.0/1로
+    # 되돌아가므로, generate 후 반드시 `scripts/bump-version.sh <릴리스> [핫픽스]`로 복원한다.
     info:
       path: QuickTalkApp/Info.plist
       properties:

@@ -1,7 +1,16 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-08 KST
+> 마지막 갱신: 2026-11-09 KST
+
+## 구현·검증 완료 (2026-11-09) — v0.35.3 긴 대화 빈 화면 수정 (LazyVStack → VStack+윈도잉)
+
+- **증상**: v0.35.1(LazyVStack) 뒤 긴 대화를 열면 본문이 비어 보임. 400폭에서 잘 재현.
+- **원인(실측)**: LazyVStack 이 만들지 않은 행의 높이를 **추정** → 문서 끝 핀이 실제 내용 뒤 **빈 꼬리**에 착지(400폭 추정 8,233pt vs 실제 7,665pt). `.defaultScrollAnchor(.bottom)` 도 동일.
+- **수정**: 본문을 정확한 높이의 `VStack` 으로 되돌리고 **최근 턴만 글자 예산(6,000자, 최소 2턴)만큼** 그린다(Core `ChatWindowing`). 오래된 턴은 **`이전 대화 N개 더 보기`**(+6,000자)로 펼침, 목차·검색 점프는 그 턴까지 예산 확장. 내용 변경 뒤 첫 핀만 뷰포트 픽셀로 빈 화면 검증.
+- **검증**: `swift test` **962/962**(6 skip, 신규 10) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--live-shot-all` 전 대화 `dist=0`·`ink>0` · `--rapid` 8회 전환 뒤 `dist=0` · `--expanded` 34턴 38,085pt `dist=0` · `--focus-old` 확장·점프 정상. Release 전환 34턴 **cold 896ms / warm 742ms**.
+- **화면 증거**: `docs/qa/v0.35.3-blank/`(수정 전 빈 화면 · `verify/`·`top/`·`expanded/`). PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`.
+- **버전**: 1.35.3(build 3503) · **다음**: 사용자 실측(긴 대화 열기·`이전 대화 더 보기`·목차 점프·전환 체감) → PR → 로컬 Debug 설치.
 
 ## 구현·검증 완료 (2026-11-08) — v0.35.2 URL 붙여넣기 수정 [PR #128 병합 · 1.35.2 배포 완료]
 

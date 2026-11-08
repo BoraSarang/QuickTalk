@@ -1158,8 +1158,8 @@ extension AppDelegate {
         for c in chats { _ = switchTo(c, round) }
       }
 
-      // 바닥 고정 검증(v0.35.1) — LazyVStack 은 문서 높이를 추정하므로 초기 핀 확정이
-      // 늦을 수 있다. 실제 NSScrollView 값으로 "맨 아래에서 얼마나 떨어졌는지" 확인한다.
+      // 바닥 고정 검증(v0.35.3) — 윈도잉 뒤에도 열자마자 맨 아래에 정확히 붙는지
+      // 실제 NSScrollView 값으로 "맨 아래에서 얼마나 떨어졌는지" 확인한다.
       store.openConversation(chats[0])
       host.layoutSubtreeIfNeeded()
       RunLoop.current.run(until: Date().addingTimeInterval(1.2))
@@ -1221,6 +1221,234 @@ extension AppDelegate {
 
     NSLog("[QA-PASTE] result=%@", (webOK && fileOK) ? "PASS" : "FAIL")
     NSApp.terminate(nil)
+    return true
+  }
+
+  /// QA: `--live-shot=<폴더>` — **실제 대화**를 실제 크기로 그려 PNG 로 남긴다(v0.35.3).
+  ///
+  /// LazyVStack 전환 뒤 "빈 화면에 멈춤" 회귀를 실제 기록으로 재현하기 위한 하네스.
+  /// 가장 최근 대화를 열고, 바닥 핀이 끝난 뒤의 문서 높이·오프셋·거리와 픽셀 점유율을 기록한다.
+  func runLiveShotIfRequested() -> Bool {
+    // `--live-shot-all=` 은 저장된 **모든** 대화를 400폭으로 그려 바닥 핀을 검증한다.
+    if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--live-shot-all=") }) {
+      let dir = String(arg.dropFirst("--live-shot-all=".count))
+      try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+      store.markRenderHarness()
+      store.suppressArchiveSaveForSelfTest = true
+      store.applyRenderOverride(autoCompact: false)
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        guard let self else { return }
+        let chats = PersistenceService.load(keepDays: 3650).sorted { $0.updatedAt > $1.updatedAt }
+        // `--rapid` — 대화를 **빠르게** 갈아타도 마지막 대화의 바닥 핀이 맞는지(사용자 증상 재현).
+        if CommandLine.arguments.contains("--rapid") {
+          let host = NSHostingView(rootView: ContentView().environmentObject(self.store))
+          host.frame = NSRect(x: 0, y: 0, width: 400, height: 560)
+          let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: 400, height: 560),
+                                styleMask: [.borderless], backing: .buffered, defer: false)
+          window.isReleasedWhenClosed = false
+          window.contentView = host
+          window.layoutIfNeeded()
+          var switches = 0
+          for _ in 0..<2 {
+            for convo in chats {
+              self.store.openConversation(convo)
+              host.layoutSubtreeIfNeeded()
+              RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+              switches += 1
+            }
+          }
+          // 마지막 대화에서 핀이 끝날 시간을 준다.
+          for _ in 0..<10 {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+          }
+          host.layoutSubtreeIfNeeded()
+          if let sc = Self.firstScrollView(in: host), let doc = sc.documentView {
+            let clip = sc.contentView
+            let maxOffset = max(0, doc.frame.height - clip.bounds.height)
+            var ink = 0
+            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+              host.cacheDisplay(in: host.bounds, to: rep)
+              if let cg = rep.cgImage, let data = cg.dataProvider?.data,
+                 let ptr = CFDataGetBytePtr(data) {
+                for y in stride(from: 0, to: cg.height, by: 3) {
+                  for x in stride(from: 0, to: cg.width, by: 3) {
+                    let i = y * cg.bytesPerRow + x * 4
+                    if Int(ptr[i]) + Int(ptr[i + 1]) + Int(ptr[i + 2]) > 240 { ink += 1 }
+                  }
+                }
+              }
+            }
+            NSLog("[LIVE-RAPID] switches=%d turns=%d doc=%.0f offset=%.0f max=%.0f dist=%.0f ink=%d",
+                  switches, self.store.conversation.turns.count, doc.frame.height,
+                  clip.bounds.origin.y, maxOffset, max(0, maxOffset - clip.bounds.origin.y), ink)
+          }
+          _ = window
+          NSApp.terminate(nil)
+          return
+        }
+
+        // `--expanded` — 윈도잉 없이 모든 턴을 그린 상태("더 보기"를 끝까지 누른 상태)를 검증한다.
+        let allTurns = CommandLine.arguments.contains("--expanded")
+        for (idx, convo) in chats.enumerated() {
+          let host = NSHostingView(rootView: ContentView(renderAllTurns: allTurns)
+            .environmentObject(self.store))
+          host.frame = NSRect(x: 0, y: 0, width: 400, height: 560)
+          let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: 400, height: 560),
+                                styleMask: [.borderless], backing: .buffered, defer: false)
+          window.isReleasedWhenClosed = false
+          window.contentView = host
+          window.layoutIfNeeded()
+          self.store.openConversation(convo)
+          host.layoutSubtreeIfNeeded()
+          RunLoop.current.run(until: Date().addingTimeInterval(allTurns ? 4.0 : 2.5))
+          host.layoutSubtreeIfNeeded()
+          var docH: CGFloat = 0, off: CGFloat = 0, maxY: CGFloat = 0
+          if let sc = Self.firstScrollView(in: host), let doc = sc.documentView {
+            docH = doc.frame.height
+            off = sc.contentView.bounds.origin.y
+            maxY = max(0, docH - sc.contentView.bounds.height)
+          }
+          var ink = 0
+          if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+            host.cacheDisplay(in: host.bounds, to: rep)
+            if let data = rep.representation(using: .png, properties: [:]) {
+              try? data.write(to: URL(fileURLWithPath: "\(dir)/all-\(idx)-\(convo.turns.count)t.png"))
+            }
+            if let cg = rep.cgImage, let data = cg.dataProvider?.data, let ptr = CFDataGetBytePtr(data) {
+              for y in stride(from: 0, to: cg.height, by: 3) {
+                for x in stride(from: 0, to: cg.width, by: 3) {
+                  let i = y * cg.bytesPerRow + x * 4
+                  if Int(ptr[i]) + Int(ptr[i + 1]) + Int(ptr[i + 2]) > 240 { ink += 1 }
+                }
+              }
+            }
+          }
+          NSLog("[LIVE-ALL] %d turns=%d chars=%d doc=%.0f offset=%.0f max=%.0f dist=%.0f ink=%d",
+                idx, convo.turns.count, convo.turns.reduce(0) { $0 + $1.text.count },
+                docH, off, maxY, max(0, maxY - off), ink)
+          // `--focus-old` — 윈도 밖(가장 오래된) 턴으로 목차 점프했을 때 그 턴이 그려지고
+          // 실제로 그 위치로 이동하는지 확인한다(윈도 확장 + scrollTo).
+          if CommandLine.arguments.contains("--focus-old"),
+             let first = convo.turns.first(where: { $0.role == .user }) {
+            self.store.searchFocus = SearchFocusRequest(conversationID: convo.id,
+                                                        turnID: first.id, query: "")
+            // 중첩 런루프에서는 SwiftUI 업데이트 큐가 돌지 않는다 — layout 을 직접 밀어 준다.
+            for _ in 0..<6 {
+              host.layoutSubtreeIfNeeded()
+              RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            }
+            host.layoutSubtreeIfNeeded()
+            if let sc = Self.firstScrollView(in: host), let doc = sc.documentView {
+              let clip = sc.contentView
+              var ink = 0
+              if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                host.cacheDisplay(in: host.bounds, to: rep)
+                if let cg = rep.cgImage, let data = cg.dataProvider?.data,
+                   let ptr = CFDataGetBytePtr(data) {
+                  for y in stride(from: 0, to: cg.height, by: 3) {
+                    for x in stride(from: 0, to: cg.width, by: 3) {
+                      let i = y * cg.bytesPerRow + x * 4
+                      if Int(ptr[i]) + Int(ptr[i + 1]) + Int(ptr[i + 2]) > 240 { ink += 1 }
+                    }
+                  }
+                }
+              }
+              NSLog("[LIVE-FOCUS] turns=%d doc=%.0f offset=%.0f ink=%d — 기대: doc 확장·offset 작음·ink>0",
+                    convo.turns.count, doc.frame.height, clip.bounds.origin.y, ink)
+            }
+          }
+          // `--top` — 윈도 상단("이전 대화 더 보기" 버튼)도 함께 남긴다.
+          if CommandLine.arguments.contains("--top"),
+             let sc = Self.firstScrollView(in: host), let doc = sc.documentView {
+            let clip = sc.contentView
+            clip.scroll(to: NSPoint(x: 0, y: 0))
+            sc.reflectScrolledClipView(clip)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+              host.cacheDisplay(in: host.bounds, to: rep)
+              if let data = rep.representation(using: .png, properties: [:]) {
+                try? data.write(to: URL(fileURLWithPath: "\(dir)/all-\(idx)-\(convo.turns.count)t-top.png"))
+              }
+            }
+            _ = doc
+          }
+          _ = window
+        }
+        NSApp.terminate(nil)
+      }
+      return true
+    }
+    guard let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--live-shot=") }) else { return false }
+    let dir = String(arg.dropFirst("--live-shot=".count))
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    store.applyRenderOverride(autoCompact: false)
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+      guard let self else { return }
+      let chats = PersistenceService.load(keepDays: 3650).sorted { $0.updatedAt > $1.updatedAt }
+      guard let latest = chats.first else {
+        NSLog("[LIVE-SHOT] no conversations")
+        NSApp.terminate(nil)
+        return
+      }
+      NSLog("[LIVE-SHOT] conversation=%@ turns=%d chars=%d",
+            latest.title, latest.turns.count, latest.turns.reduce(0) { $0 + $1.text.count })
+
+      let sizes: [(String, CGFloat, CGFloat)] = [
+        ("narrow", 400, 560), ("wide", 650, 615), ("talk", 760, 900)
+      ]
+      for (tag, w, h) in sizes {
+        let storeCopy = self.store
+        let host = NSHostingView(rootView: ContentView().environmentObject(storeCopy))
+        host.frame = NSRect(x: 0, y: 0, width: w, height: h)
+        let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: w, height: h),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.layoutIfNeeded()
+        storeCopy.openConversation(latest)
+        host.layoutSubtreeIfNeeded()
+        // 핀·스크롤·Lazy 실체화가 끝날 시간을 준다.
+        RunLoop.current.run(until: Date().addingTimeInterval(2.0))
+        host.layoutSubtreeIfNeeded()
+
+        if let scroll = Self.firstScrollView(in: host), let doc = scroll.documentView {
+          let clip = scroll.contentView
+          let maxOffset = max(0, doc.frame.height - clip.bounds.height)
+          NSLog("[LIVE-SHOT] %@ doc=%.1f viewport=%.1f offset=%.1f max=%.1f distance=%.1f",
+                tag, doc.frame.height, clip.bounds.height,
+                clip.bounds.origin.y, maxOffset, max(0, maxOffset - clip.bounds.origin.y))
+        } else {
+          NSLog("[LIVE-SHOT] %@ 스크롤 뷰 없음", tag)
+        }
+
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { continue }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        if let data = rep.representation(using: .png, properties: [:]) {
+          try? data.write(to: URL(fileURLWithPath: "\(dir)/live-\(tag).png"))
+        }
+        // 글자가 그려졌는지 — 배경과 다른 픽셀 비율(대략).
+        var ink = 0
+        let step = 3
+        if let cg = rep.cgImage, let data = cg.dataProvider?.data,
+           let ptr = CFDataGetBytePtr(data) {
+          let bpr = cg.bytesPerRow
+          for y in stride(from: 0, to: cg.height, by: step) {
+            for x in stride(from: 0, to: cg.width, by: step) {
+              let i = y * bpr + x * 4
+              let sum = Int(ptr[i]) + Int(ptr[i + 1]) + Int(ptr[i + 2])
+              if sum > 240 { ink += 1 }   // 어두운 배경에서 밝은 글자
+            }
+          }
+        }
+        NSLog("[LIVE-SHOT] %@ inkSamples=%d", tag, ink)
+        _ = window
+      }
+      NSApp.terminate(nil)
+    }
     return true
   }
 
@@ -1864,6 +2092,21 @@ extension AppDelegate {
     guard let scroll = firstScrollView(in: host), let document = scroll.documentView else { return -1 }
     return document.frame.height - scroll.contentView.bounds.height
       - scroll.contentView.bounds.origin.y
+  }
+
+  /// QA 진단 — 문서 뷰 아래 뷰 계층을 프레임과 함께 찍는다.
+  /// LazyVStack 이 만든 "빈 꼬리"가 어디서 생기는지 눈으로 확인하기 위한 것.
+  private static func dumpTree(_ view: NSView, depth: Int, maxDepth: Int, label: String) {
+    guard depth <= maxDepth else { return }
+    let pad = String(repeating: "  ", count: depth)
+    let cls = String(describing: type(of: view))
+    let f = view.frame
+    NSLog("[TREE] %@%@ frame=(%.0f,%.0f,%.0fx%.0f) hidden=%d alpha=%.2f",
+          pad, cls, f.origin.x, f.origin.y, f.width, f.height,
+          view.isHidden ? 1 : 0, view.alphaValue)
+    for sub in view.subviews {
+      dumpTree(sub, depth: depth + 1, maxDepth: maxDepth, label: label)
+    }
   }
 
   private static func firstScrollView(in view: NSView) -> NSScrollView? {

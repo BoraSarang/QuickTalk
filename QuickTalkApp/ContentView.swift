@@ -134,6 +134,11 @@ struct ContentView: View {
   @State private var outlineAnchor: CGFloat = 0
   /// 대화 영역 크기 — 목차 패널 폭·높이를 창에 맞춘다.
   @State private var chatSize: CGSize = .zero
+  /// 윈도잉(v0.35.3) — 화면에 그릴 **최근 턴의 글자 예산**. 오래된 턴은 "이전 대화 더 보기"로 펼친다.
+  /// 대화마다 따로 기억하지 않고, 다른 대화를 열면 기본 예산으로 돌아간다(아래 `renderCharBudget`).
+  @State private var budgetChars = ChatWindowing.baseCharBudget
+  /// 위 예산이 **어느 대화의 것**인지 — 대화를 바꾸는 순간 같은 본문 패스에서 기본값으로 돌아가게 한다.
+  @State private var budgetConversationID: UUID?
   var initialTab: Int = 0
   var suppressArchiveLoad = false
   /// QA 렌더 전용 — 첫 질문에 마우스를 올린 상태를 재현한다(호버 시 말풍선 폭 고정 확인).
@@ -144,12 +149,16 @@ struct ContentView: View {
   var expandReasoning = false
   /// QA 렌더 전용 — 대화 목차 패널을 펼친 상태로 그린다(v0.32).
   var expandOutline = false
+  /// QA 렌더 전용 — 윈도잉 없이 **모든 턴**을 그린다("이전 대화 더 보기"를 끝까지 누른 상태).
+  var renderAllTurns = false
 
   init(initialTab: Int = 0, initialInputHeight: CGFloat = 28,
        initialArchiveQuery: String = "", suppressArchiveLoad: Bool = false,
        hoverFirstQuestion: Bool = false, hoverTurnIndex: Int? = nil,
        expandReasoning: Bool = false,
-       expandOutline: Bool = false) {
+       expandOutline: Bool = false,
+       renderAllTurns: Bool = false) {
+    self.renderAllTurns = renderAllTurns
     self.initialTab = initialTab
     self.suppressArchiveLoad = suppressArchiveLoad
     self.hoverFirstQuestion = hoverFirstQuestion
@@ -692,22 +701,72 @@ struct ContentView: View {
     .help(help)
   }
 
+  // MARK: - 윈도잉 (v0.35.3)
+
+  /// 스크롤 관찰 뷰에 넘기는 "내용 정체성" — 대화·윈도·턴 수가 바뀌면 핀 검증을 다시 한다.
+  /// (글자 수는 넣지 않는다 — 스트리밍마다 바뀌어 매번 화면 캡처를 하게 된다)
+  private var chatContentToken: String {
+    "\(store.conversation.id.uuidString)|\(renderedTurnStart)|\(store.conversation.turns.count)"
+  }
+
+  /// 지금 대화에 적용되는 글자 예산 — 다른 대화를 열면 기본값으로 돌아간다.
+  private var renderCharBudget: Int {
+    if renderAllTurns { return .max }
+    return budgetConversationID == store.conversation.id ? budgetChars : ChatWindowing.baseCharBudget
+  }
+
+  /// 그릴 첫 턴의 인덱스 — 최근 턴부터 글자 예산만큼. 최소 2턴(질문+답변)은 항상 보여 준다.
+  private var renderedTurnStart: Int {
+    ChatWindowing.startIndex(charCounts: store.conversation.turns.map(\.text.count),
+                             budget: renderCharBudget)
+  }
+
+  /// 윈도 밖(더 오래된) 턴으로 이동해야 하면, 그 턴까지 그리도록 예산을 늘린다(v0.35.3).
+  /// 그리지 않은 턴은 `scrollTo` 로 갈 수 없다.
+  private func revealTurnIfNeeded(_ turnID: UUID) {
+    let turns = store.conversation.turns
+    guard let index = turns.firstIndex(where: { $0.id == turnID }),
+          index < renderedTurnStart else { return }
+    let needed = turns[index...].reduce(0) { $0 + $1.text.count }
+    budgetConversationID = store.conversation.id
+    budgetChars = max(renderCharBudget, needed)
+  }
+
+  /// 이전 대화를 예산만큼 더 그린다 — 읽던 위치(지금 첫 턴)를 화면 위쪽에 그대로 둔다.
+  private func expandOlderTurns(proxy: ScrollViewProxy) {
+    let turns = store.conversation.turns
+    let start = renderedTurnStart
+    let anchorID = turns.indices.contains(start) ? turns[start].id : nil
+    budgetConversationID = store.conversation.id
+    budgetChars = renderCharBudget + ChatWindowing.step
+    guard let anchorID else { return }
+    // 새로 붙은 턴의 높이는 한 프레임 늦게 확정된다 — 두 번에 나눠 맞춘다.
+    afterMain(0) { proxy.scrollTo(anchorID, anchor: .top) }
+    afterMain(0.12) { proxy.scrollTo(anchorID, anchor: .top) }
+  }
+
   // MARK: - 대화 탭 (본문 + 하단 입력독 고정, 첨부는 QuickShelf에서)
 
   private var chatTab: some View {
     VStack(spacing: 0) {
         ScrollViewReader { proxy in
           ScrollView {
-          // LazyVStack(v0.35.1) — 대화가 길면 SwiftUI가 **모든 턴**을 한 번에 레이아웃/그려
-          // 전환에 3~4초가 걸렸다(실측 34턴 3.8초). 화면에 보이는 턴만 만들고 나머지는
-          // 스크롤할 때 만든다. 목차 좌표는 스크롤하며 채워지도록 **병합**한다(아래 주석).
-          LazyVStack(alignment: .leading, spacing: 12) {
+          // VStack + 윈도잉(v0.35.3) — 전부 그리면 전환에 3~4초(실측 34턴 3.8초)가 걸리고,
+          // LazyVStack 은 만들지 않은 행의 높이를 **추정**해 바닥 핀이 빈 꼬리에 착지했다.
+          // VStack 은 높이가 정확하므로, 대신 최근 턴만 글자 예산만큼 그린다(`ChatWindowing`).
+          // 목차 좌표는 그리는 턴만 측정되고 나머지는 `ConversationOutline` 이 보간한다.
+          VStack(alignment: .leading, spacing: 12) {
             if store.conversation.turns.isEmpty && !store.isReplying {
               ChatBackground()
                 .padding(.trailing, 20)   // 오른쪽 여백은 행이 차지한다(아래 주석)
                 .id(store.settings.language)   // L10n은 전역 — 언어 변경 시 다시 그린다
             }
-            ForEach(store.conversation.turns, id: \.id) { t in
+            // 윈도잉(v0.35.3) — 최근 턴만 그린다. 오래된 턴은 위 버튼으로 펼친다.
+            // (VStack 은 높이가 정확해 바닥 핀이 어긋나지 않지만, 전부 그리면 렌더가 느리다)
+            if renderedTurnStart > 0 {
+              olderTurnsButton(proxy: proxy)
+            }
+            ForEach(Array(store.conversation.turns[renderedTurnStart...]), id: \.id) { t in
               messageRow(t)
                 .background { outlineOffsetReader(for: t) }
                 .id(t.id)
@@ -728,7 +787,8 @@ struct ContentView: View {
           .padding(.top, showsMemoryChip ? 14 : 0)
           .frame(maxWidth: .infinity, alignment: .leading)
           // 질문 턴의 y 를 **내용 좌표**로 잰다 — 스크롤해도 값이 변하지 않아 현재 위치 계산에 쓴다.
-          // LazyVStack 은 보이는 턴만 재므로, 화면을 벗어난 턴의 좌표가 사라지지 않게 **병합**한다.
+          // 윈도 밖(그리지 않은) 턴은 측정되지 않으므로, 측정된 좌표를 **병합**해 두고
+          // `ConversationOutline` 이 인접 좌표 사이를 보간한다.
           .coordinateSpace(name: Self.outlineSpace)
           .onPreferenceChange(OutlineOffsetKey.self) { values in
             guard !values.isEmpty else { return }
@@ -743,6 +803,7 @@ struct ContentView: View {
           //   NSScrollView 를 직접 관찰한다(2026-10-27).
           .background(ScrollOffsetObserver(
             bottomToken: bottomPinToken,
+            contentToken: chatContentToken,
             onChange: handleScrollDistance,
             onOffset: handleScrollOffset))
         }
@@ -861,6 +922,32 @@ struct ContentView: View {
       attachNoticeRow
       slashPalette
       dockRow
+    }
+  }
+
+  /// 윈도잉 상단 — "이전 대화 N개 더 보기". 누르면 예산만큼 더 그리고 읽던 위치를 유지한다.
+  @ViewBuilder private func olderTurnsButton(proxy: ScrollViewProxy) -> some View {
+    let hidden = renderedTurnStart
+    HStack {
+      Spacer(minLength: 0)
+      Button { expandOlderTurns(proxy: proxy) } label: {
+        HStack(spacing: 5) {
+          Image(systemName: "chevron.up")
+            .font(.system(size: 9, weight: .semibold))
+          Text(Lf("이전 대화 %d개 더 보기", hidden))
+            .font(.system(size: 11.5, weight: .medium))
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .overlay(Capsule().stroke(Color.primary.opacity(0.10), lineWidth: 1))
+        .contentShape(Capsule())
+      }
+      .buttonStyle(.plain)
+      .help(L("이전 대화를 불러옵니다 — 위로 스크롤하면 읽을 수 있습니다"))
+      .accessibilityLabel(L("이전 대화 더 보기"))
+      Spacer(minLength: 0)
     }
   }
 
@@ -1382,6 +1469,13 @@ struct ContentView: View {
     return Lf("%d분 %d초", total / 60, total % 60)
   }
 
+  /// 짧은 지연 실행 — `DispatchQueue.asyncAfter` 는 **중첩 런루프**(오프스크린 QA 하네스)에서
+  /// 실행되지 않는다. 런루프 타이머는 어디서든 돌므로 점프 재시도에 이걸 쓴다(v0.35.3).
+  private func afterMain(_ delay: Double, _ body: @escaping () -> Void) {
+    let timer = Timer(timeInterval: delay, repeats: false) { _ in body() }
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
   /// 자동으로 바닥을 따라간다 — 사용자가 위로 올려 읽는 중(`followsBottom == false`)이면 가만히 둔다.
   /// 스트리밍 글자·도구 출력이 매번 스크롤을 납치하면 과거 내용을 볼 수 없다(2026-11-05).
   private func followBottom() {
@@ -1459,21 +1553,23 @@ struct ContentView: View {
     suppressFollowUntil = jumpState.suppressUntil
     focusedTurn = req.turnID
     focusPulse = false
+    // 윈도 밖 턴(더 오래된 질문)이면 먼저 그 턴을 그려야 `scrollTo` 가 닿는다.
+    revealTurnIfNeeded(req.turnID)
     // 다른 항목을 곧바로 눌렀으면 늦게 도착한 이전 점프는 버린다.
     let jump = {
       guard focusedTurn == req.turnID else { return }
       proxy.scrollTo(req.turnID, anchor: .center)
     }
     jump()
-    DispatchQueue.main.async { jump() }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { jump() }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { jump() }
+    afterMain(0) { jump() }
+    afterMain(0.12) { jump() }
+    afterMain(0.28) { jump() }
     withAnimation(.easeInOut(duration: 0.24).repeatCount(3, autoreverses: true)) {
       focusPulse = true
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.55) {
+    afterMain(1.55) {
       withAnimation(.easeOut(duration: 0.35)) { focusPulse = false }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+      afterMain(0.4) {
         if focusedTurn == req.turnID { focusedTurn = nil }
       }
     }
@@ -2182,18 +2278,22 @@ struct MemorySheet: View {
 private struct ScrollOffsetObserver: NSViewRepresentable {
   /// 값이 바뀌면 문서 끝으로 이동한다 — SwiftUI 스크롤 프록시 대신 AppKit 으로 직접.
   let bottomToken: Int
+  /// 그리는 내용의 정체성(대화·윈도·턴 수) — 바뀐 뒤 첫 핀만 픽셀로 검증한다.
+  let contentToken: String
   /// (남은 거리, 사용자가 위로 스크롤했는가)
   let onChange: (CGFloat, Bool) -> Void
   /// 절대 스크롤 오프셋(내용 위에서부터) — 목차의 현재 위치 계산용(v0.32).
   var onOffset: (CGFloat) -> Void = { _ in }
 
   func makeNSView(context: Context) -> ObserverView {
-    ObserverView(bottomToken: bottomToken, onChange: onChange, onOffset: onOffset)
+    ObserverView(bottomToken: bottomToken, contentToken: contentToken,
+                 onChange: onChange, onOffset: onOffset)
   }
 
   func updateNSView(_ nsView: ObserverView, context: Context) {
     nsView.onChange = onChange
     nsView.onOffset = onOffset
+    nsView.contentToken = contentToken
     nsView.pinIfNeeded(token: bottomToken)
   }
 
@@ -2202,6 +2302,12 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
     var onOffset: (CGFloat) -> Void
     private var tokens: [NSObjectProtocol] = []
     private var lastPinToken: Int
+    /// **그리는 내용**이 바뀌었는지 구분하는 값(대화·윈도·턴 수). 바뀐 뒤 첫 핀만 픽셀로 검증한다
+    /// — 스트리밍처럼 바닥을 따라가기만 하는 핀에서 화면 캡처를 반복하지 않기 위해서다.
+    var contentToken: String
+    private var lastContentToken: String?
+    /// 이번 핀에서 "실제로 내용이 보이는지" 픽셀 검증을 할지.
+    private var needsVerification = false
     /// 직전 리포트의 스크롤 위치 — **위로 움직였는지** 판정한다.
     /// 트랙패드·마우스 휠·스크롤바·키보드 모두 여기로 잡힌다.
     private var lastOffsetY: CGFloat?
@@ -2213,8 +2319,11 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
     /// 초기 핀이 늦게 확정되는 레이아웃을 따라가기 위한 짧은 타이머(최대 4초).
     private var settleTimer: Timer?
 
-    init(bottomToken: Int, onChange: @escaping (CGFloat, Bool) -> Void,
+    init(bottomToken: Int, contentToken: String,
+         onChange: @escaping (CGFloat, Bool) -> Void,
          onOffset: @escaping (CGFloat) -> Void = { _ in }) {
+      self.contentToken = contentToken
+      self.needsVerification = true
       // -1 로 시작해 첫 update 에서 한 번 붙인다 — onAppear 핀을 놓치지 않게.
       self.lastPinToken = -1
       self.onChange = onChange
@@ -2265,7 +2374,16 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       guard token != lastPinToken else { return }
       lastPinToken = token
       pinCancelled = false
-      awaitingInitialPin = true
+      if contentToken != lastContentToken {
+        // 내용(대화·윈도)이 바뀐 뒤 첫 핀 — 실제로 내용이 보이는지 픽셀로 확인한다.
+        lastContentToken = contentToken
+        awaitingInitialPin = true
+        needsVerification = true
+        pinCheckInFlight = false
+        correctingBottom = false
+        probeStep = 0
+        lastCheckedHeight = -1
+      }
       pin(attempt: 0)
       startSettle()
     }
@@ -2276,37 +2394,121 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       pin(attempt: 0)
     }
 
+    /// 짧은 지연 실행 — `DispatchQueue.asyncAfter` 는 **중첩 런루프**(오프스크린 QA 하네스)에서
+    /// 실행되지 않는다. 런루프 타이머는 어디서든 돌므로 핀 보정에 이걸 쓴다(v0.35.3).
+    private func after(_ delay: Double, _ body: @escaping () -> Void) {
+      let timer = Timer(timeInterval: delay, repeats: false) { _ in body() }
+      RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// 30ms 픽셀 검증을 기다리는 중 — 이때 들어온 핀 요청은 무시한다(재진입 방지).
+    private var pinCheckInFlight = false
+    /// 추정 꼬리 보정 중 — 우리가 올린 이동을 "사용자 스크롤"로 오인하지 않게 한다.
+    private var correctingBottom = false
+    /// 추정 꼬리를 벗어나기 위해 위로 올려 본 횟수.
+    private var probeStep = 0
+    /// 직전 검증 때의 문서 높이 — 높이가 안정될 때까지 보정을 이어 간다.
+    private var lastCheckedHeight: CGFloat = -1
+
     private func pin(attempt: Int) {
       guard !pinCancelled else { return }
       // 아직 스크롤 뷰 계층에 붙기 전이면 곧바로 포기하지 말고 다시 시도한다.
       // (오프스크린 렌더·창 생성 직후에는 `enclosingScrollView` 가 nil 이다)
       guard let scroll = enclosingScrollView, let document = scroll.documentView else {
         guard attempt < 6 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
-          self?.pin(attempt: attempt + 1)
-        }
+        after(0.03) { [weak self] in self?.pin(attempt: attempt + 1) }
         return
       }
+      guard !pinCheckInFlight else { return }
       scroll.layoutSubtreeIfNeeded()
       // `scrollToEndOfDocument:` 는 SwiftUI 의 스크롤 뷰가 응답하지 않는다(예외로 죽는다).
       // 문서 높이에서 뷰포트 높이를 뺀 위치로 **직접** 옮긴다.
       let clip = scroll.contentView
-      let maxY = max(0, document.frame.height - clip.bounds.height)
+      let viewport = clip.bounds.height
+      let maxY = max(0, document.frame.height - viewport)
       let targetY = document.isFlipped ? maxY : 0
       let proposed = NSRect(x: clip.bounds.origin.x, y: targetY,
                             width: clip.bounds.width, height: clip.bounds.height)
       clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
       scroll.reflectScrolledClipView(clip)
-      // 높이가 확정된 뒤의 핀이라면 초기 핀은 끝난 것.
-      if maxY > 0 {
-        awaitingInitialPin = false
-        stopSettle()
+      scroll.layoutSubtreeIfNeeded()
+
+      // 높이가 확정된 뒤의 핀이라면 초기 핀은 끝난 것 — 스트리밍 추종은 여기서 끝난다.
+      guard awaitingInitialPin, needsVerification else {
+        if maxY > 0 { awaitingInitialPin = false; stopSettle() }
+        return
       }
-      // 0.02s · 0.14s — 도구 카드·마크다운이 높이를 확정한 뒤 한 번 더.
-      guard attempt < 2 else { return }
-      DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.02 : 0.14)) { [weak self] in
-        self?.pin(attempt: attempt + 1)
+
+      // ★ v0.35.3 — LazyVStack 은 만들지 않은 행의 높이를 **추정**해, 문서 끝으로 핀하면
+      //   실제 내용 뒤의 **빈 꼬리**에 착지했다(실측 400폭: 추정 8,233pt vs 실제 7,665pt).
+      //   그래서 본문을 정확한 높이의 VStack + 최근 턴 윈도잉으로 바꿨다.
+      //   다만 마크다운·첨부 이미지·폰트로 높이가 늦게 확정될 수 있으므로, 내용이 바뀐 뒤
+      //   첫 핀은 **픽셀로 실제 내용이 그려졌는지** 확인하고 높이가 안정될 때까지 다시 맞춘다.
+      pinCheckInFlight = true
+      correctingBottom = true
+      after(0.03) { [weak self] in
+        guard let self else { return }
+        let height = document.frame.height
+        let hasContent = self.visibleHasContent()
+        let heightSettled = abs(height - self.lastCheckedHeight) < 0.5
+        self.lastCheckedHeight = height
+        let finished = (hasContent && heightSettled) || attempt >= 10 || self.pinCancelled
+        if finished {
+          self.pinCheckInFlight = false
+          self.correctingBottom = false
+          self.needsVerification = false
+          self.awaitingInitialPin = false
+          self.stopSettle()
+          return
+        }
+        if !hasContent, self.probeStep < 6 {
+          // 아직 빈 영역 — 한 화면 위로 올려 실제 내용이 있는 위치로 이동한다.
+          self.probeStep += 1
+          if let scroll = self.enclosingScrollView, let doc = scroll.documentView {
+            let c = scroll.contentView
+            let m = max(0, doc.frame.height - c.bounds.height)
+            let y = max(0, m - CGFloat(self.probeStep) * c.bounds.height)
+            c.scroll(to: NSPoint(x: c.bounds.origin.x, y: y))
+            scroll.reflectScrolledClipView(c)
+          }
+        }
+        self.pinCheckInFlight = false
+        self.pin(attempt: attempt + 1)   // correctingBottom 은 확정될 때까지 유지
       }
+    }
+
+    /// 지금 뷰포트에 **실제로 그려진 내용**이 있는지 픽셀로 확인한다.
+    /// 빈 꼬리에 착지했는지 판정하는 유일하게 확실한 방법(높이는 추정값이라 믿을 수 없다).
+    private func visibleHasContent() -> Bool {
+      guard let scroll = enclosingScrollView, let document = scroll.documentView else { return true }
+      let clip = scroll.contentView
+      let rect = clip.documentVisibleRect.intersection(document.bounds)
+      guard rect.width > 8, rect.height > 8,
+            let rep = document.bitmapImageRepForCachingDisplay(in: rect) else { return true }
+      document.cacheDisplay(in: rect, to: rep)
+      guard let cg = rep.cgImage, let data = cg.dataProvider?.data,
+            let ptr = CFDataGetBytePtr(data) else { return true }
+      let bpr = cg.bytesPerRow
+      // 배경색은 픽셀 평균으로 근사한다(대부분이 배경).
+      var sr = 0, sg = 0, sb = 0, n = 0
+      for y in stride(from: 0, to: cg.height, by: 8) {
+        for x in stride(from: 0, to: cg.width, by: 8) {
+          let i = y * bpr + x * 4
+          sr += Int(ptr[i]); sg += Int(ptr[i + 1]); sb += Int(ptr[i + 2]); n += 1
+        }
+      }
+      guard n > 0 else { return true }
+      let ar = sr / n, ag = sg / n, ab = sb / n
+      var total = 0, distinct = 0
+      for y in stride(from: 0, to: cg.height, by: 4) {
+        for x in stride(from: 0, to: cg.width, by: 4) {
+          let i = y * bpr + x * 4
+          let d = abs(Int(ptr[i]) - ar) + abs(Int(ptr[i + 1]) - ag) + abs(Int(ptr[i + 2]) - ab)
+          total += 1
+          if d > 60 { distinct += 1 }
+        }
+      }
+      return total > 0 && distinct * 100 > total   // 1% 이상이 배경과 다르면 내용 있음
     }
 
     private func attach(attempt: Int) {
@@ -2315,9 +2517,7 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       guard let scroll = enclosingScrollView else {
         // 창에 붙는 첫 순간에는 아직 상위 스크롤 뷰가 없을 수 있다 — 잠시 뒤 다시.
         guard attempt < 10 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
-          self?.attach(attempt: attempt + 1)
-        }
+        after(0.03) { [weak self] in self?.attach(attempt: attempt + 1) }
         return
       }
       scroll.contentView.postsBoundsChangedNotifications = true
@@ -2345,7 +2545,8 @@ private struct ScrollOffsetObserver: NSViewRepresentable {
       guard let scroll = enclosingScrollView, let document = scroll.documentView else { return }
       let offsetY = scroll.contentView.bounds.origin.y
       // flipped 좌표계에서 위로 스크롤 = offsetY 감소.
-      let scrolledUp = lastOffsetY.map { offsetY < $0 - 0.5 } ?? false
+      // 우리가 프로그램으로 올린 이동은 "사용자가 위로 스크롤"이 아니다.
+      let scrolledUp = correctingBottom ? false : (lastOffsetY.map { offsetY < $0 - 0.5 } ?? false)
       lastOffsetY = offsetY
       if scrolledUp {
         // 사용자가 직접 올렸다 — 초기 핀도 포기한다(열자마자 읽으려는 걸 방해하지 않게).
