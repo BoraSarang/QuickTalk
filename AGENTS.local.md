@@ -16,6 +16,12 @@
 ## 3. 성능 예산 Override (필요 시)
 - 없음. budgets.json 기본값 준수 (Cold Start ≤1.5s, 메모리 ≤300MB)
 
+## 3.1 버전 규칙
+- **표시 버전** = `1.<릴리스 번호>.<핫픽스>` — 문서 `v0.35` = 앱 `1.35.0`. 기능 릴리스는 핫픽스 0, 버그 수정만 핫픽스 +1.
+- `CFBundleVersion` = `<릴리스><2자리 핫픽스>`(v0.35.0 → `3500`). 항상 증가.
+- **단일 출처**: `QuickTalkApp/Info.plist`. 손으로 고치지 말고 `scripts/bump-version.sh <릴리스> [핫픽스]` 사용(`--show` 로 확인).
+- 릴리스 브랜치 **마지막 커밋**에서 올리고, 배포 기록에 표시 버전을 함께 적는다(상세: `docs/DESIGN.md` §14.6).
+
 ## 4. 프로젝트 특화 예외 규칙
 - 분석 대상 `/System/Applications/Siri AI.app` (bundle `com.apple.campo`)는 읽기 전용으로만 취급. 복사·수정·재배포 금지, 동작 관찰 + 리소스 인벤토리만 수행
 - QuickTalk는 Siri AI 복제가 아니라 대화·응답 UX 호환 구현을 목표로 함
