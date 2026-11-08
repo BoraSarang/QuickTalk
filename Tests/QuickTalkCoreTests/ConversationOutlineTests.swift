@@ -80,6 +80,52 @@ final class ConversationOutlineTests: XCTestCase {
     XCTAssertEqual(ConversationOutline.currentIndex(offsets: offsets, anchorY: 500, entries: entries), 1)
   }
 
+  // MARK: - visibleIndex (LazyVStack — 일부 좌표만 측정된 경우)
+
+  func testVisibleIndexMatchesCurrentIndexWhenAllOffsetsKnown() {
+    let turns = [turn("q1"), turn("a1", role: .assistant), turn("q2"),
+                 turn("a2", role: .assistant), turn("q3")]
+    let entries = ConversationOutline.entries(from: turns)
+    let offsets: [UUID: CGFloat] = [turns[0].id: 0, turns[2].id: 400, turns[4].id: 900]
+    for anchor in [-10, 0, 399, 400, 950] as [CGFloat] {
+      XCTAssertEqual(ConversationOutline.visibleIndex(
+        offsets: offsets, anchorY: anchor, entries: entries),
+        ConversationOutline.currentIndex(offsets: offsets, anchorY: anchor, entries: entries))
+    }
+    XCTAssertNil(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 0, entries: []))
+  }
+
+  func testVisibleIndexInterpolatesBetweenMeasuredQuestions() {
+    let turns = (0..<6).map { turn("q\($0)") }
+    let entries = ConversationOutline.entries(from: turns)
+    // 0번(q0, y=0)과 4번(q4, y=800)만 측정 — q2 는 화면 밖이라 모른다.
+    let offsets: [UUID: CGFloat] = [turns[0].id: 0, turns[4].id: 800]
+    // 질문 간격은 200 — anchor 400 은 q2, 500 은 q2(내림), 790 은 q3.
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 400, entries: entries), 2)
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 500, entries: entries), 2)
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 790, entries: entries), 3)
+  }
+
+  func testVisibleIndexEstimatesUpwardWhenOnlyLowerQuestionsMeasured() {
+    let turns = (0..<8).map { turn("q\($0)") }
+    let entries = ConversationOutline.entries(from: turns)
+    // 맨 아래로 이동한 직후 — 아래 3개만 측정됐고 기준선은 그 위에 있다.
+    let offsets: [UUID: CGFloat] = [turns[5].id: 5000, turns[6].id: 5200, turns[7].id: 5400]
+    // 200 간격 → anchor 4800 은 4번, 4600 은 3번.
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 4800, entries: entries), 4)
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 4600, entries: entries), 3)
+    // 한참 위로 올라가도 0 아래로 내려가지 않는다.
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: offsets, anchorY: 0, entries: entries), 0)
+  }
+
+  func testVisibleIndexUsesSafeDefaults() {
+    let turns = [turn("q1"), turn("q2")]
+    let entries = ConversationOutline.entries(from: turns)
+    XCTAssertEqual(ConversationOutline.visibleIndex(offsets: [:], anchorY: 500, entries: entries), 0)
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: [turns[1].id: 300], anchorY: 0, entries: entries), 0)
+  }
+
   // MARK: - filter
 
   func testFilterIsCaseInsensitiveAndIgnoresWhitespace() {

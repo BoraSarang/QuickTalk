@@ -1098,6 +1098,87 @@ extension AppDelegate {
     return true
   }
 
+  /// QA: `--switch-perf-live` — **실제 저장된 대화**로 전환 비용을 측정한다(v0.35.1).
+  ///
+  /// 기존 `--switch-perf-test` 는 합성 표본 + 레이아웃만 쟀다. 실제 창은 **그리기**까지 하므로
+  /// 오프스크린 레이아웃 수치가 체감과 어긋났다 → 실제 기록을 읽고 `cacheDisplay` 로 **강제로 그려**
+  /// 모델 변경 · 레이아웃 · 그리기 · 런루프를 분리 기록한다. 기록 파일은 읽기만 한다.
+  func runSwitchPerfLiveIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--switch-perf-live") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    store.applyRenderOverride(autoCompact: false)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+      guard let self else { return }
+      let chats = PersistenceService.load(keepDays: 3650)
+        .sorted { $0.turns.count > $1.turns.count }
+      guard !chats.isEmpty else {
+        NSLog("[SWITCH-LIVE] no conversations")
+        NSApp.terminate(nil)
+        return
+      }
+      NSLog("[SWITCH-LIVE] conversations=%d turns=%@",
+            chats.count, chats.map { String($0.turns.count) }.joined(separator: ","))
+
+      let w: CGFloat = 400, h: CGFloat = 560
+      let host = NSHostingView(rootView: ContentView().environmentObject(self.store))
+      host.frame = NSRect(x: 0, y: 0, width: w, height: h)
+      let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: w, height: h),
+                            styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.contentView = host
+      window.layoutIfNeeded()
+      host.layoutSubtreeIfNeeded()
+
+      /// 화면에 띄우지 않고도 **실제 그리기 경로**를 태운다(레이아웃+텍스트 그리기).
+      func forceDraw() -> Double {
+        Self.measureMs {
+          guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+          host.cacheDisplay(in: host.bounds, to: rep)
+        }
+      }
+
+      func switchTo(_ c: Conversation, _ tag: String) -> Double {
+        var modelMs = 0.0, layoutMs = 0.0, drawMs = 0.0, runMs = 0.0
+        let total = Self.measureMs {
+          modelMs = Self.measureMs { self.store.openConversation(c) }
+          layoutMs = Self.measureMs { host.layoutSubtreeIfNeeded() }
+          drawMs = forceDraw()
+          runMs = Self.measureMs {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+          }
+        }
+        NSLog("[SWITCH-LIVE] %@ turns=%d chars=%d total=%.1f model=%.1f layout=%.1f draw=%.1f run=%.1f",
+              tag, c.turns.count, c.turns.reduce(0) { $0 + $1.text.count },
+              total, modelMs, layoutMs, drawMs, runMs)
+        return total
+      }
+
+      for round in ["cold", "warm"] {
+        for c in chats { _ = switchTo(c, round) }
+      }
+
+      // 바닥 고정 검증(v0.35.1) — LazyVStack 은 문서 높이를 추정하므로 초기 핀 확정이
+      // 늦을 수 있다. 실제 NSScrollView 값으로 "맨 아래에서 얼마나 떨어졌는지" 확인한다.
+      store.openConversation(chats[0])
+      host.layoutSubtreeIfNeeded()
+      RunLoop.current.run(until: Date().addingTimeInterval(1.2))
+      host.layoutSubtreeIfNeeded()
+      if let scroll = Self.firstScrollView(in: host), let doc = scroll.documentView {
+        let clip = scroll.contentView
+        let maxOffset = max(0, doc.frame.height - clip.bounds.height)
+        NSLog("[SWITCH-LIVE] pin turns=%d doc=%.1f viewport=%.1f offset=%.1f max=%.1f distance=%.1f",
+              chats[0].turns.count, doc.frame.height, clip.bounds.height,
+              clip.bounds.origin.y, maxOffset, max(0, maxOffset - clip.bounds.origin.y))
+      } else {
+        NSLog("[SWITCH-LIVE] pin — 스크롤 뷰 없음")
+      }
+      _ = window
+      NSApp.terminate(nil)
+    }
+    return true
+  }
+
   private static func measureMs(_ work: () -> Void) -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     work()

@@ -196,7 +196,7 @@ struct ContentView: View {
 
   /// 지금 화면 위쪽에 걸린 질문의 순번.
   private var outlineCurrentIndex: Int {
-    ConversationOutline.currentIndex(offsets: outlineOffsets,
+    ConversationOutline.visibleIndex(offsets: outlineOffsets,
                                      anchorY: outlineAnchor,
                                      entries: outlineEntries) ?? 0
   }
@@ -698,7 +698,10 @@ struct ContentView: View {
     VStack(spacing: 0) {
         ScrollViewReader { proxy in
           ScrollView {
-          VStack(alignment: .leading, spacing: 12) {
+          // LazyVStack(v0.35.1) — 대화가 길면 SwiftUI가 **모든 턴**을 한 번에 레이아웃/그려
+          // 전환에 3~4초가 걸렸다(실측 34턴 3.8초). 화면에 보이는 턴만 만들고 나머지는
+          // 스크롤할 때 만든다. 목차 좌표는 스크롤하며 채워지도록 **병합**한다(아래 주석).
+          LazyVStack(alignment: .leading, spacing: 12) {
             if store.conversation.turns.isEmpty && !store.isReplying {
               ChatBackground()
                 .padding(.trailing, 20)   // 오른쪽 여백은 행이 차지한다(아래 주석)
@@ -725,8 +728,16 @@ struct ContentView: View {
           .padding(.top, showsMemoryChip ? 14 : 0)
           .frame(maxWidth: .infinity, alignment: .leading)
           // 질문 턴의 y 를 **내용 좌표**로 잰다 — 스크롤해도 값이 변하지 않아 현재 위치 계산에 쓴다.
+          // LazyVStack 은 보이는 턴만 재므로, 화면을 벗어난 턴의 좌표가 사라지지 않게 **병합**한다.
           .coordinateSpace(name: Self.outlineSpace)
-          .onPreferenceChange(OutlineOffsetKey.self) { outlineOffsets = $0 }
+          .onPreferenceChange(OutlineOffsetKey.self) { values in
+            guard !values.isEmpty else { return }
+            var merged = outlineOffsets
+            merged.merge(values) { _, new in new }
+            // 스크롤 중 같은 값으로 상태를 다시 쓰지 않는다(불필요한 재렌더 방지).
+            guard merged != outlineOffsets else { return }
+            outlineOffsets = merged
+          }
           // 내용 끝(마커)의 위치를 스크롤 좌표계에서 잰다 — 뷰포트 높이와 비교해 맨 아래 여부를 안다.
           // ★ GeometryReader+PreferenceKey 는 macOS 에서 스크롤 중 갱신되지 않아 버튼이 뜨지 않았다.
           //   NSScrollView 를 직접 관찰한다(2026-10-27).
@@ -761,7 +772,13 @@ struct ContentView: View {
         .background(GeometryReader { geo in
           Color.clear.preference(key: ChatSizeKey.self, value: geo.size)
         })
-        .onPreferenceChange(ChatSizeKey.self) { chatSize = $0 }
+        .onPreferenceChange(ChatSizeKey.self) { size in
+          // 폭이 바뀌면 글자 줄바꿈이 달라져 질문 y 좌표가 전부 어긋난다 — 다시 잰다.
+          if chatSize.width != 0, abs(size.width - chatSize.width) > 0.5 {
+            outlineOffsets = [:]
+          }
+          chatSize = size
+        }
         // 맨 아래가 아닐 때만 — 우하단에 "맨 아래로" 플로팅 버튼
         .overlay(alignment: .bottomTrailing) {
           if !atBottom && !store.conversation.turns.isEmpty {
