@@ -3,7 +3,7 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-08 KST
 
-## 구현·검증 완료 (2026-11-08) — v0.35 모델 카탈로그 · 비서별 모델 · 퀵셀프 목차 · 비서별 리포트 [병합 대기]
+## 구현·검증 완료 (2026-11-08) — v0.35 모델 카탈로그 · 비서별 모델 · 퀵셀프 목차 · 비서별 리포트 [PR #122 병합 완료]
 
 - **PLAN**: `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` (§13 구현 결과·측정값). 브랜치 `feat/v0.35-model-catalog` — P1~P6를 한 브랜치로 통합.
 - **T-74 모델 카탈로그+캐시**: Core `ModelCatalog` — `/v1/models` ID + `models.dev` 레지스트리 병합, 24h TTL, baseURL 변경 시 무효, 실패 시 마지막 캐시. 앱 실행 시 캐시 즉시 표시 후 만료면 백그라운드 갱신.
@@ -13,7 +13,7 @@
 - **T-78 비서별 리포트 폴더**: Core `PersonaReports` — `persona.reportFolder` 우선, 없으면 `리포트 루트/<비서 이름>`, 동명 비서는 `-<ID4>`. 기존 파일은 **자동 이동하지 않음**. 에디터에 실제 경로·공유 폴더 경고.
 - **T-79 대화 전환 성능**: `--switch-perf-test`(Release) 측정 — 실제형 10턴 **cold 243ms / warm 294ms**(목표 ≤300ms 충족), 스트레스 8턴(섹션 18개) 578~775ms. 병목은 **SwiftUI 텍스트 레이아웃**(레이아웃 ~395ms, 파싱 0.1~0.5ms·디코드 캐시 0.3ms·모델 갱신 0.1ms). `LazyVStack`은 목차 좌표·스크롤 복원 위험이 커서 보류.
 - **검증**: `swift test` **931/931**(6 skip, 신규 21 — ModelCatalog·ProviderResolver·PersonaReports) · Debug/Release `BUILD SUCCEEDED · 경고 0` · QA 렌더 9종 확인.
-- **다음**: 사용자 실측(설치본 교체 후) → PR·병합·배포는 별도 확인.
+- **병합**: **PR #122 → squash merge `a1b3776`** (v0.33 #120 `249e1f2` · v0.34 #121 `778a75a` 뒤). **다음**: 설치본 교체 후 사용자 실측, Release 배포는 별도 확인.
 
 
 ## 구현·검증 완료 (2026-11-08) — 도우미의 앱 데이터 접근 차단 (v0.34)
