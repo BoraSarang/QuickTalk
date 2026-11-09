@@ -82,14 +82,21 @@ public enum ConversationOutline {
   /// 측정된 좌표 사이는 선형 보간하고, 기준선 위에 측정값이 하나도 없으면(맨 아래로
   /// 이동한 직후 등) 첫 측정값에서 평균 행 간격만큼 거슬러 올라가 추정한다.
   /// 좌표가 모두 있으면 `currentIndex` 와 같은 값을 낸다.
+  ///
+  /// - Parameter minimumPosition: 지금 화면에 그려진 첫 질문의 순번(윈도 하한).
+  ///   이보다 앞선 질문은 화면에 없으므로 추정·보간에서 제외한다. 그런 질문을
+  ///   "위쪽에 있다"고 가정하면 창의 맨 위에서도 현재 위치가 한 칸 앞으로 나왔다.
   public static func visibleIndex(offsets: [UUID: CGFloat],
                                   anchorY: CGFloat,
-                                  entries: [OutlineEntry]) -> Int? {
+                                  entries: [OutlineEntry],
+                                  minimumPosition: Int = 0) -> Int? {
     guard !entries.isEmpty else { return nil }
+    let floor = min(max(0, minimumPosition), entries.count - 1)
     let known: [(position: Int, y: CGFloat)] = entries.enumerated().compactMap { position, entry in
-      offsets[entry.id].map { (position, $0) }
+      guard position >= floor, let y = offsets[entry.id] else { return nil }
+      return (position, y)
     }
-    guard !known.isEmpty else { return 0 }
+    guard !known.isEmpty else { return floor }
 
     // 기준선 위(≤ anchorY)에 있는 마지막 측정값.
     if let below = known.last(where: { $0.y <= anchorY }) {
@@ -105,14 +112,15 @@ public enum ConversationOutline {
     }
 
     // 모든 측정값이 기준선 아래 — 첫 측정값에서 위로 평균 간격만큼 거슬러 올라간다.
-    guard let first = known.first else { return 0 }
+    // 단, 창 하한(그려진 첫 질문)보다 위로는 올라가지 않는다.
+    guard let first = known.first else { return floor }
     // 측정값이 하나뿐이면 간격을 모른다 — 바로 위 질문으로 보수적으로 둔다.
-    guard known.count >= 2 else { return max(0, first.position - 1) }
+    guard known.count >= 2 else { return max(floor, first.position - 1) }
     let second = known[1]
     let stepCount = max(second.position - first.position, 1)
     let perIndex = max((second.y - first.y) / CGFloat(stepCount), 0.5)
     let back = Int(((first.y - anchorY) / perIndex).rounded())
-    return min(max(0, first.position - back), first.position)
+    return min(max(floor, first.position - back), first.position)
   }
 
   /// 질문 검색 — 빈 문자열이면 전체, 아니면 미리보기 부분 일치(대소문자 무시).
