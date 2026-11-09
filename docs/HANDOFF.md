@@ -10,7 +10,7 @@
 
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
-> **v0.35.4 수정·설치 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
+> **v0.35.4 수정·설치 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
 > **현재 설치본은 Debug 1.35.4**(2026-11-09 17:12, `~/Applications/QuickTalk.app`, PID 29761) — 사용자 요청대로 로컬 테스트는 Debug. **실측 대기**: 대화 전환 후 목차 표시 위치·목차 패널 현재 행.
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
@@ -22,6 +22,7 @@
 - **수정**: ① 측정값을 비우지 않고 **걸러 낸다** — 대화 전환은 현재 대화의 턴 ID, 폭 변경은 지금 그리는 턴만 남긴다(측정 도착 뒤 비우는 경쟁도 없음). ② Core `ConversationOutline.visibleIndex(..., minimumPosition:)` — 윈도 밖(그려진 첫 질문보다 앞선) 좌표는 보간·추정에서 제외하고 추정 하한을 윈도 시작으로 제한(`firstRenderedOutlinePosition`).
 - **QA 하네스**: `--outline-probe`(headless, `--live-shot-all=` 과 함께 실행) — 400×560 오프스크린에서 열기·중간·위·아래·대화 전환마다 `[OUTLINE] offset/anchor/start/floor/known/current` 를 남긴다. `--expanded` 와 조합하면 전 턴을 그린 상태를 잰다.
 - **검증**: `swift test` **964/964**(6 skip, 신규 2 `ConversationOutlineTests`) · Debug/Release **BUILD SUCCEEDED · 경고 0** · Release 34턴 `start=32`/`floor=16` → 위·중간·아래 모두 `current=16` · `--expanded` 17질문 위 `0`·중간 `11`·아래 `16` · 22턴 전환 `floor=6`/`9` · `--live-shot-all` 전 대화 `dist=0`·`ink>0` · 레일 캡처(`docs/qa/v0.35.4-outline/all-3-34t.png`)의 보라 막대가 **마지막 눈금**.
+- **PR/병합**: 브랜치 `fix/v0.35.4-outline-position` → **PR #132 → squash merge `d8c82d4`**.
 - **설치(사용자 승인)**: **2026-11-09 17:12** `~/Applications/QuickTalk.app` 를 **Debug 1.35.4(build 3504)** 로 교체(백업 없음, `~/Applications/` 밖에서 `codesign --verify --strict --deep` 확인 → 기존 번들 삭제 → 한 번에 복사) · 설치본 `codesign` OK · `QuickTalk.debug.dylib` SHA-256 `2a852beac15844bf074528529e0e1bafc0557084a9efe48a482ccabd2cbd4331`(31MB) · **재실행 완료**(PID 29761). Release 는 사용자가 명시적으로 요청할 때만.
 - **한계(정직)**: 34턴 대화는 윈도잉 때문에 처음엔 마지막 교환만 그린다 — 목차는 그 교환의 질문(#17)을 가리키고, `이전 대화 N개 더 보기`로 펼치면 위쪽 질문으로 이동한다. "현재 질문"은 v0.32 정의 그대로 **화면 위쪽에 걸린 질문**이라, 아주 긴 답변의 맨 아래에서는 직전 질문이 강조될 수 있다.
 - **실측 대기**: ① 대화를 열거나 갈아탄 뒤 목차 레일 표시가 실제 읽는 위치인지 ② 목차 패널이 현재 질문 행으로 스크롤되는지 ③ 위로 펼친 뒤 스크롤하면 표시가 따라오는지.
