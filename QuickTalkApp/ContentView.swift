@@ -207,13 +207,34 @@ struct ContentView: View {
   private var outlineCurrentIndex: Int {
     ConversationOutline.visibleIndex(offsets: outlineOffsets,
                                      anchorY: outlineAnchor,
-                                     entries: outlineEntries) ?? 0
+                                     entries: outlineEntries,
+                                     minimumPosition: firstRenderedOutlinePosition) ?? 0
+  }
+
+  /// 지금 그리는(윈도 안의) 첫 질문의 목차 순번 — 목차 현재 위치의 하한.
+  /// 윈도잉(v0.35.3)에서는 화면에 없는 질문을 "위쪽에 있다"고 추정하면 안 된다.
+  private var firstRenderedOutlinePosition: Int {
+    let turns = store.conversation.turns
+    guard turns.indices.contains(renderedTurnStart) else { return 0 }
+    let rendered = Set(turns[renderedTurnStart...].map(\.id))
+    return outlineEntries.firstIndex { rendered.contains($0.id) } ?? 0
   }
 
   /// 스크롤 위치(내용 좌표) — 목차의 현재 위치를 갱신한다. 2pt 미만 변화는 무시한다.
   private func handleScrollOffset(_ offsetY: CGFloat) {
     guard store.settings.outlineDisplay.showsRail else { return }
     let anchor = offsetY + 8
+    if CommandLine.arguments.contains("--outline-probe") {
+      let known = outlineEntries.enumerated().compactMap { i, entry in
+        outlineOffsets[entry.id].map { "\(i):\(Int($0))" }
+      }.joined(separator: ",")
+      let next = ConversationOutline.visibleIndex(offsets: outlineOffsets, anchorY: anchor,
+                                                  entries: outlineEntries,
+                                                  minimumPosition: firstRenderedOutlinePosition) ?? 0
+      NSLog("[OUTLINE] offset=%.0f anchor=%.0f entries=%d start=%d floor=%d known=%d [%@] current=%d",
+            offsetY, anchor, outlineEntries.count, renderedTurnStart,
+            firstRenderedOutlinePosition, outlineOffsets.count, known, next)
+    }
     guard abs(anchor - outlineAnchor) > 2 else { return }
     outlineAnchor = anchor
   }
@@ -834,9 +855,13 @@ struct ContentView: View {
           Color.clear.preference(key: ChatSizeKey.self, value: geo.size)
         })
         .onPreferenceChange(ChatSizeKey.self) { size in
-          // 폭이 바뀌면 글자 줄바꿈이 달라져 질문 y 좌표가 전부 어긋난다 — 다시 잰다.
+          // 폭이 바뀌면 글자 줄바꿈이 달라져 질문 y 좌표가 어긋난다 — 다시 잰다.
+          // ★ 전부 비우면 안 된다(v0.35.3 회귀): VStack 은 줄바꿈이 그대로면 같은 좌표를
+          //   다시 올리지 않아, 비운 뒤로 목차 현재 위치가 늘 1번에 고정됐다(2026-11-09 신고).
+          //   지금 그리는 턴만 남겨 두고, 줄바꿈이 바뀐 턴은 새 측정값이 덮어쓴다.
           if chatSize.width != 0, abs(size.width - chatSize.width) > 0.5 {
-            outlineOffsets = [:]
+            let rendered = Set(store.conversation.turns[renderedTurnStart...].map(\.id))
+            outlineOffsets = outlineOffsets.filter { rendered.contains($0.key) }
           }
           chatSize = size
         }
@@ -871,8 +896,11 @@ struct ContentView: View {
         .onChange(of: agentFollowToken) { _, _ in followBottom() }
         // 보관함에서 다른 대화를 열 때 — 검색 결과로 열었으면 그 턴, 아니면 맨 아래부터
         .onChange(of: store.conversation.id) { _, _ in
-          // 목차 위치는 대화마다 다시 잰다.
-          outlineOffsets = [:]
+          // 목차 위치는 대화마다 다시 잰다 — 단, **새 대화의 측정값이 이미 도착했으면 지우지 않는다**.
+          // 예전처럼 `[:]` 로 비우면, 그 직후 같은 좌표가 다시 올라오지 않아 현재 위치가
+          // 늘 첫 질문(1번)에 머물렀다(2026-11-09 신고). 다른 대화의 턴 ID 만 걸러 낸다.
+          let turnIDs = Set(store.conversation.turns.map(\.id))
+          outlineOffsets = outlineOffsets.filter { turnIDs.contains($0.key) }
           outlineAnchor = 0
           if let req = store.searchFocus {
             focusTurn(req, proxy: proxy)

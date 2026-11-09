@@ -126,6 +126,34 @@ final class ConversationOutlineTests: XCTestCase {
       offsets: [turns[1].id: 300], anchorY: 0, entries: entries), 0)
   }
 
+  func testVisibleIndexDoesNotEstimateAboveWindowStart() {
+    let turns = (0..<6).map { turn("q\($0)") }
+    let entries = ConversationOutline.entries(from: turns)
+    // 창이 q4(마지막 질문)부터 — 그 위 질문은 화면에 없다.
+    let offsets: [UUID: CGFloat] = [turns[4].id: 62]
+    // 기준선(y=8)이 첫 질문보다 위여도 화면에 보이는 질문은 q4 다.
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: offsets, anchorY: 8, entries: entries, minimumPosition: 4), 4)
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: offsets, anchorY: 400, entries: entries, minimumPosition: 4), 4)
+    // 창 하한이 없으면 예전처럼 한 칸 앞(q3)으로 추정한다 — 회귀 방지용 대조.
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: offsets, anchorY: 8, entries: entries), 3)
+  }
+
+  func testVisibleIndexIgnoresOffsetsAboveWindowStart() {
+    let turns = (0..<6).map { turn("q\($0)") }
+    let entries = ConversationOutline.entries(from: turns)
+    // 이전 창에서 잰 q0 좌표가 남아 있어도 이번 창(q4~q5)에서는 쓰지 않는다.
+    let offsets: [UUID: CGFloat] = [turns[0].id: 0, turns[4].id: 5000, turns[5].id: 5400]
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: offsets, anchorY: 5200, entries: entries, minimumPosition: 4), 4)
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: offsets, anchorY: 5450, entries: entries, minimumPosition: 4), 5)
+    XCTAssertEqual(ConversationOutline.visibleIndex(
+      offsets: [:], anchorY: 0, entries: entries, minimumPosition: 4), 4)
+  }
+
   // MARK: - filter
 
   func testFilterIsCaseInsensitiveAndIgnoresWhitespace() {

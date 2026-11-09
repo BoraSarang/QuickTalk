@@ -3,6 +3,15 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-09 KST
 
+## 구현·검증 완료 (2026-11-09) — v0.35.4 대화 목차 현재 위치가 늘 첫 질문으로 보이던 문제
+
+- **증상**: 대화를 열거나 갈아타면 오른쪽 목차 레일 표시가 **항상 첫 질문**.
+- **원인(실측)**: 대화 전환·폭 변경에서 측정값을 `[:]` 로 비웠는데 `VStack` 은 같은 좌표를 다시 올리지 않아 재측정이 없었다(좌표 0개 → 0번). 윈도 시작 질문보다 위로 추정하던 규칙도 화면에 없는 질문을 골랐다.
+- **수정**: clear 대신 **prune**(현재 대화/그리는 턴만 유지) · Core `visibleIndex(..., minimumPosition:)` 로 윈도 밖 좌표 제외·추정 하한 제한 · QA `--outline-probe`.
+- **검증**: `swift test` **964/964**(6 skip, 신규 2) · Debug/Release 경고 0 · 34턴 `floor=16`/`current=16`(위·중간·아래) · `--expanded` 위 0·중간 11·아래 16 · 22턴 전환 `floor=6`/`9` · `--live-shot-all` `dist=0`·`ink>0` · 레일 캡처 마지막 눈금.
+- **화면 증거**: `docs/qa/v0.35.4-outline/`. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`.
+- **버전/배포**: 1.35.4(build 3504) · 2026-11-09 17:12 로컬 **Debug 1.35.4** 교체·재실행(`~/Applications/QuickTalk.app`, PID 29761, 백업 없음, `QuickTalk.debug.dylib` SHA-256 `2a852bea…`, 31MB). Release 는 요청 시에만. **다음**: PR → 사용자 실측(대화 전환·스크롤·목차 패널 현재 행).
+
 ## 구현·검증 완료 (2026-11-09) — v0.35.3 긴 대화 빈 화면 수정 (LazyVStack → VStack+윈도잉) [PR #130 병합 · Debug 1.35.3 설치 완료]
 
 - **증상**: v0.35.1(LazyVStack) 뒤 긴 대화를 열면 본문이 비어 보임. 400폭에서 잘 재현.

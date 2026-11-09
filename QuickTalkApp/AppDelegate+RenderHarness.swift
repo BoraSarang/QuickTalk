@@ -1228,7 +1228,87 @@ extension AppDelegate {
   ///
   /// LazyVStack 전환 뒤 "빈 화면에 멈춤" 회귀를 실제 기록으로 재현하기 위한 하네스.
   /// 가장 최근 대화를 열고, 바닥 핀이 끝난 뒤의 문서 높이·오프셋·거리와 픽셀 점유율을 기록한다.
+  /// QA: `--outline-probe` — 오프스크린 창에서 대화를 열고 스크롤을 옮겨 가며
+  /// 목차 현재 위치(`[OUTLINE]` 로그)가 실제 스크롤을 따라가는지 확인한다(v0.35.3 조사).
+  private func runOutlineProbe() {
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    store.applyRenderOverride(autoCompact: false)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+      guard let self else { return }
+      let chats = PersistenceService.load(keepDays: 3650).sorted { $0.turns.count > $1.turns.count }
+      guard let convo = chats.first else {
+        NSLog("[PROBE] 저장된 대화 없음")
+        NSApp.terminate(nil)
+        return
+      }
+      NSLog("[PROBE] 대화 turns=%d chars=%d title=%@", convo.turns.count,
+            convo.turns.reduce(0) { $0 + $1.text.count }, convo.title)
+      let host = NSHostingView(rootView: ContentView(
+        renderAllTurns: CommandLine.arguments.contains("--expanded")).environmentObject(self.store))
+      host.frame = NSRect(x: 0, y: 0, width: 400, height: 560)
+      let window = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: 400, height: 560),
+                            styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.contentView = host
+      window.layoutIfNeeded()
+      self.store.openConversation(convo)
+      func spin(_ seconds: Double) {
+        let end = Date().addingTimeInterval(seconds)
+        while Date() < end {
+          host.layoutSubtreeIfNeeded()
+          RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+      }
+      spin(3)
+      guard let sc = Self.firstScrollView(in: host), let doc = sc.documentView else {
+        NSLog("[PROBE] 스크롤 뷰 없음")
+        NSApp.terminate(nil)
+        return
+      }
+      let maxY = max(0, doc.frame.height - sc.contentView.bounds.height)
+      func dump(_ label: String) {
+        NSLog("[PROBE] %@ doc=%.0f offset=%.0f max=%.0f", label, doc.frame.height,
+              sc.contentView.bounds.origin.y, maxY)
+      }
+      func scroll(to y: CGFloat, _ label: String) {
+        sc.contentView.scroll(to: NSPoint(x: 0, y: max(0, min(y, maxY))))
+        sc.reflectScrolledClipView(sc.contentView)
+        spin(0.6)
+        dump(label)
+      }
+      dump("after-pin")
+      scroll(to: maxY * 0.5, "middle")
+      scroll(to: 0, "top")
+      scroll(to: maxY, "bottom")
+      // 다른 대화로 갈아탄 뒤에도 목차 현재 위치가 새 대화 기준으로 잡히는지.
+      if chats.count > 1, let other = chats.first(where: { $0.id != convo.id }) {
+        self.store.openConversation(other)
+        spin(2.5)
+        if let sc2 = Self.firstScrollView(in: host), let doc2 = sc2.documentView {
+          NSLog("[PROBE] switch turns=%d offset=%.0f max=%.0f", other.turns.count,
+                sc2.contentView.bounds.origin.y,
+                max(0, doc2.frame.height - sc2.contentView.bounds.height))
+        }
+        self.store.openConversation(convo)
+        spin(2.5)
+        if let sc3 = Self.firstScrollView(in: host), let doc3 = sc3.documentView {
+          NSLog("[PROBE] switch-back turns=%d offset=%.0f max=%.0f", convo.turns.count,
+                sc3.contentView.bounds.origin.y,
+                max(0, doc3.frame.height - sc3.contentView.bounds.height))
+        }
+      }
+      _ = window
+      NSApp.terminate(nil)
+    }
+  }
+
   func runLiveShotIfRequested() -> Bool {
+    // `--outline-probe` — 목차 현재 위치가 스크롤을 따라가는지 실제 NSScrollView 로 확인한다.
+    if CommandLine.arguments.contains("--outline-probe") {
+      runOutlineProbe()
+      return true
+    }
     // `--live-shot-all=` 은 저장된 **모든** 대화를 400폭으로 그려 바닥 핀을 검증한다.
     if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--live-shot-all=") }) {
       let dir = String(arg.dropFirst("--live-shot-all=".count))
