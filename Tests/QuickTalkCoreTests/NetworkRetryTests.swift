@@ -296,6 +296,34 @@ final class NetworkRetryTests: XCTestCase {
     XCTAssertTrue(text.contains("먼저 저장을 제안하지 않는다"))
   }
 
+  // MARK: - 작업 폴더 하위 폴더 규칙 (v0.36.4)
+
+  /// 사용자 지시: “workspace 에 파일을 작성하게 된다면 의미 있는 폴더를 만들어 그 안에 쓰도록 유도”.
+  func testWorkspaceFilesGoInPurposeFolder() {
+    let text = SystemKnowledge.reportFolderText(settings: QuickTalkSettings(), persona: nil)
+    XCTAssertTrue(text.contains("목적이 드러나는 하위 폴더를 만들고 그 안에 쓴다"))
+    // 파일 이름과 같은 뜻의 폴더 예시
+    XCTAssertTrue(text.contains("`memtop/memtop.py`"))
+    XCTAssertTrue(text.contains("`photo-organizer/sort-photos.py`"))
+    // 뜻 없는 폴더 이름 금지
+    XCTAssertTrue(text.contains("`tmp`"))
+    XCTAssertTrue(text.contains("뜻이 없는 이름은 쓰지 않는다"))
+    // 한 작업은 한 폴더, 기존 폴더 재사용
+    XCTAssertTrue(text.contains("같은 폴더에 모은다"))
+    XCTAssertTrue(text.contains("이미 있으면 새로 만들지 않고"))
+    // 예전의 느슨한 규칙은 사라진다
+    XCTAssertFalse(text.contains("하위 폴더로 정리해도 된다"))
+  }
+
+  /// 도구 지시문에도 같은 규칙이 있어야 shell 로 파일을 만들 때 지켜진다.
+  func testAgentInstructionsRequirePurposeFolder() {
+    let text = AgentInstructions.text
+    XCTAssertTrue(text.contains("파일을 만들 때"))
+    XCTAssertTrue(text.contains("파일과 같은 뜻의 하위 폴더"))
+    XCTAssertTrue(text.contains("`disk-report/disk-report.sh`"))
+    XCTAssertTrue(text.contains("`tmp`·`test`·`output`·`files`"))
+  }
+
   // MARK: - 비서 아이콘
 
   func testDisplayEmojiUsesSavedIcon() {
