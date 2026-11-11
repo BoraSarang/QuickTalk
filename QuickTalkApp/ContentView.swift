@@ -128,6 +128,11 @@ struct ContentView: View {
   @State private var bottomPinToken = 0
   /// 거리 기반 재고정을 너무 자주 하지 않게(스크롤 알림은 초당 수십 번 온다)
   @State private var lastPinAt = Date.distantPast
+  /// 스트리밍 자동 핀의 최소 간격 — 사고 과정 델타는 **글자마다** 오므로 그대로 붙이면
+  /// 스크롤이 1px씩 밀려 "응답 중…" 말풍선이 떨린다(2026-11-11 사용자 지적).
+  @State private var lastFollowAt = Date.distantPast
+  /// 간격에 걸려 미뤄 둔 핀이 있는가 — 마지막 글자를 놓치지 않게 한 번 더 붙인다.
+  @State private var followTrailingScheduled = false
   /// 대화 목차(v0.32) — 사용자 질문 턴 ID → **내용 좌표** y(스크롤과 무관하게 고정).
   @State private var outlineOffsets: [UUID: CGFloat] = [:]
   /// 지금 화면 위쪽 기준선의 내용 좌표(= 스크롤 오프셋 + 여유).
@@ -1538,8 +1543,28 @@ struct ContentView: View {
   /// 스트리밍 글자·도구 출력이 매번 스크롤을 납치하면 과거 내용을 볼 수 없다(2026-11-05).
   private func followBottom() {
     guard focusedTurn == nil, followsBottom else { return }
+    // 사고 과정·도구 출력은 델타마다 온다. 매번 핀하면 스크롤이 미세하게 밀려
+    // 대기 말풍선이 떨리므로 80ms 로 묶는다. 간격에 걸린 마지막 변화는 조금 뒤에 한 번 붙인다.
+    let now = Date()
+    let since = now.timeIntervalSince(lastFollowAt)
+    guard since >= Self.followInterval else {
+      guard !followTrailingScheduled else { return }
+      followTrailingScheduled = true
+      afterMain(Self.followInterval - since) { [self] in
+        followTrailingScheduled = false
+        // 그 사이 사용자가 위로 올렸거나 다른 턴으로 이동했으면 붙이지 않는다.
+        guard focusedTurn == nil, followsBottom else { return }
+        lastFollowAt = Date()
+        pinBottom()
+      }
+      return
+    }
+    lastFollowAt = now
     pinBottom()
   }
+
+  /// 스트리밍 자동 핀 최소 간격(초). 글자 flush(80ms)와 같은 리듬.
+  static let followInterval: TimeInterval = 0.08
 
   /// 사용자가 직접 "맨 아래로"를 눌렀거나 새 메시지를 보낸 경우 — 무조건 끝으로.
   private func jumpToBottom() {
@@ -1568,7 +1593,10 @@ struct ContentView: View {
   private var agentFollowToken: String {
     let events = store.conversation.turns.last?.agentEvents ?? []
     let last = events.last
-    return "\(events.count)|\(last?.state.rawValue ?? "")|\(last?.output.count ?? 0)|\(store.liveReasoning.count)"
+    // 사고 과정은 글자마다 늘어난다 — 그대로 넣으면 초당 수십 번 핀이 걸린다.
+    // 24자 묶음으로 줄여 화면 높이가 실제로 달라질 때만 따라간다.
+    let reasoningBucket = store.liveReasoning.count / 24
+    return "\(events.count)|\(last?.state.rawValue ?? "")|\(last?.output.count ?? 0)|\(reasoningBucket)"
   }
 
   /// 후속 질문 칩의 유무·개수 — 칩이 늦게 붙어도 바닥을 따라가게 하는 트리거(v0.32.2).
