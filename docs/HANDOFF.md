@@ -11,11 +11,28 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.2**(2026-11-11 22:37, `~/Applications/QuickTalk.app`, PID 65316) — [▶ 실행] 범위 축소. v0.35.3~v0.35.5·v0.36 P0·v0.36.1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.36.3**(2026-11-11 23:10, `~/Applications/QuickTalk.app`, PID 71206) — 실행 계획 카드(`propose_plan`). v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (22) — v0.36.3 **실행 계획 카드 `propose_plan`** — **PR #144 병합 · Debug 1.36.3 설치 · 실측 대기**
+
+- **계기(사용자)**: *"실행 하라는게 이렇게 힘든 일인가?? 어디까지 하는건가"* — [▶ 실행]을 누르면 무엇을 어디까지 할지 보이지 않은 채 시작됐다.
+- **결정**: 계획은 **입이지 손**. 모델이 계획만 말하고 멈추고, 사용자가 [실행]을 눌러야 실행한다. v0.36 P1 사양(PLAN §4) 그대로.
+- **Core**: `ExecutionPlan.swift` — `goal` 1줄 · `steps` **3~8**(넘치면 앞에서 자름·공백 제거) · `permissions`(읽기/쓰기/네트워크, 중복 제거) · `from(call:)` 파싱(형식 오류 nil) · `editableText`. `PlanTool.name = "propose_plan"`. `ExecutionPrompt.planVisibleText`·`planContract(_:alreadyRun:)`(v0.36.2 `alreadyRunBlock` 결합).
+- **러너**: `propose_plan` 호출 시 **즉시 반환**(같은 스텝의 다른 도구도 실행하지 않음). 형식 오류면 tool 메시지로 되묻고 계속. `AgentRunResult.plan`.
+- **도구**: `AgentToolCatalog.proposePlan` — `all` 에 포함, 비서 경로에서는 도구가 하나라도 켜져 있으면 append. `AgentInstructions` 에 "3단계 이상 작업은 시작 전에 계획하고 멈춘다" 규칙.
+- **기록**: `Turn.plan: ExecutionPlan?`(옵셔널 — 구버전 nil), `ConversationStore.setPlan(_:to:)`, `UIStore+Agent` 가 결과의 plan 을 턴에 붙임.
+- **UI**: `PlanCard.swift` — 권한 칩 · 목표 · 단계 체크 · [수정] [실행] · 실행 중 스피너 · 완료 시 전 단계 체크. `UIStore.executePlan`(→ `send(planOf:)`) · `editPlan`(draft + `composerFocusToken`) · `planRunState`(실행 턴 `.done` 개수로 **순차 추정**) · `shouldOfferPlan` · `planHasRun`. `shouldOfferExecute` 에 `turn.plan == nil` 추가.
+- **주의(이번에 잡은 두 곳)**: ① 계획 실행 턴이 `beginAssistantTurn(executesTurnID:)` 에 `planOf` 를 넘기지 않으면 카드가 "이미 실행됨"을 몰라 [실행]이 계속 보인다. ② 사전 웹 검색 예외(`executionOf == nil`)에도 `planOf == nil` 이 필요하다. 둘 다 수정·머지됨.
+- **이름 충돌**: `PolicyEngine.AgentPlan`(정책 판정 enum)이 이미 있어 새 모델은 **`ExecutionPlan`** 으로 지었다(파일도 `ExecutionPlan.swift`).
+- **검증**: `swift test` **999/999**(6 skip, 신규 16 — 파싱·상한·권한·Codable 왕복/구버전·계약·`alreadyRun` 결합·**러너 중단·형식 오류 재요청**) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-plan-routing` **PASS** · `--qa-execute-routing` **PASS** · 렌더 `docs/qa/v0.36.3-plan-card/`(한/영 × 제안·실행 중·완료) · 번역 8키.
+- **PR/병합**: **PR #144 → squash merge `b5d6dc5`**.
+- **버전/설치**: 1.36.3(build 3603) · **2026-11-11 23:10 Debug 1.36.3** 교체·재실행(PID 71206, `QuickTalk.debug.dylib` SHA-256 `a969e797…`).
+- **실측 대기**: ① 3단계 이상 작업("사진 정리", "스크립트 만들어 실행")에서 **계획 카드**가 뜨는지 ② [실행]이 계획 단계만 수행하는지(새 조사·새 파일 없음) ③ [수정]이 입력창으로 가는지 ④ 실행 중 스피너 → 완료 체크 표시. 실패 시 `fix/v0.36.3-*`.
+- **다음**: v0.37 스킬(PLAN §5) → v0.38 ego-browser.
 
 ### 2026-11-11 인계 (21) — v0.36.2 **[▶ 실행]이 처음부터 다시 하던 문제** — **PR #142 병합 · Debug 1.36.2 설치 · 실측 대기**
 
