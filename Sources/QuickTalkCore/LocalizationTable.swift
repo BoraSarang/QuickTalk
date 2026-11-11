@@ -1137,6 +1137,8 @@ extension L10n {
     "%@ [%@] (HTTP %d)": "%@ [%@] (HTTP %d)",
     "%@ 는 setuid 프로그램이라 샌드박스에서 실행할 수 없습니다. 터미널에서 직접 실행하세요.": "%@ is a setuid program, so the sandbox cannot run it. Run it directly in Terminal.",
     "%@ 는 setuid 프로그램이라 샌드박스에서 실행할 수 없습니다. 프로세스 사용량은 `processes` 도구로 확인하세요(권한을 열어도 실행되지 않습니다).": "%@ is a setuid program, so the sandbox cannot run it. Use the `processes` tool to check process usage (granting permission will not make it run).",
+    // v0.36.8 — heredoc 임시 파일 실패
+    "heredoc 임시 파일을 만들지 못했습니다(0바이트 파일이 남을 수 있습니다). 파일은 `python3 -c` 의 write_text 처럼 임시 파일을 쓰지 않는 방식으로 만드세요.": "The heredoc temporary file could not be created (a 0-byte file may be left behind). Create the file a way that needs no temporary file, such as `python3 -c` with write_text.",
     "%@%@ (NSURLError %d)": "%@%@ (NSURLError %d)",
     "%d개 항목": "%d items",
     "(방금 찍은 스크린샷을 첨부했습니다. 다음 판단에 참고하세요.)": "(Attached the screenshot just taken — use it for the next decision.)",

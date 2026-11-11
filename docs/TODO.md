@@ -1,7 +1,15 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-11 KST
+> 마지막 갱신: 2026-11-12 KST
+
+## 구현·검증 완료 (2026-11-12) — v0.36.8 heredoc 0바이트 "성공" 수정 [PR 대기 · 설치 대기]
+
+- **계기(run_test 20턴)**: `cat > sort-photos.py <<'PY' … PY` 가 **0바이트 + exit 0** 으로 "완료" 기록. `/bin/sh: cannot create temp file for here document: Operation not permitted`.
+- **원인**: bash 3.2 heredoc 은 임시 파일을 **현재 폴더**에 만든다 — 앱 셸의 cwd 가 `/` 라 쓰기 거부. 실패해도 `cat` 은 0바이트 파일을 남기고 exit 0, 뒤의 `py_compile` 이 통과해 체인이 "성공". `deniedPath` 는 경로 없는 메시지에서 `/bin/sh` 를 집어내 쓰기 대상을 오판했다(다른 실행에서는 "시스템 전역 경로"로 잘못 거부).
+- **수정**: `<tmp>/QuickTalk/scratch` 를 셸의 **cwd·TMPDIR** 로 주고 프로파일이 그 안만 쓰기를 연다. `SandboxResult.heredocTempFailure` 로 **0에 묻힌 실패**를 판정해 카드 `failed` + 백업 폐기. `deniedPath` 는 heredoc 줄을 건너뛰고, `runProbe` 는 `.blocked` + 안내로 먼저 끊는다.
+- **검증**: `swift test` **1010/1010**(6 skip, 신규 6) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **실측 대기**: 작업 폴더에 heredoc 으로 스크립트를 쓰는 실행에서 0바이트가 아닌 실제 파일이 생기고 카드가 `완료`인지. 같은 실패가 나면 카드가 `실패` + 안내인지.
 
 ## 구현·검증 완료 (2026-11-11) — v0.36.3 실행 계획 카드 `propose_plan` [PR #144 병합 · Debug 1.36.3 설치 · 실측 대기]
 

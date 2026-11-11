@@ -434,6 +434,75 @@ final class AgentTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: target), "승인된 범위에서는 저장된다")
   }
 
+  // MARK: - heredoc 임시 파일 (v0.36.8)
+
+  func testHeredocWorksInReadOnlyProfile() {
+    // bash 3.2 의 heredoc 은 **현재 폴더**에 임시 파일을 만든다 — cwd 가 쓰기 가능해야 한다.
+    let result = SandboxRunner.run("cat <<'EOF'\nheredoc-body\nEOF",
+                                   profile: SandboxRunner.readOnlyProfile())
+    XCTAssertTrue(result.succeeded, result.combined)
+    XCTAssertTrue(result.stdout.contains("heredoc-body"), result.combined)
+    XCTAssertFalse(result.heredocTempFailure, result.combined)
+  }
+
+  func testScratchDirectoryIsWritableInReadOnlyProfile() {
+    let scratch = SandboxRunner.scratchDirectory()
+    let name = "probe-\(UUID().uuidString.prefix(6)).txt"
+    let target = scratch + "/" + name
+    defer { try? FileManager.default.removeItem(atPath: target) }
+    let result = SandboxRunner.run("printf ok > '\(target)'",
+                                   profile: SandboxRunner.readOnlyProfile())
+    XCTAssertTrue(result.succeeded, result.combined)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: target))
+  }
+
+  func testHeredocWritesIntoScoppedPath() {
+    // 실사용 경로 — `cat > 작업폴더/스크립트.py <<'PY' … PY` 가 승인 후 실제로 저장돼야 한다.
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-heredoc-scope-\(UUID().uuidString.prefix(6))")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let target = dir.appendingPathComponent("script.py").path
+    let profile = SandboxRunner.scopedProfile(writablePaths: [dir.path])
+    let result = SandboxRunner.run("cat > \(target) <<'PY'\nprint(1)\nPY\nwc -c < \(target)",
+                                   profile: profile)
+    XCTAssertTrue(result.succeeded, result.combined)
+    XCTAssertFalse(result.heredocTempFailure, result.combined)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: target), result.combined)
+    XCTAssertEqual(try? String(contentsOfFile: target, encoding: .utf8), "print(1)\n")
+  }
+
+  func testProbeDetectsHeredocWriteToTarget() {
+    // 예전에는 heredoc 임시 파일 실패가 먼저 나서 `/bin/sh` 를 쓰기 경로로 오판했다.
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-probe-heredoc-\(UUID().uuidString.prefix(6))")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let target = dir.appendingPathComponent("script.py").path
+    let probe = SandboxRunner.probe("cat > \(target) <<'PY'\nprint(1)\nPY")
+    guard case .write(let path) = probe.capability else {
+      return XCTFail("대상 경로 쓰기로 판정되어야 한다: \(probe.capability)")
+    }
+    XCTAssertTrue(path.hasSuffix("script.py"), "대상 경로가 나와야 한다: \(path)")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: target))
+  }
+
+  func testHeredocFailureIsDetectedEvenWhenExitZero() {
+    // `cat` 은 0바이트 파일을 남기고 exit 0 — 뒤의 py_compile 이 성공해 체인 전체가 0 이 된다.
+    let result = SandboxResult(
+      exitCode: 0, stdout: "문법 OK",
+      stderr: "/bin/sh: cannot create temp file for here document: Operation not permitted")
+    XCTAssertTrue(result.succeeded)
+    XCTAssertTrue(result.heredocTempFailure)
+  }
+
+  func testDeniedPathIgnoresHeredocTempFailure() {
+    let line = "/bin/sh: cannot create temp file for here document: Operation not permitted"
+    XCTAssertNil(SandboxRunner.deniedPath(in: line, onlyOperationNotPermitted: true),
+                 "프로그램 경로(/bin/sh)를 쓰기 대상으로 뽑으면 안 된다")
+    XCTAssertNil(SandboxRunner.deniedPath(in: line))
+  }
+
   func testScopedProfileBlocksOutsidePath() {
     let dir = FileManager.default.temporaryDirectory
       .appendingPathComponent("qt-agent-scope-\(UUID().uuidString.prefix(6))")

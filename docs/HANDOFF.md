@@ -17,6 +17,15 @@
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
 
+### 2026-11-12 인계 (27) — v0.36.8 **heredoc 0바이트 "성공"** — **PR 병합 · Debug 1.36.8 설치 · 실측 대기**
+
+- **증상(run_test 20턴)**: 모델이 `cat > photo-organizer/sort-photos.py <<'PY' … PY` 로 221줄 스크립트를 썼고 앱은 **`done`(exit 0)** 으로 기록했다. 실제 파일은 **0바이트** — 출력은 `문법 OK        0 /Users/…/sort-photos.py` + `/bin/sh: cannot create temp file for here document: Operation not permitted`.
+- **원인**: bash 3.2 의 heredoc 은 임시 파일(`sh-thd-*`)을 **현재 폴더**에 만든다. GUI 앱 셸의 cwd 가 `/` 라 샌드박스가 쓰기를 거부했고, 임시 파일 생성에 실패해도 `cat` 은 **0바이트 파일 + exit 0** 을 돌려줬다. 뒤의 `py_compile` 이 빈 파일을 통과해 `&&` 체인 전체가 성공. `deniedPath` 는 경로가 없는 이 메시지에서 **`/bin/sh`** 를 집어내 쓰기 대상을 오판했다(다른 실행에서는 `/bin` → "시스템 전역 경로" → 터미널 인계로 잘못 거부).
+- **수정**: `SandboxRunner.scratchDirectory()`(`<tmp>/QuickTalk/scratch`)를 셸의 **cwd·TMPDIR** 로 준다. `readOnlyProfile`·`scopedProfile` 은 `/dev/null` + **스크래치에만** 쓰기를 연다(홈·저장소는 그대로 읽기 전용). `SandboxResult.heredocTempFailure` 로 **종료코드 0 에 묻힌 실패**를 판정해 카드 `failed` + 되돌리기 백업 폐기. `deniedPath` 는 heredoc 줄을 건너뛰고 `runProbe` 는 `.blocked` + 안내로 먼저 끊는다.
+- **검증**: `swift test` **1010/1010**(6 skip, 신규 6 — 읽기 프로필 heredoc · 스크래치 쓰기 · 승인 범위 heredoc 저장 · heredoc 대상 쓰기 실측 · 0바이트 실패 판정 · `/bin/sh` 오탐) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **한계**: 모델이 명령 안에서 `TMPDIR` 을 다른 곳으로 덮어쓰면 같은 실패가 날 수 있다 — 이때는 `.blocked` + 안내로 **조용히 성공하지 않는다**.
+- **실측 대기**: 작업 폴더에 heredoc 으로 스크립트를 쓰는 실행 → 실제 파일 생성 · 카드 `완료` · 이후 [실행] 답변이 그것을 실행.
+
 ### 2026-11-11 인계 (26) — v0.36.7 **사고 중 자동 스크롤 떨림** — **PR #152 병합 · Debug 1.36.7 설치 · 실측 대기**
 
 - **증상(사용자)**: *"응답시, 생각중시에... 스크롤 잘 되.. 너무 잘 되서 응답 중... 이 부분이 계쏙 떨린다 ㅋㅋㅋ"*
@@ -1067,6 +1076,7 @@ Document Music, Download 폴더의 접근 권한을 물어 봄 · 심각한 문�
 3. `sudo rm -rf /var/tmp/x` 를 치명적으로 오판 — `"rm -rf /"` **접두사** 매칭이 원인 → 토큰 단위 판정으로 교체
 4. `curl … | bash` 를 보통으로 오판 — 토큰화 때 `|` 가 구분자로 제거됨
 + **`URL.resolvingSymlinksInPath()` 는 `/var` → `/private/var` 를 못 푼다** → 샌드박스 규칙은 `realpath(3)` 사용
++ **heredoc 은 현재 폴더에 임시 파일을 만든다** — 셸 cwd 가 쓰기 불가면 `cat > 파일 <<EOF` 가 **0바이트 파일 + exit 0** 으로 "성공"한다(2026-11-11 run_test 실측 → v0.36.8). 앱은 셸의 cwd·TMPDIR 를 `<tmp>/QuickTalk/scratch` 로 주고 그 안만 연다.
 
 #### 다음
 - **v0.18 구현**: `AgentTool`·`AgentClient`·`AgentRunner`(Core) · `SandboxRunner` · `RiskClassifier` · `PolicyEngine` · 실행 카드
