@@ -11,11 +11,21 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.4**(2026-11-11 23:25, `~/Applications/QuickTalk.app`, PID 74134) — 작업 폴더 목적별 하위 폴더 규칙. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.36.5**(2026-11-11 23:35, `~/Applications/QuickTalk.app`, PID 76146) — 스트리밍 첫 글자 유실 수정. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (24) — v0.36.5 **스트리밍 첫 글자 유실** — **PR #148 병합 · Debug 1.36.5 설치 · 실측 대기**
+
+- **증상(사용자 실측)**: 23:15 `이 답변대로 실행해 주세요.` → 답변이 ` 답변의 확인 단계는 모두 이미 완료된 것으로 인용되어 있습니다.) 1·2·3 …` 로 저장. 11.5초·도구 0회.
+- **원인(실측)**: 로컬 프록시(`127.0.0.1:8792`)가 **한 SSE 델타에 `reasoning_content` 와 `content` 를 함께** 보낸다. `OpenAIClient.sseEvent` 가 사고를 먼저 반환하고 본문을 버려, 사고가 끝나며 시작된 답변 첫 글자(`(이`)가 사라졌다. 직접 캡처에서 같은 델타에 reasoning 4자 + `content:"("` 확인.
+- **수정**: `sseEvents` 가 한 줄의 도구 호출·사고·본문을 모두 순서대로 반환. `sseEvent` 는 첫 조각 호환 래퍼. 스트리밍 루프 3곳이 `sseEvents` 순회. 회귀 테스트 2건(reasoning+content, tool_call+content).
+- **검증**: `swift test` **1003/1003**(6 skip, 신규 2) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **PR/병합**: **PR #148 → squash merge `6b8f555`**.
+- **버전/설치**: 1.36.5(build 3605) · **2026-11-11 23:35 Debug 1.36.5** 교체·재실행(PID 76146, `QuickTalk.debug.dylib` SHA-256 `4d25cadf3602afe0e9535d00b4f68615a25721a239b680ae9ac72561c1a26d27`).
+- **실측 대기**: [▶ 실행] 답변 첫 글자가 온전한지. 이어서 v0.36.2·v0.36.3 실측.
 
 ### 2026-11-11 인계 (23) — v0.36.4 **작업 폴더 파일은 목적별 하위 폴더에** — **PR #146 병합 · Debug 1.36.4 설치 · 실측 대기**
 
