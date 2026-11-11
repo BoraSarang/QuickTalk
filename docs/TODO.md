@@ -3,14 +3,15 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-11 KST
 
-## 구현·검증 완료 (2026-11-11) — v0.35.5 ⌘Space pill 붙여넣기(⌘V) 수정 [Debug 설치 · 사용자 실측 대기]
+## 구현·검증 완료 (2026-11-11) — v0.35.5 ⌘Space pill 붙여넣기(⌘V) 수정 [Debug 설치 · 사용자 실측 확인]
 
 - **증상**: pill 입력창에서 ⌘V 붙여넣기(그리고 ⌘C/⌘X/⌘A/⌘Z)가 동작하지 않음.
 - **원인**: `isOwnWindow` 화이트리스트에 pill 패널이 없어, pill 이 key 일 때 편집 단축키 Carbon 등록이 해제되고 로컬 모니터도 이벤트를 넘겼다. 메뉴 키 등가는 LSUIElement 라 불안정.
 - **수정**: `PointerPillController.pillWindow` 노출 + `isOwnWindow` 에 포함. 입력창(`ChatInputField`)은 공통 컴포넌트라 변경 없음.
 - **첨부 동작(사용자 확정)**: pill 에 첨부 UI 를 만들지 않고, ⌘V 에 이미지·파일이 있으면 **⌘Return 처럼 대화 창을 열어 그 창에서 붙여넣은 것과 같게** 첨부한다(`PillOutcome.openChatWithAttachment`, `UIStore.canPasteAttachment`). draft 유지·첨부 확인은 대화 창에서.
 - **검증**: `swift test` **964/964**(6 skip) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-paste-routing` **PASS**(web `canPaste=0` · file `1/1` · image `1/1`) · 실키 ⌘V 는 사용자 확인 필요.
-- **버전/설치**: 1.35.5(build 3505) · 2026-11-11 **Debug 1.35.5** 교체·재실행(`~/Applications/QuickTalk.app`, PID 51066, 백업 없음, `QuickTalk.debug.dylib` SHA-256 `26bbbb94…`). 실측(텍스트·이미지·파일·⌘C/⌘A·대화 창 회귀) → 문제 없으면 PR.
+- **버전/설치**: 1.35.5(build 3505) · 2026-11-11 **Debug 1.35.5** 교체·재실행(`~/Applications/QuickTalk.app`, PID 51066, 백업 없음, `QuickTalk.debug.dylib` SHA-256 `26bbbb94…`).
+- **실측 확인(2026-11-11, 사용자)**: "잘됨" — pill ⌘V 텍스트·이미지/파일(대화 창 열림+첨부)·⌘C/⌘A·대화 창 회귀 모두 정상. **다음**: PR.
 
 ## 구현·검증 완료 (2026-11-09) — v0.35.4 대화 목차 현재 위치가 늘 첫 질문으로 보이던 문제
 
