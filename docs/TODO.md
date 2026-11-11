@@ -3,7 +3,7 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-11 KST
 
-## 구현·검증 완료 (2026-11-11) — v0.36.1 "리포트 폴더" → **작업 폴더** (`~/Documents/QuickTalkWorkspace`) [Debug 설치 · 실측 대기]
+## 구현·검증 완료 (2026-11-11) — v0.36.1 "리포트 폴더" → **작업 폴더** (`~/Documents/QuickTalkWorkspace`) [PR #140 병합 · Debug 1.36.1 설치 · 실측 대기]
 
 - **계기(사용자)**: "QuickTalkReport 폴더는.. 뭐 이게.. 프로젝트 폴더처럼 사용하네.. 명명을 바꿔야 하지 않을까??" / "비서 없는 대화를 하고 있는데.. 여기다가 파일들을 만드네"
 - **진단**: `~/Documents/QuickTalkReport` 안에 비서별 리포트 2개와 함께 `memtop.py`·`__pycache__`·`_probe.txt` 가 있었다. 도구용 시스템 프롬프트(`SystemKnowledge.text`)는 **비서가 없어도** `[리포트 폴더] 쓰기 가능한 경로:` 를 넣으므로, 실제로는 **도우미의 작업 공간**이다. 이름과 문구가 쓰임과 어긋났다.
@@ -11,6 +11,7 @@
 - **구현**: `WorkspaceFolder`(신규 Core) — 기본 경로·옛 이름 판정·**1회 이전**. `Settings` 기본값/폴백/디코드 기본값을 새 경로로. `UIStore.init` 에서 이전 실행. `SystemKnowledge` 의 `[리포트 폴더]` → `[작업 폴더]`, "리포트 파일은…" → "파일은…". 설정 › 비서: 섹션 **작업 폴더**, 캡션 "도우미가 만든 파일과 예약 리포트가 저장되는 곳입니다.", 비서별 **"이 비서만 다른 작업 폴더 사용"**, 파일 쓰기 캡션 "작업 폴더에 파일을 만듭니다.", 오류 문구 "작업 폴더를 만들지 못했습니다". 번역 6키.
 - **이전 규칙**: 마지막 조각이 `QuickTalkReport` 일 때만. 새 폴더가 이미 있으면 **합치지 않는다**(설정 유지+로그). 옛 폴더가 없으면 설정만 새 기본값으로. 사용자가 고른 다른 경로·비슷한 이름(`QuickTalkReportOld`)은 건드리지 않는다.
 - **검증**: `swift test` **979/979**(6 skip, 신규 7 `WorkspaceFolderTests`) · Debug/Release **BUILD SUCCEEDED** · 설정 렌더 `docs/qa/v0.36.1-workspace/` · 실기 이전 확인 — `~/Documents/QuickTalkWorkspace` 에 리포트·`memtop.py` 보존, 설정 `defaultReportFolder = ~/Documents/QuickTalkWorkspace`, 옛 폴더 재생성 없음.
+- **PR/병합**: **PR #140 → squash merge `d6e64a2`**.
 - **버전/설치**: 1.36.1(build 3601) · **2026-11-11 Debug 1.36.1** 교체·재실행(`~/Applications/QuickTalk.app`, PID 63264, `QuickTalk.debug.dylib` SHA-256 `c4f4b678…`).
 
 ## 구현·검증 완료 (2026-11-11) — v0.36 P0 답변 → 실행 `[▶ 실행]` [PR #138 병합 · Debug 1.36.0 설치 · 실측 대기]

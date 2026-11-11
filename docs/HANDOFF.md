@@ -17,7 +17,7 @@
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
 
-### 2026-11-11 인계 (20) — v0.36.1 **"리포트 폴더" → 작업 폴더 (`~/Documents/QuickTalkWorkspace`)** — **Debug 1.36.1 설치 · 실측 대기**
+### 2026-11-11 인계 (20) — v0.36.1 **"리포트 폴더" → 작업 폴더 (`~/Documents/QuickTalkWorkspace`)** — **PR #140 병합 · Debug 1.36.1 설치 · 실측 대기**
 
 - **계기(사용자)**: *"QuickTalkReport 폴더는.. 뭐 이게.. 프로젝트 폴더처럼 사용하네.. 명명을 바꿔야 하지 않을까??"* / *"비서 없는 대화를 하고 있는데.. 여기다가 파일들을 만드네"*
 - **진단**: `~/Documents/QuickTalkReport` 에 비서별 리포트 2개 + `memtop.py`·`__pycache__`·`_probe.txt`. `SystemKnowledge.text` 는 **비서가 없어도** `[리포트 폴더] 쓰기 가능한 경로:` 를 넣는다 — 이름은 리포트, 실제는 **도우미의 작업 공간**이었다.
@@ -25,6 +25,7 @@
 - **구현**: `WorkspaceFolder`(신규 Core) — 기본 경로·옛 이름 판정·**1회 이전**. `Settings` 기본/폴백/디코드 기본값, `UIStore.init` 이전 실행, `SystemKnowledge` 문구, 설정 › 비서 라벨·캡션·**"이 비서만 다른 작업 폴더 사용"**, 오류 문구, 번역 6키.
 - **이전 규칙**: 마지막 조각이 `QuickTalkReport` 일 때만. 새 폴더가 이미 있으면 **합치지 않는다**(설정 유지+로그). 옛 폴더가 없으면 설정만 변경. 사용자 지정·비슷한 이름은 건드리지 않는다.
 - **검증**: `swift test` **979/979**(6 skip, 신규 7 `WorkspaceFolderTests`) · Debug/Release **BUILD SUCCEEDED** · 설정 렌더 `docs/qa/v0.36.1-workspace/` · **실기 이전 확인** — `~/Documents/QuickTalkWorkspace` 에 리포트·`memtop.py` 보존, `defaultReportFolder = ~/Documents/QuickTalkWorkspace`, 옛 폴더 재생성 없음.
+- **PR/병합**: **PR #140 → squash merge `d6e64a2`**.
 - **버전/설치**: 1.36.1(build 3601) · **2026-11-11 22:24 Debug 1.36.1** 교체·재실행(`~/Applications/QuickTalk.app`, PID 63264, `QuickTalk.debug.dylib` SHA-256 `c4f4b678f984d1e9bf5286d686a7b37ec4ffa50ab173e67091ef34e8e25f1e61`).
 - **실측 대기**: ① 설정 › 비서에 **작업 폴더** · `~/Documents/QuickTalkWorkspace` 표시 ② 도우미가 만든 파일이 그 폴더에 쌓인다 ③ 옛 `QuickTalkReport` 가 다시 생기지 않는다.
 
