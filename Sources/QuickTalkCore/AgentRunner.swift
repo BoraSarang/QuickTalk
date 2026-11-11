@@ -90,6 +90,14 @@ public struct AgentRunResult {
   public let steps: Int
   /// 도구 호출이 한 번이라도 거부됐는가
   public let hadDenial: Bool
+  /// `propose_plan` 이 제안한 계획 — 있으면 UI 가 계획 카드를 그리고 실행은 사용자 결정으로 미룬다.
+  public let plan: ExecutionPlan?
+
+  public init(answer: String, events: [AgentEvent], steps: Int,
+              hadDenial: Bool, plan: ExecutionPlan? = nil) {
+    self.answer = answer; self.events = events; self.steps = steps
+    self.hadDenial = hadDenial; self.plan = plan
+  }
 }
 
 public struct AgentRunner {
@@ -241,6 +249,18 @@ public struct AgentRunner {
         // thinking 모드 모델은 사고 내용(reasoning_content)도 되돌려야 한다 — 빠지면 400.
         messages.append(AgentMessage(role: .assistant, content: "", toolCalls: calls,
                                       reasoningContent: reasoning))
+        // ★ propose_plan 은 **실행하지 않고 멈춘다** — 계획을 카드로 보여 주고 사용자가 결정한다.
+        //   같은 스텝에 다른 도구가 섞여 있어도 계획이 우선이다(손보다 입이 먼저).
+        if let planCall = calls.first(where: { $0.name == PlanTool.name }) {
+          if let plan = ExecutionPlan.from(planCall) {
+            return AgentRunResult(
+              answer: L("계획을 제안했습니다. 아래 [실행]을 누르면 이 순서로 진행합니다. 고치려면 [수정]을 누르세요."),
+              events: events, steps: steps, hadDenial: hadDenial, plan: plan)
+          }
+          let note = L("계획 형식이 올바르지 않습니다. 목표와 3~8개의 단계를 다시 주세요.")
+          messages.append(AgentMessage(role: .tool, content: note, toolCallID: planCall.id))
+          continue
+        }
         var addedImage = false
         for call in calls {
           try Task.checkCancellation()

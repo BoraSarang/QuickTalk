@@ -103,7 +103,39 @@ public enum AgentToolCatalog {
       "required": []
     ])
 
-  public static let all: [AgentTool] = [shell, readFile, listDir, processes, screenshot]
+  /// 실행 계획 제안 (v0.36.3) — **읽기 전용, 승인 없음.** 계획을 말하고 멈춘다.
+  /// 실제 실행은 사용자가 카드의 [실행]을 누른 뒤에만 시작된다.
+  public static let proposePlan = AgentTool(
+    name: PlanTool.name,
+    description: """
+      Propose an execution plan for a task that takes **three or more steps** and changes files or \
+      runs several commands. Call this BEFORE doing the work, then stop: the app shows a plan card \
+      and the user decides whether to run it. Do not use it for questions, explanations, or a single \
+      command. Steps must be 3–8 one-line actions in the user's language. Never include steps that \
+      are already done.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "goal": [
+          "type": "string",
+          "description": "One short line in the user's language: what the plan achieves."
+        ],
+        "steps": [
+          "type": "array",
+          "items": ["type": "string"],
+          "description": "3–8 concrete steps, in order, one line each."
+        ],
+        "permissions": [
+          "type": "array",
+          "items": ["type": "string", "enum": ["read", "write", "network"]],
+          "description": "Expected access: read files, write files, use the network."
+        ]
+      ],
+      "required": ["goal", "steps"]
+    ])
+
+  public static let all: [AgentTool] = [shell, readFile, listDir, processes, screenshot, proposePlan]
 
   /// 화면 요소 읽기 — **읽기 전용** (PLAN_v0.25 Phase 1, 컴퓨터 제어).
   ///
@@ -362,6 +394,8 @@ public enum AgentToolCatalog {
                                includingScheduleMutations: Bool = true) -> [AgentTool] {
     let wanted = Set(tools.toolNames)
     var out = all.filter { wanted.contains($0.name) }
+    // 계획 제안은 권한 묶음이 아니라 **메타 도구**다 — 도구가 하나라도 켜져 있으면 쓸 수 있다.
+    if !out.isEmpty { out.append(proposePlan) }
     if tools.web && includingWebSearch { out.append(webSearch); out.append(webFetch) }
     if tools.ui && includingUI { out += [uiSnapshot, uiAction] }
     if includingSchedule {
@@ -425,6 +459,12 @@ public enum AgentInstructions {
       그 기기의 이야기이므로 이 컴퓨터에서 확인하지 않는다.
       앱의 대화 기억(저장된 기록)을 물어본다고 **명확히** 말한 경우에만 그쪽을 본다.
     - 사용자가 직접 명령을 주고 싶어 하면(예: "이 명령 실행해줘") 그대로 실행한다.
+
+    계획을 세울 때
+    - 파일을 만들고 실행·검증하는 등 **3단계 이상** 걸리는 작업은 시작 전에 `propose_plan` 으로
+      목표·단계·권한을 제시하고 **멈춘다.** 사용자가 [실행]을 누르면 그때 진행한다.
+    - 질문에 답하거나 명령 하나를 실행하는 경우에는 계획을 만들지 않는다.
+    - 단계는 3~8개, 각 단계는 한 줄. 이미 끝난 일은 단계에 넣지 않는다.
 
     명령을 실행할 때
     - 읽기만 하는 명령은 그대로 실행해도 된다. 쓰기·삭제·설치·설정 변경은 앱이 사용자에게 먼저

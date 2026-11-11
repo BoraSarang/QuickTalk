@@ -93,6 +93,12 @@ public final class ConversationStore {
     conversation.turns[i].agentEvents?.append(event)
   }
 
+  /// 답변이 제안한 실행 계획을 턴에 붙인다(v0.36.3).
+  public func setPlan(_ plan: ExecutionPlan, to id: UUID) {
+    guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }
+    conversation.turns[i].plan = plan
+  }
+
   /// 실행 기록 한 건을 고친다(상태·출력·경과시간).
   public func updateAgentEvent(id eventID: String, in turnID: UUID, _ mutate: (inout AgentEvent) -> Void) {
     guard let i = conversation.turns.firstIndex(where: { $0.id == turnID }),

@@ -308,6 +308,11 @@ extension UIStore {
                                       onRetry: onRetry)
     // 모델이 `web_search` 로 확인한 출처 — 답변 아래 출처 카드로 남긴다.
     session.agentSearchSources = executor.turnSources
+    // 계획 카드 — 이 답변이 `propose_plan` 을 호출했다면 턴에 붙여 기록에 남긴다.
+    if let plan = result.plan {
+      session.core.setPlan(plan, to: turnID)
+      session.conversation = session.core.conversation
+    }
     NSLog("[QuickTalk] 에이전트 종료 — 스텝 %d · 실행 %d건 · 검색 출처 %d · 거부 %@",
           result.steps, result.events.count, session.agentSearchSources.count,
           result.hadDenial ? "있음" : "없음")
