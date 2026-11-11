@@ -2021,8 +2021,12 @@ final class UIStore: ObservableObject {
       // 경로까지 남긴다 — 보낸 뒤 말풍선에 썸네일·미리보기를 다시 그리기 위해
       let atts = pending.map { Attachment(name: $0.name, kind: $0.kind, path: $0.url?.path) }
       // 말풍선에는 짧은 문장, 모델에는 실행 계약을 준다(PLAN_v0.36 §3).
+      // v0.36.2 — 그 답변을 만들 때 실행한 도구 기록도 함께 준다. 모델은 과거 tool 로그를
+      // 받지 못하므로, 이게 없으면 이미 만든 파일·확인한 값을 처음부터 다시 확인한다.
       let visible = executionOf == nil ? draft : ExecutionPrompt.visibleText
-      let prompt = executionOf == nil ? draft : ExecutionPrompt.contract
+      let prompt = executionOf == nil
+        ? draft
+        : ExecutionPrompt.contract(alreadyRun: executionOf?.agentEvents)
       try core.submit(text: visible, attachments: atts, executesTurnID: executionOf?.id)
       conversation = core.conversation
       if executionOf == nil { draft = ""; attached.removeAll() }
