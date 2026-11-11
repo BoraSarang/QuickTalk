@@ -3,13 +3,21 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-11 KST
 
-## 계획 수립 (2026-11-11) — v0.36 실행형 에이전트: 답변 → 실행 [구현 전 · 결정 대기]
+## 구현·검증 완료 (2026-11-11) — v0.36 P0 답변 → 실행 `[▶ 실행]` [Debug 설치 · 실측 대기]
 
-- **관찰(사용자)**: "질문 답변도 좋지만 거의 이거 해줘. '이거 어떻게 하냐?'로 시작해서 '그거 해줘'로 끝나는 용도가 더 어울리네."
+- **계기(사용자)**: "질문 답변도 좋지만 거의 이거 해줘. '이거 어떻게 하냐?'로 시작해서 '그거 해줘'로 끝나는 용도가 더 어울리네."
+- **결정 6개(사용자 확정)**: ① [실행]은 **모든 답변**(실행 결과 턴 제외) ② 기록은 **같은 대화 + 작업 카드** ③ 스킬은 **전역 Off · 비서 On** ④ 브라우저는 **스킬+shell 먼저** ⑤ **예약 실행의 쓰기·전송 금지** ⑥ 용어는 **"스킬"**.
+- **구현**: `ExecutionPrompt`(신규 Core — 말풍선 문장과 모델 실행 계약 분리, 영어 UI면 영어 계약) · `Turn.executesTurnID` + `isExecutionRequest`/`isExecutionResult` · `ConversationStore.submit(executesTurnID:)`/`beginAssistantTurn(executesTurnID:)` · `UIStore.send(allowCommands:executionOf:)`(draft·첨부 보존, 실행 턴 사전 검색 스킵) · `UIStore.shouldOfferExecute`/`executeAnswer` · `ContentView.answerFooter`의 보라색 **[▶ 실행]**(호버 무관) · `--qa-execute-routing` 하네스 · `ExecutionPromptTests` 8개.
+- **원칙**: 새 실행 경로를 만들지 않는다 — 기존 `AgentExecutor`·승인·[중단]·되돌리기·샌드박스를 그대로 탄다.
+- **검증**: `swift test` **972/972**(6 skip, 신규 8) · Debug/Release **BUILD SUCCEEDED** · `--qa-execute-routing` **PASS**(`normal=1 hiddenResult=1 hiddenPersona=1`) · 번역 누락 2건 보충(자동 검사 통과).
+- **후속(만들지 않음)**: `edit_file` · `search` 도구와 코딩 프로필은 **v0.36.2 후보**로만 기록(PLAN §11). PADO 실사용에서 읽기·분석·간단한 파일 작성은 만족.
+- **계획/로드맵**: `docs/plans/PLAN_v0.36_execution-agent_macos.md` — P1 실행 계획 카드(v0.36.1) · v0.37 스킬 · v0.38 ego-browser.
+
+## 계획 수립 (2026-11-11) — v0.36 실행형 에이전트: 답변 → 실행 [P0 구현 완료 · P1·v0.37·v0.38 계획]
+
 - **계획**: `docs/plans/PLAN_v0.36_execution-agent_macos.md` — P0 답변 아래 **[이대로 실행]** + 실행 턴(`Turn.executesTurnID`), P1 실행 계획 카드(v0.36.1).
 - **후속 설계 포함**: v0.37 스킬(`SKILL.md` + `read_skill` 점진 공개 + 옵트인) · v0.38 ego-browser(스킬+shell PoC → 전용 `browser` 도구).
-- **원칙**: 새 실행 경로를 만들지 않는다 — 기존 `AgentExecutor`·승인·되돌리기·예약 위에 얹는다.
-- **상태**: 구현 전 · PLAN §11 결정 6개 확인 대기.
+- **상태**: P0 구현·검증 완료(위 항목) · P1·v0.37·v0.38은 **사용자 실측 뒤 착수**.
 
 ## 구현·검증 완료 (2026-11-11) — v0.35.5 ⌘Space pill 붙여넣기(⌘V) 수정 [Debug 설치 · 사용자 실측 확인]
 

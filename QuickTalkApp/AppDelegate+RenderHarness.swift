@@ -1179,6 +1179,47 @@ extension AppDelegate {
     return true
   }
 
+  /// QA: `--qa-execute-routing` — [이대로 실행] 버튼의 표시 조건을 헤드리스로 확인한다(v0.36).
+  ///
+  /// 실제 모델·도구를 부르지 않는다. 턴 기록만 만들어 `shouldOfferExecute` 의 세 경계를 본다:
+  /// ① 일반 답변 = 보인다 ② 실행 결과 턴 = 숨긴다 ③ 셸·앱 조작이 모두 꺼진 비서 = 숨긴다.
+  func runQAExecuteRoutingIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-execute-routing") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    let wasAgentTools = store.settings.agentToolsEnabled
+    store.settings.agentToolsEnabled = true
+    defer { store.settings.agentToolsEnabled = wasAgentTools }
+
+    let question = Turn(role: .user, text: "디스크 정리 어떻게 해?")
+    let answer = Turn(role: .assistant, text: "1. 휴지통을 비웁니다.\n2. 큰 파일을 정리합니다.")
+    store.conversation = Conversation(turns: [question, answer])
+    let normal = store.shouldOfferExecute(answer)
+
+    let execRequest = Turn(role: .user, text: ExecutionPrompt.visibleText,
+                           executesTurnID: answer.id)
+    let execAnswer = Turn(role: .assistant, text: "정리했습니다.",
+                          executesTurnID: answer.id)
+    store.conversation = Conversation(turns: [question, answer, execRequest, execAnswer])
+    let hiddenResult = !store.shouldOfferExecute(execAnswer)
+
+    let persona = Persona(name: "QA-실행없음",
+                          tools: PersonaTools(read: true, web: true, shell: false,
+                                              write: false, ui: false))
+    store.applyRenderOverride(personas: [persona])
+    var personaConversation = store.conversation
+    personaConversation.personaID = persona.id
+    store.conversation = personaConversation
+    let hiddenPersona = !store.shouldOfferExecute(answer)
+
+    let ok = normal && hiddenResult && hiddenPersona
+    NSLog("[QA-EXECUTE] normal=%d hiddenResult=%d hiddenPersona=%d — 기대: 1/1/1",
+          normal ? 1 : 0, hiddenResult ? 1 : 0, hiddenPersona ? 1 : 0)
+    NSLog("[QA-EXECUTE] result=%@", ok ? "PASS" : "FAIL")
+    NSApp.terminate(nil)
+    return true
+  }
+
   /// QA: `--qa-paste-routing` — 클립보드의 **웹 주소**가 첨부로 오인되지 않는지 확인한다(v0.35.2).
   ///
   /// 시스템 클립보드는 건드리지 않고 이름 있는 임시 페이스트보드로 같은 모양

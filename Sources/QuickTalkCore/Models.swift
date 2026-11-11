@@ -70,17 +70,30 @@ public struct Turn: Codable, Equatable {
   /// 모델의 **사고 과정**(thinking 모델의 `reasoning_content`/`thinking`).
   /// 답변과 분리해 접어 둔다 — 모델이 사고 내용을 보내지 않으면 nil(구버전 기록도 nil).
   public var reasoning: String?
+  /// 이 턴이 **답변 → 실행**으로 시작된 것인가(v0.36).
+  ///
+  /// - user 턴: 실행 대상이 된 assistant 턴의 ID.
+  /// - assistant 턴: 같은 ID — 결과 답변에 [이대로 실행]을 다시 달지 않기 위해 쓴다.
+  /// 구버전 기록에는 없으므로 nil(일반 턴)이다.
+  public var executesTurnID: UUID?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
               elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
               createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil,
-              personaID: UUID? = nil, reasoning: String? = nil) {
+              personaID: UUID? = nil, reasoning: String? = nil,
+              executesTurnID: UUID? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
     self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
     self.personaID = personaID; self.reasoning = reasoning
+    self.executesTurnID = executesTurnID
   }
+
+  /// 사용자가 [이대로 실행]을 눌러 만든 **요청** 턴인가.
+  public var isExecutionRequest: Bool { role == .user && executesTurnID != nil }
+  /// 실행 요청의 **결과** 답변인가 — 이 턴에는 실행 버튼을 다시 달지 않는다.
+  public var isExecutionResult: Bool { role == .assistant && executesTurnID != nil }
 }
 
 /// 상대 시간 문구 — "방금", "5분 전", "3시간 전", "2일 전", "1주 전",

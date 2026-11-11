@@ -1146,6 +1146,26 @@ struct ContentView: View {
           } ?? L("응답까지 걸린 시간"))
       }
       Spacer(minLength: 4)
+      // v0.36 — [실행]은 **호버와 무관하게** 보인다. 숨겨 두면 v0.36의 핵심 기능을
+      // 발견할 수 없다. 복사·읽어주기는 지금처럼 호버에서만.
+      if store.shouldOfferExecute(t) {
+        Button { store.executeAnswer(t) } label: {
+          HStack(spacing: 3) {
+            Image(systemName: "play.fill")
+              .font(.system(size: 8.5, weight: .bold))
+            Text(L("실행"))
+              .font(.system(size: 10, weight: .semibold))
+          }
+          .padding(.horizontal, 7)
+          .padding(.vertical, 3)
+          .background(Capsule().fill(Color.purple.opacity(0.12)))
+          .overlay(Capsule().stroke(Color.purple.opacity(0.30), lineWidth: 1))
+          .foregroundColor(.purple)
+          .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(L("이 답변의 절차를 실제로 실행합니다"))
+      }
       if hoveredTurn == t.id {
         HStack(spacing: 2) {
           Button { copyReply(t.text, id: t.id) } label: {

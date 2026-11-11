@@ -1616,6 +1616,32 @@ final class UIStore: ObservableObject {
     return userTurn(before: turn.id) != nil
   }
 
+  /// 답변 아래 **[이대로 실행]** 을 보여 줄 조건 (v0.36).
+  ///
+  /// - 도구가 켜져 있고, 응답 중이 아니며, 실행 결과 턴이 아닐 때
+  /// - 비서가 셸·앱 조작을 **모두** 꺼 두었으면 숨긴다(할 수 없는 일을 권하지 않는다)
+  /// - 질문이 있는 답변만 — 예약 리포트·카드만 있는 턴에는 달지 않는다
+  func shouldOfferExecute(_ turn: Turn) -> Bool {
+    guard settings.agentToolsEnabled, !isReplying else { return false }
+    guard turn.role == .assistant, !turn.text.isEmpty,
+          turn.executesTurnID == nil,
+          turn.id != streamingTurnID else { return false }
+    guard userTurn(before: turn.id) != nil else { return false }
+    if let persona = settings.persona(conversation.personaID),
+       !persona.tools.shell && !persona.tools.ui {
+      return false
+    }
+    return true
+  }
+
+  /// 답변의 절차를 실제로 실행한다 — 같은 대화에 **실행 턴**을 붙인다.
+  /// 실행도 기존 에이전트 루프를 그대로 타므로 승인·중단·되돌리기가 자동으로 따라온다.
+  func executeAnswer(_ turn: Turn) {
+    guard shouldOfferExecute(turn) else { return }
+    NSLog("[QuickTalk] 답변 → 실행 — turn=%@", String(turn.id.uuidString.prefix(8)))
+    send(executionOf: turn)
+  }
+
   /// 같은 질문을 웹 검색 강제로 다시 보낸다 — 이후 턴은 지우고 새 답변을 만든다.
   func retryWithWebSearch(_ turn: Turn) {
     guard shouldOfferWebRetry(turn), let question = userTurn(before: turn.id) else { return }
@@ -1970,7 +1996,7 @@ final class UIStore: ObservableObject {
       }
     }
   }
-  func send(allowCommands: Bool = true) {
+  func send(allowCommands: Bool = true, executionOf: Turn? = nil) {
     stopSpeaking()
     // 응답 대기 중 중복 전송 금지 — 답이 섞이지 않게 한다(입력독의 ↑도 비활성)
     guard !isReplying else {
@@ -1981,22 +2007,25 @@ final class UIStore: ObservableObject {
     clearFollowUps(for: activeSession)
     // 보조 명령 — 일반 사용자는 자동 정리만 쓰면 된다. `/compact`는 즉시 정리.
     let command = draft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if allowCommands, command == "/compact" {
+    if executionOf == nil, allowCommands, command == "/compact" {
       draft = ""
       compactNow()
       return
     }
     do {
-      let pending = attached                       // 전송 직후 목록을 비우므로 미리 잡아 둔다
+      // 실행 턴은 입력창의 draft·첨부를 **건드리지 않는다** — 사용자가 쓰던 글은 그대로 둔다.
+      let pending = executionOf == nil ? attached : []  // 전송 직후 목록을 비우므로 미리 잡아 둔다
       // 경로까지 남긴다 — 보낸 뒤 말풍선에 썸네일·미리보기를 다시 그리기 위해
       let atts = pending.map { Attachment(name: $0.name, kind: $0.kind, path: $0.url?.path) }
-      let prompt = draft
-      try core.submit(text: prompt, attachments: atts)
+      // 말풍선에는 짧은 문장, 모델에는 실행 계약을 준다(PLAN_v0.36 §3).
+      let visible = executionOf == nil ? draft : ExecutionPrompt.visibleText
+      let prompt = executionOf == nil ? draft : ExecutionPrompt.contract
+      try core.submit(text: visible, attachments: atts, executesTurnID: executionOf?.id)
       conversation = core.conversation
-      draft = ""; attached.removeAll()
+      if executionOf == nil { draft = ""; attached.removeAll() }
       syncArchive()                      // 사용자 메시지도 바로 기록(앱이 꺼져도 남는다)
       // 한글 IME: 전송 직후 조합 커밋이 입력창으로 되돌아오는 경우가 있어 잠시 방어한다
-      suppressEcho(of: prompt)
+      suppressEcho(of: visible)
       // 이 응답이 **어느 대화방의 것인지** 잡아 둔다 — 도중에 다른 방을 열어도
       // 상태·글자는 그 방에만 쌓인다(v0.31 6a/6b).
       let session = activeSession
@@ -2181,7 +2210,8 @@ final class UIStore: ObservableObject {
         // 🌐를 켠 질문은 판정을 건너뛰고 반드시 검색한다.
         var needsSearch = false
         // 🌐(이번 질문만)은 도구가 켜져 있어도 사용자의 명시적 의도라 그대로 존중한다.
-        if !handledByTool, !skipPreSearch || forced {
+        // 실행 턴은 이미 답변에 필요한 정보가 있다 — 계약 문장으로 사전 검색을 돌리지 않는다.
+        if executionOf == nil, !handledByTool, !skipPreSearch || forced {
           needsSearch = WebSearchQuery.shouldSearch(provider: ws.webSearchProvider, forced: forced)
           // 툴 콜링은 OpenAI 호환에서만 시도한다 — 다른 프로바이더에서는 주입 판정으로 폴백.
           let toolModeUnavailable = ws.webSearchMode == .toolCalling
@@ -2255,7 +2285,7 @@ final class UIStore: ObservableObject {
         callStarted = Date()
         // 스트리밍 버블 — 첫 델타 전까지는 아래 점 애니메이션이 보인다
         if Task.isCancelled { return }     // 검색·판정 중에 [중지]를 누른 경우
-        let aid = session.core.beginAssistantTurn()
+        let aid = session.core.beginAssistantTurn(executesTurnID: executionOf?.id)
         session.conversation = session.core.conversation
         session.streamingTurnID = aid
         // 사고 과정(thinking 모델) — 답변이 시작되기 전에도 화면이 "지금 고민 중"을 보여 준다.

@@ -90,6 +90,7 @@
 		9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */; };
 		9E37D52B4BB4467F48E1C8D8 /* UndoStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6269B30CB5BB47B58A08AF /* UndoStack.swift */; };
 		A4C52DEDF313B0B67FACAE78 /* SettingsView+WebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA84ABEFD1876BF8ED75C710 /* SettingsView+WebSearch.swift */; };
+		A51415A7E3C7087EA16BDF47 /* ExecutionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */; };
 		A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */; };
 		A5CD27110B006E899FDD8692 /* ShelfView+Files.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */; };
 		A8C24C4FAAD2298EE9627A48 /* UiControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E048253A4C817E28F6FA8A /* UiControlService.swift */; };
@@ -277,6 +278,7 @@
 		D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstance.swift; sourceTree = "<group>"; };
 		D365FF5FF18A22A715651BBC /* ServerFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailure.swift; sourceTree = "<group>"; };
 		D36FB7D6B72920A828D78C84 /* PointerPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerPill.swift; sourceTree = "<group>"; };
+		D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionPrompt.swift; sourceTree = "<group>"; };
 		D7384EC161F1050F560476B8 /* PolicyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolicyEngine.swift; sourceTree = "<group>"; };
 		D8152F28D892DECF7BC0DC46 /* AXAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXAccess.swift; sourceTree = "<group>"; };
 		D95F7F96477810C260032BED /* WebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearch.swift; sourceTree = "<group>"; };
@@ -419,6 +421,7 @@
 				B0C81351C347B42147D7EE69 /* ConversationOutline.swift */,
 				BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */,
 				0F91AE3B84BDE1E9B2CE0F90 /* ExaContents.swift */,
+				D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */,
 				B0635AD5162C492F686935FB /* FollowScrollPolicy.swift */,
 				8C2C1356AABEA6FABABEAA84 /* FollowUpSuggest.swift */,
 				54E6ECE09008A24E1EEEB89E /* GlobalMemory.swift */,
@@ -594,6 +597,7 @@
 				9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */,
 				514B962038882A9C03B10ACD /* EdgeTTS.swift in Sources */,
 				949A045676EFBDD3B7A8ED98 /* ExaContents.swift in Sources */,
+				A51415A7E3C7087EA16BDF47 /* ExecutionPrompt.swift in Sources */,
 				FBEBE8C9180B562C91CDB6DE /* FollowScrollPolicy.swift in Sources */,
 				5D158E5FBD462229ABE17CEF /* FollowUpChipsRow.swift in Sources */,
 				06B0B55F724C9A0FAD1E8007 /* FollowUpSuggest.swift in Sources */,

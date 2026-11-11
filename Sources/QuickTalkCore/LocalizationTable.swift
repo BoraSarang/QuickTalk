@@ -822,6 +822,8 @@ extension L10n {
     "닫기": "Close",
     "보기": "View",
     "해제": "Clear",
+    "이 답변대로 실행해 주세요.": "Please carry out the steps in this answer.",
+    "이 답변의 절차를 실제로 실행합니다": "Actually run the steps in this answer",
     "이전 대화 %d개 더 보기": "%d earlier turns",
     "이전 대화 더 보기": "Show earlier turns",
     "이전 대화를 불러옵니다 — 위로 스크롤하면 읽을 수 있습니다": "Load earlier turns — scroll up to read them",
