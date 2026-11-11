@@ -35,6 +35,23 @@ final class StreamingTests: XCTestCase {
     XCTAssertEqual(OpenAIClient.sseEvent(line), .reasoning("생각 중"))
   }
 
+  /// v0.36.4 — 사고와 본문이 **같은 델타**에 와도 본문을 버리지 않는다.
+  /// 실측(2026-11-11 23:15): 답변 첫 글자 `(이` 가 사라져 `" 답변의…"` 로 저장됐다.
+  func testSSEKeepsContentWhenReasoningSharesDelta() {
+    let line = #"data: {"choices":[{"delta":{"reasoning_content":"음…","content":"(이"}}]}"#
+    XCTAssertEqual(OpenAIClient.sseEvents(line), [.reasoning("음…"), .delta("(이")])
+    // 예전 단일 이벤트 API 는 그대로 첫 조각을 돌려준다(호환).
+    XCTAssertEqual(OpenAIClient.sseEvent(line), .reasoning("음…"))
+  }
+
+  /// 본문과 도구 호출이 같은 델타에 오면 둘 다 받아야 한다 — 하나를 고르면 반대쪽이 사라진다.
+  func testSSEKeepsContentAndToolCallInSameDelta() {
+    let line = #"data: {"choices":[{"delta":{"content":"확인할게요","tool_calls":[{"index":0,"id":"call_1","function":{"name":"shell","arguments":"{}"}}]}}]}"#
+    XCTAssertEqual(OpenAIClient.sseEvents(line),
+                   [.toolCallDelta(index: 0, id: "call_1", name: "shell", args: "{}"),
+                    .delta("확인할게요")])
+  }
+
   func testSSEIgnoresNonDataAndEmptyDelta() {
     XCTAssertEqual(OpenAIClient.sseEvent(": keep-alive"), .ignore)
     XCTAssertEqual(OpenAIClient.sseEvent("event: message"), .ignore)
