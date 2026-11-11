@@ -271,9 +271,11 @@ public struct OpenAIClient: LLMClient {
       if let body = String(data: data, encoding: .utf8), body.contains("data:") {
         var streamed = ""
         for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
-          if case .delta(let d) = Self.sseEvent(String(line)) {
-            streamed += d
-            await onDelta(d)
+          for event in Self.sseEvents(String(line)) {
+            if case .delta(let d) = event {
+              streamed += d
+              await onDelta(d)
+            }
           }
         }
         if !streamed.isEmpty { return streamed }
@@ -284,18 +286,20 @@ public struct OpenAIClient: LLMClient {
     }
     var full = ""
     loop: for try await raw in bytes.lines {
-      switch Self.sseEvent(raw) {
-      case .done:
-        break loop
-      case .delta(let d):
-        full += d
-        await onDelta(d)
-      case .reasoning(let r):
-        await onReasoning(r)      // 사고 과정 — 답변 본문과 분리해 흘려보낸다
-      case .toolCallDelta:
-        continue        // 도구 호출 조각은 도구 없는 경로에서 무시한다
-      case .ignore:
-        continue
+      for event in Self.sseEvents(raw) {
+        switch event {
+        case .done:
+          break loop
+        case .delta(let d):
+          full += d
+          await onDelta(d)
+        case .reasoning(let r):
+          await onReasoning(r)      // 사고 과정 — 답변 본문과 분리해 흘려보낸다
+        case .toolCallDelta:
+          continue        // 도구 호출 조각은 도구 없는 경로에서 무시한다
+        case .ignore:
+          continue
+        }
       }
     }
     if full.isEmpty {
@@ -318,15 +322,21 @@ public struct OpenAIClient: LLMClient {
     case reasoning(String)
   }
 
-  public static func sseEvent(_ line: String) -> SSEEvent {
+  /// SSE 한 줄에서 **나온 모든 조각**을 순서대로 돌려준다.
+  ///
+  /// v0.36.4 — 프록시가 같은 델타에 `reasoning_content` 와 `content` 를 함께 실어 보낼 수 있다.
+  /// 예전 `sseEvent` 는 사고를 먼저 반환하고 본문을 버려 **답변 첫 글자가 조용히 사라졌다**
+  /// (2026-11-11 실측: 23:15 [실행] 답변이 `" 답변의…"` 로 시작).
+  public static func sseEvents(_ line: String) -> [SSEEvent] {
     let trimmed = line.trimmingCharacters(in: .whitespaces)
-    guard trimmed.hasPrefix("data:") else { return .ignore }
+    guard trimmed.hasPrefix("data:") else { return [] }
     let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
-    if payload == "[DONE]" { return .done }
+    if payload == "[DONE]" { return [.done] }
     guard !payload.isEmpty, let data = payload.data(using: .utf8),
-          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .ignore }
-    guard let choices = obj["choices"] as? [[String: Any]], let first = choices.first else { return .ignore }
-    guard let delta = first["delta"] as? [String: Any] else { return .ignore }
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+    guard let choices = obj["choices"] as? [[String: Any]], let first = choices.first else { return [] }
+    guard let delta = first["delta"] as? [String: Any] else { return [] }
+    var events: [SSEEvent] = []
     // 도구 호출 조각이 먼저 온다 — content 보다 우선한다
     if let calls = delta["tool_calls"] as? [[String: Any]] {
       for (i, raw) in calls.enumerated() {
@@ -336,15 +346,22 @@ public struct OpenAIClient: LLMClient {
         let name = fn["name"] as? String
         let args = fn["arguments"] as? String ?? ""
         if id == nil && name == nil && args.isEmpty { continue }
-        return .toolCallDelta(index: index, id: id, name: name, args: args)
+        events.append(.toolCallDelta(index: index, id: id, name: name, args: args))
       }
     }
     if let reasoning = delta["reasoning_content"] as? String, !reasoning.isEmpty {
-      return .reasoning(reasoning)
+      events.append(.reasoning(reasoning))
     }
-    let content = delta["content"] as? String
-    guard let content, !content.isEmpty else { return .ignore }
-    return .delta(content)
+    // ★ 사고와 본문이 같은 델타에 와도 본문을 버리지 않는다.
+    if let content = delta["content"] as? String, !content.isEmpty {
+      events.append(.delta(content))
+    }
+    return events
+  }
+
+  /// SSE 한 줄 → **첫 번째** 조각. 여러 조각이 함께 온 줄은 `sseEvents` 로 전부 받는다.
+  public static func sseEvent(_ line: String) -> SSEEvent {
+    sseEvents(line).first ?? .ignore
   }
 
   static func failure(data: Data, status: Int, hasImage: Bool) -> QuickTalkError {
@@ -398,9 +415,11 @@ public struct OpenAIClient: LLMClient {
       if let body = String(data: data, encoding: .utf8), body.contains("data:") {
         var streamed = ""
         for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
-          if case .delta(let d) = Self.sseEvent(String(line)) {
-            streamed += d
-            await onDelta(d)
+          for event in Self.sseEvents(String(line)) {
+            if case .delta(let d) = event {
+              streamed += d
+              await onDelta(d)
+            }
           }
         }
         if !streamed.isEmpty { return streamed }
@@ -411,16 +430,18 @@ public struct OpenAIClient: LLMClient {
     }
     var full = ""
     loop: for try await raw in bytes.lines {
-      switch Self.sseEvent(raw) {
-      case .done:
-        break loop
-      case .delta(let d):
-        full += d
-        await onDelta(d)
-      case .toolCallDelta, .reasoning:
-        continue        // 도구 호출·사고 내용은 도구 없는 경로에서는 무시한다
-      case .ignore:
-        continue
+      for event in Self.sseEvents(raw) {
+        switch event {
+        case .done:
+          break loop
+        case .delta(let d):
+          full += d
+          await onDelta(d)
+        case .toolCallDelta, .reasoning:
+          continue        // 도구 호출·사고 내용은 도구 없는 경로에서는 무시한다
+        case .ignore:
+          continue
+        }
       }
     }
     guard !full.isEmpty else { throw QuickTalkError.serverFailure(.emptyResponse(status: status)) }
@@ -447,23 +468,25 @@ public struct OpenAIClient: LLMClient {
     var reasoning = ""
     var calls: [Int: (id: String, name: String, args: String)] = [:]
     loop: for try await raw in bytes.lines {
-      switch Self.sseEvent(raw) {
-      case .done:
-        break loop
-      case .delta(let d):
-        full += d
-        await onDelta(d)
-      case .reasoning(let r):
-        reasoning += r
-        await onReasoning(r)
-      case .toolCallDelta(let index, let id, let name, let args):
-        var entry = calls[index] ?? (id: "", name: "", args: "")
-        if let id, !id.isEmpty { entry.id = id }
-        if let name, !name.isEmpty { entry.name = name }
-        entry.args += args ?? ""
-        calls[index] = entry
-      case .ignore:
-        continue
+      for event in Self.sseEvents(raw) {
+        switch event {
+        case .done:
+          break loop
+        case .delta(let d):
+          full += d
+          await onDelta(d)
+        case .reasoning(let r):
+          reasoning += r
+          await onReasoning(r)
+        case .toolCallDelta(let index, let id, let name, let args):
+          var entry = calls[index] ?? (id: "", name: "", args: "")
+          if let id, !id.isEmpty { entry.id = id }
+          if let name, !name.isEmpty { entry.name = name }
+          entry.args += args ?? ""
+          calls[index] = entry
+        case .ignore:
+          continue
+        }
       }
     }
     let list = calls.keys.sorted().compactMap { key -> AgentToolCall? in
