@@ -122,6 +122,10 @@ final class PointerPillController {
 
   private(set) var isVisible = false
   private var panel: PointerPillPanel?
+  /// 편집 단축키(⌘C/⌘V/⌘X/⌘A/⌘Z) 판정용 — pill 도 QuickTalk 의 창이다.
+  /// (`isOwnWindow` 화이트리스트에 빠져 있으면 pill 이 key 일 때 Carbon 등록이 해제되고
+  ///  메뉴 키 등가도 LSUIElement 라 전달되지 않아 ⌘V 가 먹지 않는다 — 2026-11-11 수정)
+  var pillWindow: NSWindow? { panel }
   private weak var store: UIStore?
   private var onOutcome: ((PillOutcome) -> Void)?
   private let model = PillModel()

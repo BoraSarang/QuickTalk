@@ -987,9 +987,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  /// 대화 창·설정 창(과 그 시트)인지.
+  /// 대화 창·설정 창(과 그 시트)·⌘Space pill 인지.
   private func isOwnWindow(_ window: NSWindow) -> Bool {
     if window === panel || window === settingsWindow { return true }
+    if window === PointerPillController.shared.pillWindow { return true }
     if let parent = window.sheetParent ?? window.parent { return isOwnWindow(parent) }
     return false
   }

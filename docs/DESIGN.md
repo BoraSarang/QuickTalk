@@ -228,7 +228,7 @@
   - 등록은 `AppDelegate.applyShortcuts`가 **동작별 Carbon 핫키**로 하고, 조합이 바뀐 것만 해제→재등록한다. 실패한 동작은 설정 행에 ⚠️(`store.shortcutStatus`) + `E-MAC-KEY-0001` 로그.
   - `NSEvent` 전역 모니터는 **입력 모니터링 권한**이 없으면 조용히 실패하므로 전역은 Carbon `RegisterEventHotKey`만 쓴다(권한 불필요, Spotlight 기본값과 같은 조합도 앱 등록이 우선).
 - 편집 단축키(⌘C/⌘V/⌘X/⌘A/⌘Z/⌘⇧Z): 이 앱은 `LSUIElement`(메뉴바 전용, 메뉴바 없음)라 ⌘ 키 등가가 macOS 정책상 불안정하게만 전달된다
-  → **우리 창이 키일 때만** Carbon으로 일시 등록하고, 창이 키를 잃으면 즉시 해제한다(다른 앱 단축키를 점유하지 않음)
+  → **우리 창(대화 창·설정 창·⌘Space pill)이 키일 때만** Carbon으로 일시 등록하고, 창이 키를 잃으면 즉시 해제한다(다른 앱 단축키를 점유하지 않음)
   → 보조로 로컬 키 모니터가 있으며, 문자 대신 **키코드**로 비교한다(한글 입력 소스에서 `charactersIgnoringModifiers`가 'ㅍ'처럼 변한다)
 - 진단 플래그: `--debug-keys`(⌘ 키 수신 로그), `--no-edit-hotkeys`(Carbon 편집 단축키 끄기)
 
