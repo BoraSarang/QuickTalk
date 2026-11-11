@@ -645,6 +645,16 @@ final class UIStore: ObservableObject {
     NotificationCenter.default.post(name: .quickTalkShowChat, object: nil)
   }
 
+  /// ⌘V 로 **첨부로 소비될** 클립보드 내용(이미지·파일)이 있는지 — 읽기만 한다(첨부는 하지 않음).
+  /// pill 처럼 첨부 UI 가 없는 곳에서 "대화 창을 열어 붙여넣을지" 먼저 판정할 때 쓴다.
+  /// 판정 기준은 `pasteAttachmentFromPasteboard` 와 같다 — 파일 URL 이 하나라도 있으면
+  /// (지원하지 않는 형식이어도 안내를 위해) 소비하고, 이미지가 있으면 소비한다. 웹 주소는 제외.
+  func canPasteAttachment(from pb: NSPasteboard = .general) -> Bool {
+    let urls = (pb.readObjects(forClasses: [NSURL.self]) as? [URL]) ?? []
+    if !PasteRouting.fileURLs(from: urls).isEmpty { return true }
+    return NSImage(pasteboard: pb) != nil
+  }
+
   /// ⌘V — 클립보드의 **이미지·파일**을 대화 첨부로 붙인다(v0.28).
   /// 텍스트는 AppKit 기본 붙여넣기에 맡기려고 `false` 를 돌려준다.
   /// (QuickShelf를 열고 카드를 고르지 않아도 바로 첨부된다)

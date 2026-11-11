@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-09 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-11 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
@@ -11,9 +11,21 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.35.4**(2026-11-09 17:12, `~/Applications/QuickTalk.app`, PID 29761) — 사용자 요청대로 로컬 테스트는 Debug. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치) 모두 실측 통과. **다음 후보는 v0.36** — 실사용 피드백에서 선정.
+> **현재 설치본은 Debug 1.35.5**(2026-11-11, `~/Applications/QuickTalk.app`, PID 51066) — 사용자 요청대로 로컬 테스트는 Debug. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치) 모두 실측 통과. **다음 후보는 v0.36** — 실사용 피드백에서 선정.
+> **v0.35.5 수정·실측 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18). PR 예정.
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (18) — v0.35.5 **⌘Space pill 붙여넣기(⌘V) + 이미지·파일 첨부** — **Debug 설치 · 사용자 실측 확인**
+
+- **계기(사용자 지적)**: "pill 대화에서는 붙여 넣기가 안되는구나?" — ⌘Space pill 입력창에서 ⌘V 가 아무것도 넣지 않음.
+- **원인**: 편집 단축키는 LSUIElement 앱의 메뉴 키 등가가 불안정해 **QuickTalk 창이 키일 때만** Carbon 임시 등록 + 로컬 키 모니터로 처리한다. `AppDelegate.isOwnWindow` 가 **대화 창·설정 창만** 화이트리스트로 두고 **포인터 pill 패널을 빠뜨렸다** → pill 이 key 가 되면 `syncEditShortcuts` 가 등록을 해제하고, 로컬 모니터도 pill 이벤트를 넘겼다.
+- **수정**: `PointerPillController.pillWindow`(신설) + `isOwnWindow` 에 포함. pill 입력은 대화 창과 같은 `ChatInputField` 라 뷰 변경 없음.
+- **첨부 동작(사용자 확정)**: pill 에 첨부 UI 를 만들지 않고, ⌘V 에 **이미지·파일**이 있으면 **⌘Return 처럼 대화 창을 열고 그 창에서 붙여넣은 것과 같게** 첨부한다(`PillOutcome.openChatWithAttachment`). draft 는 유지되고 첨부 확인·제거는 대화 창에서 한다. 판정은 읽기 전용 `UIStore.canPasteAttachment(from:)` — 웹 주소는 텍스트로 남긴다.
+- **검증**: `swift test` **964/964**(6 skip) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-paste-routing` **PASS**(web `canPaste=0 consumed=0` · file `1/1` · image `1/1`). 실키 ⌘V 는 합성 이벤트로 재현 불가(OS 라우팅) → **사용자 확인 필요**.
+- **설치(사용자 승인)**: **2026-11-11** `~/Applications/QuickTalk.app` 를 **Debug 1.35.5(build 3505)** 로 교체(백업 없음, `~/Applications/` 밖에서 `codesign --verify --strict --deep` 확인 → 기존 번들 삭제 → 한 번에 복사) · 설치본 `codesign` OK · `QuickTalk.debug.dylib` SHA-256 `26bbbb94242def12b6590de8ec32bb270cce83973151dbad2098e9cd79ce5456` · **재실행 완료**(PID 51066).
+- **실측(사용자 확인, 2026-11-11)**: "잘됨" — ① pill ⌘V 텍스트 ② pill ⌘V 이미지·파일(대화 창 열림+첨부, draft 유지) ③ pill ⌘C/⌘A ④ 대화 창 ⌘V 회귀 모두 정상.
+- **다음**: PR 생성 → squash merge.
 
 ### 2026-11-09 인계 (17) — v0.35.4 **대화 목차 현재 위치가 늘 첫 질문으로 보이던 문제** — **PR #132 병합 · Debug 1.35.4 설치 · 실측 확인 완료**
 

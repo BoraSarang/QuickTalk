@@ -1198,10 +1198,11 @@ extension AppDelegate {
     board.setString(link, forType: .string)
     board.setString(link, forType: .URL)
     let webParsed = (board.readObjects(forClasses: [NSURL.self]) as? [URL])?.count ?? 0
+    let webCanPaste = store.canPasteAttachment(from: board)
     let webConsumed = store.pasteAttachmentFromPasteboard(board)
-    NSLog("[QA-PASTE] web parsed=%d consumed=%d attachments=%d — 기대: consumed=0 attachments=0",
-          webParsed, webConsumed ? 1 : 0, store.attached.count)
-    let webOK = (webParsed == 1) && !webConsumed && store.attached.isEmpty
+    NSLog("[QA-PASTE] web parsed=%d canPaste=%d consumed=%d attachments=%d — 기대: canPaste=0 consumed=0 attachments=0",
+          webParsed, webCanPaste ? 1 : 0, webConsumed ? 1 : 0, store.attached.count)
+    let webOK = (webParsed == 1) && !webCanPaste && !webConsumed && store.attached.isEmpty
     store.attached = []
 
     // 2) Finder 파일 복사 — 첨부로 소비되어야 한다.
@@ -1211,15 +1212,39 @@ extension AppDelegate {
     board.clearContents()
     board.declareTypes([.fileURL], owner: nil)
     board.setString(tmp.absoluteString, forType: .fileURL)
+    let fileCanPaste = store.canPasteAttachment(from: board)
     let fileConsumed = store.pasteAttachmentFromPasteboard(board)
-    NSLog("[QA-PASTE] file consumed=%d attachments=%d name=%@ — 기대: consumed=1 attachments=1",
-          fileConsumed ? 1 : 0, store.attached.count,
+    NSLog("[QA-PASTE] file canPaste=%d consumed=%d attachments=%d name=%@ — 기대: canPaste=1 consumed=1 attachments=1",
+          fileCanPaste ? 1 : 0, fileConsumed ? 1 : 0, store.attached.count,
           store.attached.first?.name ?? "nil")
-    let fileOK = fileConsumed && store.attached.count == 1
+    let fileOK = fileCanPaste && fileConsumed && store.attached.count == 1
     store.attached = []
     try? FileManager.default.removeItem(at: tmp)
 
-    NSLog("[QA-PASTE] result=%@", (webOK && fileOK) ? "PASS" : "FAIL")
+    // 3) 스크린샷 이미지 — pill ⌘V 가 대화 창으로 넘겨 첨부하는 경로(2026-11-11).
+    let img = NSImage(size: NSSize(width: 2, height: 2))
+    img.lockFocus()
+    NSColor.systemBlue.setFill()
+    NSRect(x: 0, y: 0, width: 2, height: 2).fill()
+    img.unlockFocus()
+    let tiff = img.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0) }
+    let png = tiff?.representation(using: .png, properties: [:])
+    var imageOK = false
+    if let png {
+      board.clearContents()
+      board.declareTypes([.png], owner: nil)
+      board.setData(png, forType: .png)
+      let imageCanPaste = store.canPasteAttachment(from: board)
+      let imageConsumed = store.pasteAttachmentFromPasteboard(board)
+      NSLog("[QA-PASTE] image canPaste=%d consumed=%d attachments=%d — 기대: canPaste=1 consumed=1 attachments=1",
+            imageCanPaste ? 1 : 0, imageConsumed ? 1 : 0, store.attached.count)
+      imageOK = imageCanPaste && imageConsumed && store.attached.count == 1
+      store.attached = []
+    } else {
+      NSLog("[QA-PASTE] image PNG 생성 실패")
+    }
+
+    NSLog("[QA-PASTE] result=%@", (webOK && fileOK && imageOK) ? "PASS" : "FAIL")
     NSApp.terminate(nil)
     return true
   }

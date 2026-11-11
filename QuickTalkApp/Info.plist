@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.35.4</string>
+	<string>1.35.5</string>
 	<key>CFBundleVersion</key>
-	<string>3504</string>
+	<string>3505</string>
 	<key>LSMultipleInstancesProhibited</key>
 	<true/>
 	<key>LSUIElement</key>
