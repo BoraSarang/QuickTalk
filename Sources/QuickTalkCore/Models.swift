@@ -76,18 +76,22 @@ public struct Turn: Codable, Equatable {
   /// - assistant 턴: 같은 ID — 결과 답변에 [이대로 실행]을 다시 달지 않기 위해 쓴다.
   /// 구버전 기록에는 없으므로 nil(일반 턴)이다.
   public var executesTurnID: UUID?
+  /// 이 답변이 제안한 **실행 계획**(v0.36.3) — 있으면 계획 카드를 그리고 [▶ 실행] 대신 쓴다.
+  /// 구버전 기록에는 없으므로 nil.
+  public var plan: ExecutionPlan?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
               elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
               createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil,
               personaID: UUID? = nil, reasoning: String? = nil,
-              executesTurnID: UUID? = nil) {
+              executesTurnID: UUID? = nil, plan: ExecutionPlan? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
     self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
     self.personaID = personaID; self.reasoning = reasoning
     self.executesTurnID = executesTurnID
+    self.plan = plan
   }
 
   /// 사용자가 [이대로 실행]을 눌러 만든 **요청** 턴인가.

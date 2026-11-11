@@ -13,6 +13,7 @@
 		06B0B55F724C9A0FAD1E8007 /* FollowUpSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C2C1356AABEA6FABABEAA84 /* FollowUpSuggest.swift */; };
 		075145421A3EBC33B2E656AE /* ConversationMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE0D8197FF437735FFD029E /* ConversationMemory.swift */; };
 		075A89C4E7401850AB05D89C /* ReportDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC5CFD3D31AC29CE111FEDB /* ReportDocument.swift */; };
+		075F6AB81C261381AD7848FE /* ExecutionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C778963788C4A45B38690E /* ExecutionPlan.swift */; };
 		0766EFD159A4F7B587D8A786 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80145B8EF36B33D339972F5 /* ClipboardService.swift */; };
 		082F20E6BD68BBCDE2660872 /* AppDataGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774B8A73592B2BB441E7660C /* AppDataGuard.swift */; };
 		0B2614FBBE3809CB75302048 /* AgentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B958DD423C5899BAA383F2 /* AgentCard.swift */; };
@@ -151,6 +152,7 @@
 		F5C5DFA30D02D21416C2BC23 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC6202DA471E06B93A3E247 /* VoiceService.swift */; };
 		F65D50602C8C67E60D444886 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9C2E8044DF78F78332F411 /* LoginItem.swift */; };
 		F660BB9F67412ED01863EDD2 /* SettingsView+AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D681E358377CD1E20730FA9 /* SettingsView+AI.swift */; };
+		F6E11DC1DE2D10AEB1CA359B /* PlanCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C0DE5B61AB082CBC4EA723 /* PlanCard.swift */; };
 		FBEBE8C9180B562C91CDB6DE /* FollowScrollPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0635AD5162C492F686935FB /* FollowScrollPolicy.swift */; };
 		FC53A763BCFEA595A4803B87 /* ScheduleProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB3783C9443F18244C24E95F /* ScheduleProposal.swift */; };
 		FE12BBE4D2793340A1A23644 /* PanelToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B443636C48759C886EF337 /* PanelToggle.swift */; };
@@ -215,6 +217,7 @@
 		727D6C34B22D436052197628 /* ShelfModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfModel.swift; sourceTree = "<group>"; };
 		72BCC68AF259264132DF4A74 /* SettingsView+Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Voice.swift"; sourceTree = "<group>"; };
 		734D17E0DBE48AD72F13554D /* PasteRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteRouting.swift; sourceTree = "<group>"; };
+		73C778963788C4A45B38690E /* ExecutionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionPlan.swift; sourceTree = "<group>"; };
 		757EA85E9BEB5869ADD077C6 /* ReportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWriter.swift; sourceTree = "<group>"; };
 		774B8A73592B2BB441E7660C /* AppDataGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataGuard.swift; sourceTree = "<group>"; };
 		7769090FD3EC124EF25C5BEE /* ChatOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatOutlineView.swift; sourceTree = "<group>"; };
@@ -293,6 +296,7 @@
 		E1A33C2A5C6C5857A7B41326 /* UiGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiGuard.swift; sourceTree = "<group>"; };
 		E3BA3DBC6AFA968606E34D9B /* MenuBarHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarHubView.swift; sourceTree = "<group>"; };
 		E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiperSpeechService.swift; sourceTree = "<group>"; };
+		E4C0DE5B61AB082CBC4EA723 /* PlanCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCard.swift; sourceTree = "<group>"; };
 		E5AEE95E9756FB6329F5C014 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		E65BDBEF0EEC3BD5742E2AF7 /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
 		E7CCA65F4AB4CF7B2E6313AE /* UIStore+FollowUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStore+FollowUp.swift"; sourceTree = "<group>"; };
@@ -347,6 +351,7 @@
 				9FB4BFBF6DBA8F39FF3FCBBA /* NotificationService.swift */,
 				3D921B01A80E01801140A170 /* PersonaChip.swift */,
 				E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */,
+				E4C0DE5B61AB082CBC4EA723 /* PlanCard.swift */,
 				D36FB7D6B72920A828D78C84 /* PointerPill.swift */,
 				857D6BD5840713F9857BDAA2 /* ProcessSpeechService.swift */,
 				A1B4F0CFB680182126B97B67 /* ProviderEditorSheet.swift */,
@@ -423,6 +428,7 @@
 				B0C81351C347B42147D7EE69 /* ConversationOutline.swift */,
 				BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */,
 				0F91AE3B84BDE1E9B2CE0F90 /* ExaContents.swift */,
+				73C778963788C4A45B38690E /* ExecutionPlan.swift */,
 				D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */,
 				B0635AD5162C492F686935FB /* FollowScrollPolicy.swift */,
 				8C2C1356AABEA6FABABEAA84 /* FollowUpSuggest.swift */,
@@ -600,6 +606,7 @@
 				9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */,
 				514B962038882A9C03B10ACD /* EdgeTTS.swift in Sources */,
 				949A045676EFBDD3B7A8ED98 /* ExaContents.swift in Sources */,
+				075F6AB81C261381AD7848FE /* ExecutionPlan.swift in Sources */,
 				A51415A7E3C7087EA16BDF47 /* ExecutionPrompt.swift in Sources */,
 				FBEBE8C9180B562C91CDB6DE /* FollowScrollPolicy.swift in Sources */,
 				5D158E5FBD462229ABE17CEF /* FollowUpChipsRow.swift in Sources */,
@@ -630,6 +637,7 @@
 				A9C667A15F2953D41BD3B3FD /* PersonaReports.swift in Sources */,
 				26DE68043908C26F79D28EFD /* PiperSpeechService.swift in Sources */,
 				9B81D3B83509FF5189FA3963 /* PiperTTS.swift in Sources */,
+				F6E11DC1DE2D10AEB1CA359B /* PlanCard.swift in Sources */,
 				383446CB170F6CF76CE851E3 /* PointerPill.swift in Sources */,
 				50A6E25B690910E8A214FD48 /* PolicyEngine.swift in Sources */,
 				F5449F15EFD31DD1D51C2BFE /* ProcessSampler.swift in Sources */,

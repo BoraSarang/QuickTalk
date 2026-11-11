@@ -1628,6 +1628,7 @@ final class UIStore: ObservableObject {
     guard settings.agentToolsEnabled, !isReplying else { return false }
     guard turn.role == .assistant, !turn.text.isEmpty,
           turn.executesTurnID == nil,
+          turn.plan == nil,
           turn.id != streamingTurnID else { return false }
     guard userTurn(before: turn.id) != nil else { return false }
     if let persona = settings.persona(conversation.personaID),
@@ -1643,6 +1644,74 @@ final class UIStore: ObservableObject {
     guard shouldOfferExecute(turn) else { return }
     NSLog("[QuickTalk] 답변 → 실행 — turn=%@", String(turn.id.uuidString.prefix(8)))
     send(executionOf: turn)
+  }
+
+  // MARK: - 실행 계획 카드 (v0.36.3)
+
+  /// 계획 카드의 실행 상태 — 카드가 체크 표시와 진행 상태를 그리는 데 쓴다.
+  struct PlanRunState: Equatable {
+    var isRunning = false
+    var finished = false
+    /// 0-based 단계 인덱스. 순차 추정이므로 정확도는 보조다.
+    var completed: Set<Int> = []
+  }
+
+  /// 계획 카드의 **[실행]**을 보여 줄 조건.
+  func shouldOfferPlan(_ turn: Turn) -> Bool {
+    guard settings.agentToolsEnabled, !isReplying else { return false }
+    guard turn.role == .assistant, let plan = turn.plan, !plan.isEmpty else { return false }
+    guard turn.id != streamingTurnID else { return false }
+    guard userTurn(before: turn.id) != nil else { return false }
+    // 이미 실행 턴이 붙었으면 다시 실행하지 않는다 — [수정]만 남긴다.
+    guard !planHasRun(turn) else { return false }
+    if let persona = settings.persona(conversation.personaID),
+       !persona.tools.shell && !persona.tools.ui {
+      return false
+    }
+    return true
+  }
+
+  /// 그 계획 뒤에 실행 턴이 이미 있는가.
+  private func planHasRun(_ turn: Turn) -> Bool {
+    guard let index = conversation.turns.firstIndex(where: { $0.id == turn.id }) else { return false }
+    return conversation.turns.dropFirst(index + 1).contains { $0.executesTurnID == turn.id }
+  }
+
+  /// 계획 카드의 [실행] — 단계 목록을 그대로 실행 계약으로 넘긴다.
+  func executePlan(_ turn: Turn) {
+    guard shouldOfferPlan(turn), let plan = turn.plan else { return }
+    NSLog("[QuickTalk] 계획 실행 — turn=%@ · 단계 %d",
+          String(turn.id.uuidString.prefix(8)), plan.steps.count)
+    send(planOf: turn)
+  }
+
+  /// 계획 카드의 [수정] — 입력창에 계획을 풀어 놓는다. 보내면 일반 질문으로 실행된다.
+  func editPlan(_ turn: Turn) {
+    guard let plan = turn.plan else { return }
+    draft = plan.editableText
+    composerFocusToken = UUID()
+    NSLog("[QuickTalk] 계획 수정 — 입력창으로 이동")
+  }
+
+  /// 계획 카드의 진행 상태 — 실행 턴의 도구 기록에서 **순차 추정**한다.
+  ///
+  /// `step` 인자를 쓰지 않으므로 도구가 성공할 때마다 다음 단계를 체크한다.
+  /// 정확도는 보조이며, 실행이 끝나면 전부 완료로 표시한다.
+  func planRunState(for turn: Turn) -> PlanRunState {
+    guard let plan = turn.plan,
+          let index = conversation.turns.firstIndex(where: { $0.id == turn.id }) else {
+      return PlanRunState()
+    }
+    let later = conversation.turns.dropFirst(index + 1)
+    guard let result = later.last(where: { $0.role == .assistant && $0.executesTurnID == turn.id })
+    else { return PlanRunState() }
+    var state = PlanRunState()
+    state.isRunning = isReplying && streamingTurnID == result.id
+    state.finished = !state.isRunning && result.status == .done && !result.text.isEmpty
+    let doneCount = (result.agentEvents ?? []).filter { $0.state == .done }.count
+    let inferred = state.finished ? plan.steps.count : min(doneCount, plan.steps.count)
+    state.completed = Set(0..<inferred)
+    return state
   }
 
   /// 같은 질문을 웹 검색 강제로 다시 보낸다 — 이후 턴은 지우고 새 답변을 만든다.
@@ -1999,7 +2068,7 @@ final class UIStore: ObservableObject {
       }
     }
   }
-  func send(allowCommands: Bool = true, executionOf: Turn? = nil) {
+  func send(allowCommands: Bool = true, executionOf: Turn? = nil, planOf: Turn? = nil) {
     stopSpeaking()
     // 응답 대기 중 중복 전송 금지 — 답이 섞이지 않게 한다(입력독의 ↑도 비활성)
     guard !isReplying else {
@@ -2010,26 +2079,37 @@ final class UIStore: ObservableObject {
     clearFollowUps(for: activeSession)
     // 보조 명령 — 일반 사용자는 자동 정리만 쓰면 된다. `/compact`는 즉시 정리.
     let command = draft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if executionOf == nil, allowCommands, command == "/compact" {
+    let automatic = executionOf != nil || planOf != nil
+    if !automatic, allowCommands, command == "/compact" {
       draft = ""
       compactNow()
       return
     }
     do {
       // 실행 턴은 입력창의 draft·첨부를 **건드리지 않는다** — 사용자가 쓰던 글은 그대로 둔다.
-      let pending = executionOf == nil ? attached : []  // 전송 직후 목록을 비우므로 미리 잡아 둔다
+      let pending = automatic ? [] : attached  // 전송 직후 목록을 비우므로 미리 잡아 둔다
       // 경로까지 남긴다 — 보낸 뒤 말풍선에 썸네일·미리보기를 다시 그리기 위해
       let atts = pending.map { Attachment(name: $0.name, kind: $0.kind, path: $0.url?.path) }
       // 말풍선에는 짧은 문장, 모델에는 실행 계약을 준다(PLAN_v0.36 §3).
       // v0.36.2 — 그 답변을 만들 때 실행한 도구 기록도 함께 준다. 모델은 과거 tool 로그를
       // 받지 못하므로, 이게 없으면 이미 만든 파일·확인한 값을 처음부터 다시 확인한다.
-      let visible = executionOf == nil ? draft : ExecutionPrompt.visibleText
-      let prompt = executionOf == nil
-        ? draft
-        : ExecutionPrompt.contract(alreadyRun: executionOf?.agentEvents)
-      try core.submit(text: visible, attachments: atts, executesTurnID: executionOf?.id)
+      // v0.36.3 — 계획 카드의 [실행]은 단계 목록을 그대로 실행 계약으로 넘긴다.
+      let visible: String
+      let prompt: String
+      if let planOf, let plan = planOf.plan {
+        visible = ExecutionPrompt.planVisibleText
+        prompt = ExecutionPrompt.planContract(plan, alreadyRun: planOf.agentEvents)
+      } else if let executionOf {
+        visible = ExecutionPrompt.visibleText
+        prompt = ExecutionPrompt.contract(alreadyRun: executionOf.agentEvents)
+      } else {
+        visible = draft
+        prompt = draft
+      }
+      try core.submit(text: visible, attachments: atts,
+                      executesTurnID: (planOf ?? executionOf)?.id)
       conversation = core.conversation
-      if executionOf == nil { draft = ""; attached.removeAll() }
+      if !automatic { draft = ""; attached.removeAll() }
       syncArchive()                      // 사용자 메시지도 바로 기록(앱이 꺼져도 남는다)
       // 한글 IME: 전송 직후 조합 커밋이 입력창으로 되돌아오는 경우가 있어 잠시 방어한다
       suppressEcho(of: visible)
@@ -2218,7 +2298,7 @@ final class UIStore: ObservableObject {
         var needsSearch = false
         // 🌐(이번 질문만)은 도구가 켜져 있어도 사용자의 명시적 의도라 그대로 존중한다.
         // 실행 턴은 이미 답변에 필요한 정보가 있다 — 계약 문장으로 사전 검색을 돌리지 않는다.
-        if executionOf == nil, !handledByTool, !skipPreSearch || forced {
+        if executionOf == nil, planOf == nil, !handledByTool, !skipPreSearch || forced {
           needsSearch = WebSearchQuery.shouldSearch(provider: ws.webSearchProvider, forced: forced)
           // 툴 콜링은 OpenAI 호환에서만 시도한다 — 다른 프로바이더에서는 주입 판정으로 폴백.
           let toolModeUnavailable = ws.webSearchMode == .toolCalling
@@ -2292,7 +2372,8 @@ final class UIStore: ObservableObject {
         callStarted = Date()
         // 스트리밍 버블 — 첫 델타 전까지는 아래 점 애니메이션이 보인다
         if Task.isCancelled { return }     // 검색·판정 중에 [중지]를 누른 경우
-        let aid = session.core.beginAssistantTurn(executesTurnID: executionOf?.id)
+        // v0.36.3 — 계획 실행 턴도 `executesTurnID` 를 달아야 카드가 "이미 실행됨"을 안다.
+        let aid = session.core.beginAssistantTurn(executesTurnID: (planOf ?? executionOf)?.id)
         session.conversation = session.core.conversation
         session.streamingTurnID = aid
         // 사고 과정(thinking 모델) — 답변이 시작되기 전에도 화면이 "지금 고민 중"을 보여 준다.

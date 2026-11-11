@@ -555,11 +555,12 @@ final class AgentTests: XCTestCase {
     XCTAssertEqual(params?["required"] as? [String], ["command"])
   }
 
-  /// `web_search`·`web_fetch` 는 **검색이 준비된 턴에만** 도구 목록에 붙는다(기본 5개는 그대로).
+  /// `web_search`·`web_fetch` 는 **검색이 준비된 턴에만** 도구 목록에 붙는다.
+  /// 기본 목록은 6개(5개 + v0.36.3 `propose_plan`) — 계획 제안은 권한이 없는 메타 도구다.
   func testWebSearchToolIsOptional() {
-    XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 5)
+    XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 6)
     let withSearch = AgentToolCatalog.available(includingWebSearch: true)
-    XCTAssertEqual(withSearch.count, 7)
+    XCTAssertEqual(withSearch.count, 8)
     XCTAssertTrue(withSearch.contains { $0.name == "web_search" })
     XCTAssertTrue(withSearch.contains { $0.name == "web_fetch" })
     XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "web_search" },
@@ -603,11 +604,11 @@ final class AgentTests: XCTestCase {
   /// `ui_snapshot` 은 **마스터 토글이 켜진 턴에만** 도구 목록에 붙는다 (PLAN_v0.25 Phase 1).
   /// 기본 목록에 넣으면 Apple FM·QA 하네스까지 딸려 가고, 꺼 둔 사용자에게도 노출된다.
   func testUiSnapshotToolIsOptIn() {
-    XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 5)
+    XCTAssertEqual(AgentToolCatalog.available(includingWebSearch: false).count, 6)
     XCTAssertFalse(AgentToolCatalog.available(includingWebSearch: false)
       .contains { $0.name == "ui_snapshot" })
     let withUI = AgentToolCatalog.available(includingWebSearch: false, includingUI: true)
-    XCTAssertEqual(withUI.count, 7)
+    XCTAssertEqual(withUI.count, 8)
     XCTAssertTrue(withUI.contains { $0.name == "ui_snapshot" })
     XCTAssertTrue(withUI.contains { $0.name == "ui_action" })
     XCTAssertFalse(AgentToolCatalog.all.contains { $0.name == "ui_snapshot" },

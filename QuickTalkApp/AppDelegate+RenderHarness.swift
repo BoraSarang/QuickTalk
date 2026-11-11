@@ -529,6 +529,7 @@ extension AppDelegate {
           || $0 == "--demo-slash"
           || $0 == "--demo-agent-write"
           || $0 == "--demo-agent"
+          || $0.hasPrefix("--demo-plan")
       }) {
         self.seedDemoConversation()
         if CommandLine.arguments.contains("--demo-agent") {
@@ -1216,6 +1217,48 @@ extension AppDelegate {
     NSLog("[QA-EXECUTE] normal=%d hiddenResult=%d hiddenPersona=%d — 기대: 1/1/1",
           normal ? 1 : 0, hiddenResult ? 1 : 0, hiddenPersona ? 1 : 0)
     NSLog("[QA-EXECUTE] result=%@", ok ? "PASS" : "FAIL")
+    NSApp.terminate(nil)
+    return true
+  }
+
+  /// QA: `--qa-plan-routing` — 실행 계획 카드의 표시·실행 상태를 헤드리스로 확인한다(v0.36.3).
+  ///
+  /// 실제 모델·도구를 부르지 않는다. 턴 기록만 만들어 네 경계를 본다:
+  /// ① 계획 답변 = [실행] 보인다 · [▶ 실행]은 숨긴다 ② 실행 턴이 붙으면 [실행] 숨긴다
+  /// ③ 실행이 끝나면 단계가 전부 완료로 보인다 ④ 계획 없는 턴 = 숨긴다.
+  func runQAPlanRoutingIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-plan-routing") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    let wasAgentTools = store.settings.agentToolsEnabled
+    store.settings.agentToolsEnabled = true
+    defer { store.settings.agentToolsEnabled = wasAgentTools }
+
+    let question = Turn(role: .user, text: "이 폴더 사진을 날짜별로 정리해줘")
+    let plan = ExecutionPlan(goal: "사진을 날짜별로 정리",
+                         steps: ["폴더 확인", "날짜별 폴더 만들기", "사진 이동", "결과 확인"],
+                         permissions: [.read, .write])
+    let answer = Turn(role: .assistant, text: "계획을 제안했습니다.", plan: plan)
+    store.conversation = Conversation(turns: [question, answer])
+    let offered = store.shouldOfferPlan(answer)
+    let hidesExecute = !store.shouldOfferExecute(answer)
+
+    let execRequest = Turn(role: .user, text: ExecutionPrompt.planVisibleText,
+                           executesTurnID: answer.id)
+    let execAnswer = Turn(role: .assistant, text: "정리했습니다.",
+                          executesTurnID: answer.id)
+    store.conversation = Conversation(turns: [question, answer, execRequest, execAnswer])
+    let hiddenAfterRun = !store.shouldOfferPlan(answer)
+    let state = store.planRunState(for: answer)
+    let finished = state.finished && state.completed.count == plan.steps.count
+
+    let notPlan = !store.shouldOfferPlan(question)
+
+    let ok = offered && hidesExecute && hiddenAfterRun && finished && notPlan
+    NSLog("[QA-PLAN] offered=%d hidesExecute=%d hiddenAfterRun=%d finished=%d notPlan=%d — 기대: 1/1/1/1/1",
+          offered ? 1 : 0, hidesExecute ? 1 : 0, hiddenAfterRun ? 1 : 0,
+          finished ? 1 : 0, notPlan ? 1 : 0)
+    NSLog("[QA-PLAN] result=%@", ok ? "PASS" : "FAIL")
     NSApp.terminate(nil)
     return true
   }
@@ -1928,6 +1971,52 @@ extension AppDelegate {
   /// QA 견본 대화 — **메모리에만** 넣는다(저장 호출 없음, 앱 종료 시 사라진다).
   private func seedDemoConversation() {
     var demo = Conversation(title: "Markdown QA")
+    // v0.36.3 — 실행 계획 카드. `--demo-plan`(제안) · `=running`(실행 중) · `=done`(완료)
+    if CommandLine.arguments.contains(where: { $0.hasPrefix("--demo-plan") }) {
+      let mode = CommandLine.arguments
+        .first { $0.hasPrefix("--demo-plan=") }
+        .map { String($0.dropFirst("--demo-plan=".count)) } ?? "idle"
+      store.settings.agentToolsEnabled = true
+      let plan = ExecutionPlan(
+        goal: L("받은 사진을 촬영 날짜별 폴더로 정리"),
+        steps: [
+          L("사진 폴더의 파일 목록과 촬영 날짜를 확인합니다"),
+          L("날짜별 폴더(2026-11-01 …)를 만듭니다"),
+          L("사진을 해당 폴더로 옮깁니다"),
+          L("폴더별 사진 수를 확인해 보고합니다")
+        ],
+        permissions: [.read, .write])
+      let question = Turn(role: .user, text: L("사진 폴더 좀 날짜별로 정리해 줘"),
+                          createdAt: Date().addingTimeInterval(-90))
+      let answer = Turn(role: .assistant,
+                        text: L("사진을 날짜별로 정리하는 계획을 세웠습니다. 아래 [실행]을 누르면 진행합니다."),
+                        elapsedMs: 2_400, createdAt: Date().addingTimeInterval(-80),
+                        plan: plan)
+      var turns = [question, answer]
+      if mode == "running" || mode == "done" {
+        let execRequest = Turn(role: .user, text: ExecutionPrompt.planVisibleText,
+                               createdAt: Date().addingTimeInterval(-60),
+                               executesTurnID: answer.id)
+        let events = mode == "done" ? Self.planDemoEvents() : []
+        let execAnswer = Turn(role: .assistant,
+                              text: mode == "done"
+                                ? L("4단계 모두 끝났습니다. **사진 128장**을 6개 폴더로 나눴습니다.")
+                                : "",
+                              elapsedMs: mode == "done" ? 32_000 : nil,
+                              createdAt: Date().addingTimeInterval(-50),
+                              agentEvents: events,
+                              executesTurnID: answer.id)
+        turns += [execRequest, execAnswer]
+        if mode == "running" {
+          store.isReplying = true
+          store.streamingTurnID = execAnswer.id
+        }
+      }
+      demo = Conversation(title: L("사진 폴더 좀 날짜별로 정리해 줘"), turns: turns)
+      demo.pinned = false
+      store.conversation = demo
+      return
+    }
     if CommandLine.arguments.contains("--demo-chat=empty") {
       store.conversation = Conversation()   // 빈 새 대화 — 기본 제목(로컬라이즈)·워터마크 확인용
       return
@@ -2088,6 +2177,31 @@ extension AppDelegate {
                  level: .read, risk: .normal, state: .done,
                  output: "vm.swapusage: total = 1024.00M  used = 215.00M  free = 809.00M  (encrypted)",
                  elapsedMs: 120)
+    ]
+  }
+
+  /// QA 견본 — 계획 실행 4단계(계획 카드의 체크 표시 확인용).
+  private static func planDemoEvents() -> [AgentEvent] {
+    [
+      AgentEvent(id: "p1", toolName: "shell",
+                 title: L("사진 폴더의 파일 목록과 촬영 날짜를 확인합니다"),
+                 command: "mdls -name kMDItemContentCreationDate ~/Pictures/inbox/*.jpg",
+                 level: .read, risk: .normal, state: .done,
+                 output: "128 files · 6 dates", elapsedMs: 640),
+      AgentEvent(id: "p2", toolName: "shell",
+                 title: L("날짜별 폴더(2026-11-01 …)를 만듭니다"),
+                 command: "mkdir -p ~/Pictures/sorted/2026-11-0{1..6}",
+                 level: .write, risk: .normal, state: .done,
+                 output: "6 folders", elapsedMs: 90),
+      AgentEvent(id: "p3", toolName: "shell", title: L("사진을 해당 폴더로 옮깁니다"),
+                 command: "mv ~/Pictures/inbox/*.jpg ~/Pictures/sorted/<date>/",
+                 level: .write, risk: .normal, state: .done,
+                 output: "128 moved", elapsedMs: 1_820),
+      AgentEvent(id: "p4", toolName: "shell",
+                 title: L("폴더별 사진 수를 확인해 보고합니다"),
+                 command: "find ~/Pictures/sorted -type f | wc -l",
+                 level: .read, risk: .normal, state: .done,
+                 output: "128", elapsedMs: 60)
     ]
   }
 

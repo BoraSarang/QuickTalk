@@ -1075,6 +1075,16 @@ struct ContentView: View {
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // v0.36.3 — 계획을 제안한 답변이면 실행 계획 카드를 붙인다.
+        // [실행] 전에는 아무것도 실행되지 않는다(계획은 입이지 손이 아니다).
+        if let plan = t.plan {
+          PlanCard(plan: plan,
+                   state: store.planRunState(for: t),
+                   canRun: store.shouldOfferPlan(t),
+                   onRun: { store.executePlan(t) },
+                   onEdit: { store.editPlan(t) })
+            .padding(.top, 2)
+        }
         if let sources = t.sources, !sources.isEmpty { sourceCards(sources) }
         if store.shouldOfferWebRetry(t) { webRetryButton(t) }
         if !t.text.isEmpty && t.id != store.streamingTurnID {
