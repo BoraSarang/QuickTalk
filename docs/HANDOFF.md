@@ -11,19 +11,20 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.7**(2026-11-11 23:55, `~/Applications/QuickTalk.app`, PID 79718) — 사고 중 자동 스크롤 떨림 수정. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.36.8**(2026-11-12 00:20, `~/Applications/QuickTalk.app`, PID 84077) — heredoc 0바이트 "성공" 수정. v0.35.3~v0.35.5·v0.36 P0~v0.36.8 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
 
-### 2026-11-12 인계 (27) — v0.36.8 **heredoc 0바이트 "성공"** — **PR 병합 · Debug 1.36.8 설치 · 실측 대기**
+### 2026-11-12 인계 (27) — v0.36.8 **heredoc 0바이트 "성공"** — **PR #154 병합 · Debug 1.36.8 설치 · 실측 대기**
 
 - **증상(run_test 20턴)**: 모델이 `cat > photo-organizer/sort-photos.py <<'PY' … PY` 로 221줄 스크립트를 썼고 앱은 **`done`(exit 0)** 으로 기록했다. 실제 파일은 **0바이트** — 출력은 `문법 OK        0 /Users/…/sort-photos.py` + `/bin/sh: cannot create temp file for here document: Operation not permitted`.
 - **원인**: bash 3.2 의 heredoc 은 임시 파일(`sh-thd-*`)을 **현재 폴더**에 만든다. GUI 앱 셸의 cwd 가 `/` 라 샌드박스가 쓰기를 거부했고, 임시 파일 생성에 실패해도 `cat` 은 **0바이트 파일 + exit 0** 을 돌려줬다. 뒤의 `py_compile` 이 빈 파일을 통과해 `&&` 체인 전체가 성공. `deniedPath` 는 경로가 없는 이 메시지에서 **`/bin/sh`** 를 집어내 쓰기 대상을 오판했다(다른 실행에서는 `/bin` → "시스템 전역 경로" → 터미널 인계로 잘못 거부).
 - **수정**: `SandboxRunner.scratchDirectory()`(`<tmp>/QuickTalk/scratch`)를 셸의 **cwd·TMPDIR** 로 준다. `readOnlyProfile`·`scopedProfile` 은 `/dev/null` + **스크래치에만** 쓰기를 연다(홈·저장소는 그대로 읽기 전용). `SandboxResult.heredocTempFailure` 로 **종료코드 0 에 묻힌 실패**를 판정해 카드 `failed` + 되돌리기 백업 폐기. `deniedPath` 는 heredoc 줄을 건너뛰고 `runProbe` 는 `.blocked` + 안내로 먼저 끊는다.
 - **검증**: `swift test` **1010/1010**(6 skip, 신규 6 — 읽기 프로필 heredoc · 스크래치 쓰기 · 승인 범위 heredoc 저장 · heredoc 대상 쓰기 실측 · 0바이트 실패 판정 · `/bin/sh` 오탐) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
 - **한계**: 모델이 명령 안에서 `TMPDIR` 을 다른 곳으로 덮어쓰면 같은 실패가 날 수 있다 — 이때는 `.blocked` + 안내로 **조용히 성공하지 않는다**.
+- **PR/버전/설치**: **PR #154 → squash merge `97d5e3c`** · 1.36.8(build 3608) · **2026-11-12 00:20 Debug 1.36.8** 교체·재실행(PID 84077, `QuickTalk.debug.dylib` SHA-256 `38fb098a2aec73b18e5425aba45d93f9a55959a1d654760336aff3f60a46c8ad`).
 - **실측 대기**: 작업 폴더에 heredoc 으로 스크립트를 쓰는 실행 → 실제 파일 생성 · 카드 `완료` · 이후 [실행] 답변이 그것을 실행.
 
 ### 2026-11-11 인계 (26) — v0.36.7 **사고 중 자동 스크롤 떨림** — **PR #152 병합 · Debug 1.36.7 설치 · 실측 대기**
