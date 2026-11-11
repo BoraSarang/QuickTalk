@@ -840,6 +840,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       store.newFreshConversation(personaID: PointerPillController.shared.selectedPersonaID)
       store.draft = draft
       showPanel(tab: 0, anchor: anchor)
+    case .openChatWithAttachment(let draft):
+      // pill 의 ⌘V — ⌘Return 으로 창을 연 뒤 그 창에서 붙여넣은 것과 같다.
+      // **새 대화를 만든 뒤** 첨부해야 세션(대화방)에 붙는다.
+      store.newFreshConversation(personaID: PointerPillController.shared.selectedPersonaID)
+      store.draft = draft
+      showPanel(tab: 0, anchor: anchor)
+      _ = store.pasteAttachmentFromPasteboard()
     case .resume(let conversation):
       store.openConversation(conversation)
       showPanel(tab: 0, anchor: anchor)

@@ -9,6 +9,7 @@ import Combine
 // 빈 대화 창을 띄우는 대신 포인터 자리에 이 pill만 띄운다.
 //   Enter      → 대화 창이 열리며 그 질문을 전송
 //   ⌘Return    → 전송하지 않고 대화 창만 연다(빈 입력이면 새 대화 창, 첨부·설정용)
+//   ⌘V         → 텍스트는 입력창에, 이미지·파일은 ⌘Return 처럼 대화 창을 열어 첨부한다
 //   Esc        → pill만 닫는다(대화 상태·기록은 그대로)
 //   보관함 아이콘 → 최근 대화 4개 + "보관함 전체 열기"
 
@@ -18,6 +19,8 @@ import Combine
 enum PillOutcome {
   case send(String)
   case openChat(draft: String)
+  /// ⌘V 로 이미지·파일을 붙여넣은 경우 — 대화 창을 열고 그 창에서 ⌘V 한 것과 같게 첨부한다.
+  case openChatWithAttachment(draft: String)
   case resume(Conversation)
   case archive
 }
@@ -252,6 +255,17 @@ final class PointerPillController {
     finish(.openChat(draft: draft))
   }
 
+  /// ⌘V — 클립보드에 **이미지·파일**이 있으면 ⌘Return 처럼 대화 창을 열고 그 창에서 붙여넣은 것과 같게 만든다.
+  /// pill 에는 첨부 UI 를 두지 않는다(2026-11-11 사용자 확정) — 첨부 확인·제거는 대화 창에서 한다.
+  /// 텍스트는 `false` 를 돌려 AppKit 기본 붙여넣기(입력창 삽입)로 넘긴다.
+  func pasteAttachmentInChat() -> Bool {
+    guard let store, store.canPasteAttachment() else { return false }
+    let draft = model.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    NSLog("[QuickTalk] pill ⌘V 첨부 — 대화 창을 열어 붙여넣기")
+    finish(.openChatWithAttachment(draft: draft))
+    return true
+  }
+
   func toggleList() {
     model.showList.toggle()
     model.focusToken = UUID()
@@ -369,7 +383,8 @@ final class PointerPillController {
       onToggleList: { [weak self] in self?.toggleList() },
       onResume: { [weak self] in self?.resume($0) },
       onOpenArchive: { [weak self] in self?.openArchive() },
-      onSelectPersona: { [weak self] id in self?.selectPersona(id) }
+      onSelectPersona: { [weak self] id in self?.selectPersona(id) },
+      onPasteAttachment: { [weak self] in self?.pasteAttachmentInChat() ?? false }
     )
     let win = PointerPillPanel(contentRect: NSRect(x: 0, y: 0, width: PillMetrics.width, height: PillMetrics.height),
                                styleMask: [.borderless], backing: .buffered, defer: false)
@@ -488,6 +503,8 @@ struct PillRootView: View {
   let onOpenArchive: () -> Void
   /// 비서 선택 — nil 은 "비서 없음". 대화 창과 **같은 설정**을 바꾼다.
   var onSelectPersona: (UUID?) -> Void = { _ in }
+  /// ⌘V — 클립보드에 이미지·파일이 있으면 대화 창으로 넘겨 첨부한다(`true` 면 기본 붙여넣기를 막는다).
+  var onPasteAttachment: (() -> Bool)? = nil
 
   var body: some View {
     // 창 높이는 컨트롤러가 `capsuleHeight` 로 계산한다 — 여기서 **간격을 더하지 않는다**.
@@ -552,6 +569,7 @@ struct PillRootView: View {
                        placeholder: L("무엇이든 물어보세요"),
                        onCommandReturn: onCommandReturn,
                        onCancel: onCancel,
+                       onPasteAttachments: onPasteAttachment,
                        onSubmit: onSubmit)
           .frame(height: textHeight)
           .frame(maxWidth: .infinity, alignment: .leading)
