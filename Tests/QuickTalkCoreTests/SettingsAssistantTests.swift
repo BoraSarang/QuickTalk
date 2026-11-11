@@ -25,7 +25,7 @@ final class SettingsAssistantTests: XCTestCase {
     let settings = try JSONDecoder().decode(QuickTalkSettings.self, from: Data("{}".utf8))
     XCTAssertTrue(settings.personas.isEmpty, "기존 설정에는 비서가 없다 — 비어 있어야 한다")
     XCTAssertNil(settings.defaultPersonaID)
-    XCTAssertEqual(settings.defaultReportFolder, "~/Documents/Reports")
+    XCTAssertEqual(settings.defaultReportFolder, "~/Documents/QuickTalkWorkspace")
     XCTAssertTrue(settings.schedulerEnabled)
     XCTAssertTrue(settings.notificationsEnabled)
     XCTAssertTrue(settings.quietHoursEnabled)
@@ -62,16 +62,16 @@ final class SettingsAssistantTests: XCTestCase {
 
   func testReportFolderPathExpandsTilde() {
     var settings = QuickTalkSettings()
-    settings.defaultReportFolder = "~/Documents/Reports"
+    settings.defaultReportFolder = "~/Documents/QuickTalkWorkspace"
     XCTAssertEqual(settings.reportFolderPath,
-                   NSHomeDirectory() + "/Documents/Reports")
+                   NSHomeDirectory() + "/Documents/QuickTalkWorkspace")
   }
 
   func testEmptyReportFolderFallsBackToDefault() {
     var settings = QuickTalkSettings()
     settings.defaultReportFolder = "   "
     XCTAssertEqual(settings.reportFolderPath,
-                   NSHomeDirectory() + "/Documents/Reports")
+                   NSHomeDirectory() + "/Documents/QuickTalkWorkspace")
   }
 
   // MARK: - 야간 무음

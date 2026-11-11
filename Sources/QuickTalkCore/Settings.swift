@@ -238,8 +238,11 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var personas: [Persona] = []
   /// 새 대화의 기본 비서 — nil = 기본(비서 없음).
   public var defaultPersonaID: UUID?
-  /// 리포트 파일을 저장할 기본 폴더(`~` 허용, 없으면 만든다).
-  public var defaultReportFolder: String = "~/Documents/Reports"
+  /// 도우미가 파일을 만들고 예약 리포트를 저장하는 **작업 폴더**(`~` 허용, 없으면 만든다).
+  ///
+  /// v0.36.1 이전 이름은 "리포트 폴더"였다 — 실제로는 스크립트·산출물이 쌓이는
+  /// 작업 공간이라 이름을 `QuickTalkWorkspace` 로 바꿨다(옛 폴더는 실행 시 이전).
+  public var defaultReportFolder: String = WorkspaceFolder.defaultPath
   /// 예약 실행 사용 여부(기본 켜짐). 꺼도 저장된 일정은 남는다.
   public var schedulerEnabled: Bool = true
   /// 예약 완료·실패 배너 알림.
@@ -317,10 +320,10 @@ public struct QuickTalkSettings: Codable, Equatable {
                        maxAttempts: networkRetryMaxAttempts)
   }
 
-  /// 리포트 폴더의 실제 경로. 비어 있으면 기본값으로 돌아간다.
+  /// 작업 폴더의 실제 경로. 비어 있으면 기본값으로 돌아간다.
   public var reportFolderPath: String {
     let raw = defaultReportFolder.trimmingCharacters(in: .whitespacesAndNewlines)
-    let value = raw.isEmpty ? "~/Documents/Reports" : raw
+    let value = raw.isEmpty ? WorkspaceFolder.defaultPath : raw
     return (value as NSString).expandingTildeInPath
   }
 
@@ -474,7 +477,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     personas = (try c.decodeIfPresent([Persona].self, forKey: .personas) ?? []).map { $0.normalized() }
     defaultPersonaID = try c.decodeIfPresent(UUID.self, forKey: .defaultPersonaID)
     defaultReportFolder = try c.decodeIfPresent(String.self, forKey: .defaultReportFolder)
-      ?? "~/Documents/Reports"
+      ?? WorkspaceFolder.defaultPath
     schedulerEnabled = try c.decodeIfPresent(Bool.self, forKey: .schedulerEnabled) ?? true
     notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
     notifyOnApproval = try c.decodeIfPresent(Bool.self, forKey: .notifyOnApproval) ?? true

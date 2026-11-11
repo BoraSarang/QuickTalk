@@ -54,7 +54,7 @@ public enum PersonaReports {
       try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
       return url
     } catch {
-      NSLog("[WARN] E-MAC-REPORT-0001 리포트 폴더 생성 실패: %@",
+      NSLog("[WARN] E-MAC-REPORT-0001 작업 폴더 생성 실패: %@",
             String(describing: error))
       return nil
     }

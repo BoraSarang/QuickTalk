@@ -836,7 +836,7 @@ extension AppDelegate {
           ("다음 실행은 언제야?",
            "가장 가까운 실행은 내일 오전 9시이고, 그다음은 금요일 오후 6시입니다."),
           ("리포트는 어디에 저장돼?",
-           "리포트는 설정한 리포트 폴더에 날짜별 Markdown 파일로 저장됩니다."),
+           "리포트는 설정한 작업 폴더에 날짜별 Markdown 파일로 저장됩니다."),
           ("표로 정리해줘",
            "| 작업 | 상태 | 다음 실행 |\n| --- | --- | --- |\n| 백업 | 정상 | 내일 09:00 |\n| 리포트 | 정상 | 금요일 18:00 |")
         ]
@@ -978,9 +978,9 @@ extension AppDelegate {
       if CommandLine.arguments.contains("--demo-persona-folder") {
         let personaBackup = store.settings.personas
         let a = Persona(name: "개발", role: "코딩·리뷰", emoji: "🛠",
-                        reportFolder: "~/Documents/Reports/shared")
+                        reportFolder: "~/Documents/QuickTalkWorkspace/shared")
         let b = Persona(name: "개발", role: "리서치", emoji: "🔎",
-                        reportFolder: "~/Documents/Reports/shared")
+                        reportFolder: "~/Documents/QuickTalkWorkspace/shared")
         store.applyRenderOverride(personas: [a, b])
         // 아래쪽 리포트 폴더 영역까지 보이도록 스크롤을 바닥에 둔 채 렌더한다.
         self.renderChatBottomPNG(AnyView(PersonaEditorSheet(persona: a, isNew: false,

@@ -11,11 +11,22 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.0**(2026-11-11 22:08, `~/Applications/QuickTalk.app`, PID 60372) — 답변 → 실행 P0. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치)·v0.35.5(pill ⌘V) 모두 실측 통과.
+> **현재 설치본은 Debug 1.36.1**(2026-11-11 22:24, `~/Applications/QuickTalk.app`, PID 63264) — 작업 폴더 개명. v0.35.3~v0.35.5·v0.36 P0 모두 실측 통과/대기 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (20) — v0.36.1 **"리포트 폴더" → 작업 폴더 (`~/Documents/QuickTalkWorkspace`)** — **Debug 1.36.1 설치 · 실측 대기**
+
+- **계기(사용자)**: *"QuickTalkReport 폴더는.. 뭐 이게.. 프로젝트 폴더처럼 사용하네.. 명명을 바꿔야 하지 않을까??"* / *"비서 없는 대화를 하고 있는데.. 여기다가 파일들을 만드네"*
+- **진단**: `~/Documents/QuickTalkReport` 에 비서별 리포트 2개 + `memtop.py`·`__pycache__`·`_probe.txt`. `SystemKnowledge.text` 는 **비서가 없어도** `[리포트 폴더] 쓰기 가능한 경로:` 를 넣는다 — 이름은 리포트, 실제는 **도우미의 작업 공간**이었다.
+- **결정(사용자)**: `~/Documents/QuickTalkWorkspace` · 기존 파일은 그대로 옮긴다.
+- **구현**: `WorkspaceFolder`(신규 Core) — 기본 경로·옛 이름 판정·**1회 이전**. `Settings` 기본/폴백/디코드 기본값, `UIStore.init` 이전 실행, `SystemKnowledge` 문구, 설정 › 비서 라벨·캡션·**"이 비서만 다른 작업 폴더 사용"**, 오류 문구, 번역 6키.
+- **이전 규칙**: 마지막 조각이 `QuickTalkReport` 일 때만. 새 폴더가 이미 있으면 **합치지 않는다**(설정 유지+로그). 옛 폴더가 없으면 설정만 변경. 사용자 지정·비슷한 이름은 건드리지 않는다.
+- **검증**: `swift test` **979/979**(6 skip, 신규 7 `WorkspaceFolderTests`) · Debug/Release **BUILD SUCCEEDED** · 설정 렌더 `docs/qa/v0.36.1-workspace/` · **실기 이전 확인** — `~/Documents/QuickTalkWorkspace` 에 리포트·`memtop.py` 보존, `defaultReportFolder = ~/Documents/QuickTalkWorkspace`, 옛 폴더 재생성 없음.
+- **버전/설치**: 1.36.1(build 3601) · **2026-11-11 22:24 Debug 1.36.1** 교체·재실행(`~/Applications/QuickTalk.app`, PID 63264, `QuickTalk.debug.dylib` SHA-256 `c4f4b678f984d1e9bf5286d686a7b37ec4ffa50ab173e67091ef34e8e25f1e61`).
+- **실측 대기**: ① 설정 › 비서에 **작업 폴더** · `~/Documents/QuickTalkWorkspace` 표시 ② 도우미가 만든 파일이 그 폴더에 쌓인다 ③ 옛 `QuickTalkReport` 가 다시 생기지 않는다.
 
 ### 2026-11-11 인계 (19) — v0.36 P0 **답변 → 실행 `[▶ 실행]`** — **Debug 1.36.0 설치 · 실측 대기**
 
