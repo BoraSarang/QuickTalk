@@ -10,7 +10,7 @@
 - **수정**: `PointerPillController.pillWindow` 노출 + `isOwnWindow` 에 포함. 입력창(`ChatInputField`)은 공통 컴포넌트라 변경 없음.
 - **첨부 동작(사용자 확정)**: pill 에 첨부 UI 를 만들지 않고, ⌘V 에 이미지·파일이 있으면 **⌘Return 처럼 대화 창을 열어 그 창에서 붙여넣은 것과 같게** 첨부한다(`PillOutcome.openChatWithAttachment`, `UIStore.canPasteAttachment`). draft 유지·첨부 확인은 대화 창에서.
 - **검증**: `swift test` **964/964**(6 skip) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-paste-routing` **PASS**(web `canPaste=0` · file `1/1` · image `1/1`) · 실키 ⌘V 는 사용자 확인 필요.
-- **버전/설치**: 1.35.5(build 3505) · 2026-11-11 **Debug 1.35.5** 교체·재실행(`~/Applications/QuickTalk.app`, PID 51066, 백업 없음, `QuickTalk.debug.dylib` SHA-256 `26bbbb94…`). 실측 → 문제 없으면 PR.
+- **버전/설치**: 1.35.5(build 3505) · 2026-11-11 **Debug 1.35.5** 교체·재실행(`~/Applications/QuickTalk.app`, PID 51066, 백업 없음, `QuickTalk.debug.dylib` SHA-256 `26bbbb94…`). 실측(텍스트·이미지·파일·⌘C/⌘A·대화 창 회귀) → 문제 없으면 PR.
 
 ## 구현·검증 완료 (2026-11-09) — v0.35.4 대화 목차 현재 위치가 늘 첫 질문으로 보이던 문제
 

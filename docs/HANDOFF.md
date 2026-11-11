@@ -24,7 +24,7 @@
 - **첨부 동작(사용자 확정)**: pill 에 첨부 UI 를 만들지 않고, ⌘V 에 **이미지·파일**이 있으면 **⌘Return 처럼 대화 창을 열고 그 창에서 붙여넣은 것과 같게** 첨부한다(`PillOutcome.openChatWithAttachment`). draft 는 유지되고 첨부 확인·제거는 대화 창에서 한다. 판정은 읽기 전용 `UIStore.canPasteAttachment(from:)` — 웹 주소는 텍스트로 남긴다.
 - **검증**: `swift test` **964/964**(6 skip) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-paste-routing` **PASS**(web `canPaste=0 consumed=0` · file `1/1` · image `1/1`). 실키 ⌘V 는 합성 이벤트로 재현 불가(OS 라우팅) → **사용자 확인 필요**.
 - **설치(사용자 승인)**: **2026-11-11** `~/Applications/QuickTalk.app` 를 **Debug 1.35.5(build 3505)** 로 교체(백업 없음, `~/Applications/` 밖에서 `codesign --verify --strict --deep` 확인 → 기존 번들 삭제 → 한 번에 복사) · 설치본 `codesign` OK · `QuickTalk.debug.dylib` SHA-256 `26bbbb94242def12b6590de8ec32bb270cce83973151dbad2098e9cd79ce5456` · **재실행 완료**(PID 51066).
-- **다음**: ① pill ⌘V(URL·일반 텍스트) ② pill ⌘C/⌘A ③ 대화 창 ⌘V 회귀 확인. 문제 없으면 PR.
+- **다음**: ① pill ⌘V 텍스트(URL·일반 텍스트 → 입력창 삽입) ② pill ⌘V 이미지·파일(대화 창이 열리고 첨부) ③ pill ⌘C/⌘A ④ 대화 창 ⌘V 회귀 확인. 문제 없으면 PR.
 
 ### 2026-11-09 인계 (17) — v0.35.4 **대화 목차 현재 위치가 늘 첫 질문으로 보이던 문제** — **PR #132 병합 · Debug 1.35.4 설치 · 실측 확인 완료**
 
