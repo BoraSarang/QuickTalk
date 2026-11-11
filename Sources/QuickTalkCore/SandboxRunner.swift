@@ -57,6 +57,14 @@ public struct SandboxResult: Equatable {
 
   public var combined: String { stdout + "\n" + stderr }
   public var succeeded: Bool { exitCode == 0 }
+
+  /// heredoc 임시 파일을 만들지 못한 흔적.
+  ///
+  /// ★ v0.36.8 — `cat > 파일 <<'PY'` 는 임시 파일 생성에 실패해도 `cat` 이 **0바이트 파일**을
+  ///   남기고 exit 0 을 돌려준다. 뒤에 `py_compile`·`ls` 가 붙으면 체인 전체가 성공으로 끝나
+  ///   앱이 "완료"로 기록했다(2026-11-11 실측: 221줄 스크립트가 0바이트로 "문법 OK").
+  ///   종료코드가 0이어도 이 흔적이 있으면 실행은 실패다.
+  public var heredocTempFailure: Bool { SandboxRunner.heredocFailure(in: combined) }
 }
 
 /// 실측 결과(명령 + 요구 권한 + 실행 결과).
@@ -159,9 +167,29 @@ public enum SandboxRunner {
 
   // MARK: - 프로파일
 
-  /// 읽기 전용 — 쓰기·네트워크 차단. `/dev/null` 만 예외 허용(리다이렉트가 흔함).
+  /// 앱이 관리하는 스크래치 폴더 — 셸의 **작업 디렉터리이자 TMPDIR**.
+  ///
+  /// ★ v0.36.8 — bash 3.2 의 heredoc 은 임시 파일(`sh-thd-*`)을 **현재 폴더**에 만든다.
+  ///   GUI 앱의 기본 cwd 는 `/` 라서 `cat > 파일 <<'PY'` 가
+  ///   `/bin/sh: cannot create temp file for here document: Operation not permitted` 로 실패했고,
+  ///   `cat` 은 0바이트 파일을 남긴 뒤 exit 0 을 돌려줬다(실측).
+  ///   스크래치를 cwd·TMPDIR 로 주고 **그 안의 쓰기만** 열어 해결한다(홈·저장소는 그대로 읽기 전용).
+  public static func scratchDirectory() -> String {
+    let base = FileManager.default.temporaryDirectory
+      .appendingPathComponent("QuickTalk/scratch", isDirectory: true)
+    try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    return resolveRealPath(base.path)
+  }
+
+  /// 스크래치 폴더에만 쓰기를 여는 규칙 — 모든 프로파일에 붙는다.
+  private static func scratchRule() -> String {
+    "(allow file-write* (subpath \"\(profilePath(scratchDirectory()))\"))"
+  }
+
+  /// 읽기 전용 — 쓰기·네트워크 차단. `/dev/null`·스크래치만 예외(리다이렉트·heredoc).
   public static func readOnlyProfile() -> String {
-    "(version 1)(allow default)(deny file-write*)(allow file-write* (literal \"/dev/null\"))(deny network*)"
+    "(version 1)(allow default)(deny file-write*)(allow file-write* (literal \"/dev/null\"))"
+      + scratchRule() + "(deny network*)"
   }
 
   /// 승인된 경로만 쓰기를 허용 — 그 밖은 계속 막는다(승인이 스코프로 제한된다).
@@ -169,6 +197,7 @@ public enum SandboxRunner {
   public static func scopedProfile(writablePaths: [String], allowNetwork: Bool = false) -> String {
     var p = "(version 1)(allow default)(deny file-write*)"
     p += "(allow file-write* (literal \"/dev/null\"))"
+    p += scratchRule()
     for path in writablePaths {
       // ★ 시스템 전역(루트 포함) 경로에는 쓰기를 열지 않는다 — 이 경로가 열리면
       //   앱이 디스크 전체를 지울 수 있다(2026-10-22 사고).
@@ -255,6 +284,15 @@ public enum SandboxRunner {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: sandboxExecPath)
     p.arguments = ["-p", profile, "/bin/sh", "-c", command]
+    // ★ v0.36.8 — heredoc·mktemp 가 쓰는 자리를 앱 관리 폴더로 옮긴다.
+    //   기본 cwd(`/`)에서는 heredoc 임시 파일을 만들지 못해 0바이트 파일이 "성공"으로 남았다.
+    let scratch = scratchDirectory()
+    if FileManager.default.fileExists(atPath: scratch) {
+      p.currentDirectoryURL = URL(fileURLWithPath: scratch)
+      var env = ProcessInfo.processInfo.environment
+      env["TMPDIR"] = scratch
+      p.environment = env
+    }
     let out = Pipe(), err = Pipe()
     p.standardOutput = out
     p.standardError = err
@@ -526,6 +564,11 @@ public enum SandboxRunner {
     return ""
   }
 
+  /// heredoc 임시 파일 실패 안내 — 모델이 같은 방식으로 재시도하지 않게.
+  public static var heredocNote: String {
+    L("heredoc 임시 파일을 만들지 못했습니다(0바이트 파일이 남을 수 있습니다). 파일은 `python3 -c` 의 write_text 처럼 임시 파일을 쓰지 않는 방식으로 만드세요.")
+  }
+
   /// 샌드박스가 **실행 자체**를 막는 명령의 안내 — 권한을 열어도 해결되지 않는다.
   public static func blockedNote(for command: String) -> String {
     let names = setuidPrograms(in: command).map { ($0 as NSString).lastPathComponent }
@@ -554,6 +597,15 @@ public enum SandboxRunner {
                                                 stderr: blockedNote(for: command)))
     }
     let r = run(command, profile: readOnlyProfile(), timeout: timeout)
+
+    // ★ v0.36.8 — heredoc 임시 파일조차 만들지 못했다면 실행 자체가 불가능하다.
+    //   메시지에 경로가 없어 deniedPath 가 `/bin/sh` 를 집어내고, 앱은 그것을
+    //   "시스템 전역 경로 쓰기"로 오판해 터미널로 넘겼다. 여기서 먼저 끊는다.
+    if heredocFailure(in: r.stderr) {
+      return SandboxProbe(command: command, capability: .blocked,
+                          result: SandboxResult(exitCode: r.exitCode, stdout: r.stdout,
+                                                stderr: heredocNote))
+    }
 
     // ★ 종료코드가 0이어도 **쓰기 거부 흔적**이 있으면 쓰기 명령이다.
     //   `cd 폴더 && printf … > 보고서.md; ls -la` 처럼 마지막 명령이 성공하면
@@ -602,6 +654,16 @@ public enum SandboxRunner {
     return SandboxProbe(command: command, capability: .read, result: r)
   }
 
+  /// heredoc 임시 파일 생성 실패 흔적 — 종료코드 0 에 묻히는 실패(v0.36.8).
+  ///
+  /// 메시지에 **경로가 없어서** `deniedPath` 가 `/bin/sh`(프로그램 경로)를 집어낸다.
+  /// 그러면 앱이 `/bin/sh` 에 쓰기를 "열어 준" 것으로 오판하고 통과시켰다.
+  public static func heredocFailure(in text: String) -> Bool {
+    let lower = text.lowercased()
+    return lower.contains("cannot create temp file for here document")
+      || (lower.contains("here document") && lower.contains("operation not permitted"))
+  }
+
   /// 차단된 경로 추출 — 콜론으로 나눈 조각 중 "/" 로 시작하는 **마지막** 조각.
   ///
   /// - `onlyOperationNotPermitted`: 샌드박스가 쓰기를 막을 때의 EPERM 문구만 본다.
@@ -611,6 +673,8 @@ public enum SandboxRunner {
                                 onlyOperationNotPermitted: Bool = false) -> String? {
     for line in message.split(separator: "\n") {
       let lower = line.lowercased()
+      // heredoc 실패는 경로를 말하지 않는다 — 여기서 뽑으면 `/bin/sh` 가 나온다(v0.36.8).
+      if heredocFailure(in: String(line)) { continue }
       let isDenial = onlyOperationNotPermitted
         ? (lower.contains("operation not permitted") || lower.contains("deny file-write"))
         : (lower.contains("operation not permitted") || lower.contains("permission denied")

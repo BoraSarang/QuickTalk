@@ -300,7 +300,7 @@ final class AgentExecutor: AgentToolExecutor {
     // ★ 되돌리기 기록 — 성공한 쓰기만 남기고, 실패·중단이면 백업을 버린다(v0.19).
     //   (2026-10-25 발견: commit 을 부르지 않아 [되돌리기]가 항상 "기록을 찾지 못했습니다"였다)
     if let undo {
-      if result.succeeded { await UndoStack.shared.commit(undo) }
+      if result.succeeded && !result.heredocTempFailure { await UndoStack.shared.commit(undo) }
       else { await UndoStack.shared.discard(id: undo.id) }
     }
     return await finishShell(call, command: command, risk: risk, level: capability.level,
@@ -344,7 +344,13 @@ final class AgentExecutor: AgentToolExecutor {
                             execCommand: String? = nil, undo: UndoEntry? = nil,
                             denied: Bool) async -> AgentToolOutcome {
     let elapsed = elapsedMs ?? 0
+    // ★ v0.36.8 — heredoc 임시 파일 실패는 종료코드 0 에 묻힌다(0바이트 파일 + "문법 OK").
+    //   성공으로 기록하면 모델·사용자 모두 정상으로 믿는다. 흔적이 있으면 실패다.
+    let failed = !result.succeeded || result.heredocTempFailure
     var output = Self.outputText(result)
+    if result.heredocTempFailure && result.succeeded {
+      output += "\n" + SandboxRunner.heredocNote
+    }
     // 휴지통 rewrite 로 실제 실행 명령이 달라졌으면 **그대로 보여 준다**(정직하게).
     if let execCommand {
       output = Lf("실제 실행: %@", execCommand) + "\n" + output
@@ -353,7 +359,7 @@ final class AgentExecutor: AgentToolExecutor {
       output += "\n" + note
     }
     updateEvent(call.id) {
-      $0.state = result.succeeded ? .done : .failed
+      $0.state = failed ? .failed : .done
       $0.output = output
       $0.elapsedMs = elapsed
       if let undo { $0.undoID = undo.id }
