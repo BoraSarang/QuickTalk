@@ -11,11 +11,22 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.5**(2026-11-11 23:35, `~/Applications/QuickTalk.app`, PID 76146) — 스트리밍 첫 글자 유실 수정. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.36.6**(2026-11-11 23:42, `~/Applications/QuickTalk.app`, PID 77339) — 계획을 조사보다 먼저. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (25) — v0.36.6 **계획을 조사보다 먼저** — **PR #150 병합 · Debug 1.36.6 설치 · 실기 PASS**
+
+- **증상**: 계획 카드가 실기에서 **한 번도 안 뜸**. 23:14 "사진 폴더 날짜별로 정리해 줘" → 읽기 도구 7회 후 "정리할 사진 없음" 종료, `propose_plan` 미호출.
+- **원인**: 지시문이 "시작 전에 계획"이라고만 해서, 모델이 **조사부터** 하고 계획을 뒤로 미뤘다.
+- **수정(사용자 선택: 지시문 강화)**: 3단계 이상 작업은 `propose_plan` 을 **그 턴의 첫 도구 호출**로 내고 멈춘다. 대상 확인이 필요하면 **1단계에 "대상 확인"**을 넣는다(먼저 혼자 조사 금지). 질문·단일 명령은 계획 없음, 할 일이 없으면 계획 없이 이유만 답한다. 도구 설명도 "first tool call, before any exploration".
+- **실기 검증**: `--agent-test=작업 폴더에 디스크 사용량을 표로 보여 주는 스크립트를 만들고, 실행해서 결과까지 확인해 줘` → **8.2초 · steps=1 · tools=0 · answer=계획을 제안했습니다…** (계획이 첫 호출, 실행 없음).
+- **검증**: `swift test` **1004/1004**(6 skip, 신규 1) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **PR/병합**: **PR #150 → squash merge `532a4cc`**.
+- **버전/설치**: 1.36.6(build 3606) · **2026-11-11 23:42 Debug 1.36.6** 교체·재실행(PID 77339, `QuickTalk.debug.dylib` SHA-256 `564d97f64c94f6320e757c472d586896d62cddcb2cfaa36338532e37b918fb68`).
+- **실측 대기**: 사용자 화면에서 3단계 작업 → 계획 카드 → [실행] → 완료 체크. 1.36.4 폴더 규칙·1.36.5 첫 글자 수정도 함께 확인.
 
 ### 2026-11-11 인계 (24) — v0.36.5 **스트리밍 첫 글자 유실** — **PR #148 병합 · Debug 1.36.5 설치 · 실측 대기**
 
