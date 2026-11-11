@@ -85,6 +85,7 @@
 		9145BEA0E0F918652AFA9B02 /* UiGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A33C2A5C6C5857A7B41326 /* UiGuard.swift */; };
 		92DDD592E4609F2C5B4F119C /* SecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC0E0A49E9FAE4A8DC1DC4C /* SecretStore.swift */; };
 		949A045676EFBDD3B7A8ED98 /* ExaContents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F91AE3B84BDE1E9B2CE0F90 /* ExaContents.swift */; };
+		96DF23576F637C6F7D57ED85 /* WorkspaceFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A881ABCF3F9A56B22D7DE759 /* WorkspaceFolder.swift */; };
 		989D731C586EC0079F02E54E /* CaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF65943E24398BA1601E016F /* CaptureService.swift */; };
 		9B81D3B83509FF5189FA3963 /* PiperTTS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61862A22D0D26A7FD8353492 /* PiperTTS.swift */; };
 		9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */; };
@@ -243,6 +244,7 @@
 		A612B6D868B3F98ACB3FC91B /* ShortcutAutoSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutAutoSend.swift; sourceTree = "<group>"; };
 		A693323A21B4F74F8D89D36F /* QuickTalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuickTalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A80145B8EF36B33D339972F5 /* ClipboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardService.swift; sourceTree = "<group>"; };
+		A881ABCF3F9A56B22D7DE759 /* WorkspaceFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFolder.swift; sourceTree = "<group>"; };
 		A8B27D2AFFA346E1FB886FED /* ShelfPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfPanel.swift; sourceTree = "<group>"; };
 		A994DD19EB365550CB2B3E48 /* DeleteConfirmSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteConfirmSheet.swift; sourceTree = "<group>"; };
 		AA38339E5924568D5FB8353D /* UiElementPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiElementPath.swift; sourceTree = "<group>"; };
@@ -484,6 +486,7 @@
 				942396634BEDA311FC5E5E6E /* WindowContext.swift */,
 				51CE7C204B4A2CBE4C190205 /* WindowLevelPolicy.swift */,
 				F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */,
+				A881ABCF3F9A56B22D7DE759 /* WorkspaceFolder.swift */,
 				B84B6C711CC4B17306428FA2 /* WriteScope.swift */,
 				2EFB3918CE6815267D749492 /* WriteScopeGrant.swift */,
 			);
@@ -706,6 +709,7 @@
 				2A6FD199E9ED55383691BEA0 /* WindowLevelPolicy.swift in Sources */,
 				7CFB381D3FA16803B49530CD /* WindowPickerSheet.swift in Sources */,
 				A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */,
+				96DF23576F637C6F7D57ED85 /* WorkspaceFolder.swift in Sources */,
 				E9E1987CAB9109729E1D986A /* WriteScope.swift in Sources */,
 				ABA71666781C22B998755448 /* WriteScopeGrant.swift in Sources */,
 			);

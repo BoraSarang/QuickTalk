@@ -258,18 +258,18 @@ final class NetworkRetryTests: XCTestCase {
 
   func testSystemKnowledgeIncludesDefaultReportFolder() {
     var settings = QuickTalkSettings()
-    settings.defaultReportFolder = "~/Documents/QuickTalkReport"
+    settings.defaultReportFolder = "~/Documents/QuickTalkWorkspace"
     let text = SystemKnowledge.reportFolderText(settings: settings, persona: nil)
-    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkReport")))
+    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkWorkspace")))
     XCTAssertTrue(text.contains("쓰기 가능한 경로"))
   }
 
   func testPersonaReportFolderOverridesDefault() {
     var settings = QuickTalkSettings()
     settings.defaultReportFolder = "~/Documents/Reports"
-    let persona = Persona(name: "다미", reportFolder: "~/Documents/QuickTalkReport")
+    let persona = Persona(name: "다미", reportFolder: "~/Documents/QuickTalkWorkspace")
     let text = SystemKnowledge.reportFolderText(settings: settings, persona: persona)
-    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkReport")))
+    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkWorkspace")))
     XCTAssertFalse(text.contains(expanded("~/Documents/Reports")))
   }
 
@@ -283,15 +283,15 @@ final class NetworkRetryTests: XCTestCase {
   /// 모델이 "파일로 남길까요?"를 먼저 제안하던 원인(v0.32.2, 2026-11-06 사용자 지적).
   func testReportFolderPromptSkippedWithoutPersona() {
     var settings = QuickTalkSettings()
-    settings.defaultReportFolder = "~/Documents/QuickTalkReport"
+    settings.defaultReportFolder = "~/Documents/QuickTalkWorkspace"
     XCTAssertEqual(SystemKnowledge.reportFolderPrompt(settings: settings, persona: nil), "")
   }
 
   func testReportFolderPromptIncludedForPersona() {
-    let persona = Persona(name: "다미", reportFolder: "~/Documents/QuickTalkReport")
+    let persona = Persona(name: "다미", reportFolder: "~/Documents/QuickTalkWorkspace")
     let text = SystemKnowledge.reportFolderPrompt(settings: QuickTalkSettings(), persona: persona)
-    XCTAssertTrue(text.contains("[리포트 폴더]"))
-    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkReport")))
+    XCTAssertTrue(text.contains("[작업 폴더]"))
+    XCTAssertTrue(text.contains(expanded("~/Documents/QuickTalkWorkspace")))
     // 먼저 저장을 권하지 않는다 — 사용자가 요청할 때만 쓴다.
     XCTAssertTrue(text.contains("먼저 저장을 제안하지 않는다"))
   }

@@ -84,18 +84,18 @@ public enum SystemKnowledge {
     return lines.joined(separator: "\n")
   }
 
-  /// 모델이 **실제로 쓸 수 있는** 리포트 폴더를 알려 주는 블록.
+  /// 모델이 **실제로 쓸 수 있는** 작업 폴더를 알려 주는 블록.
   /// v0.35부터 비서 폴더를 지정하지 않아도 **비서별 하위 폴더**를 쓴다(`PersonaReports`).
   public static func reportFolderText(settings: QuickTalkSettings,
                                       persona: Persona?) -> String {
     let p = persona?.normalized()
     // 비서 폴더에도 `~` 를 쓸 수 있다 — 모델에게는 **실제 경로**를 준다.
     let folder = PersonaReports.folder(settings: settings, persona: p)
-    var lines = ["[리포트 폴더]", "- 쓰기 가능한 경로: \(folder)"]
+    var lines = ["[작업 폴더]", "- 쓰기 가능한 경로: \(folder)"]
     if let p, !p.tools.write {
-      lines.append("- 이 비서는 파일 쓰기가 꺼져 있다. 리포트 파일을 만들지 말고 답변으로만 전달한다.")
+      lines.append("- 이 비서는 파일 쓰기가 꺼져 있다. 파일을 만들지 말고 답변으로만 전달한다.")
     } else {
-      lines.append("- 리포트 파일은 이 폴더 안에만 만든다. 다른 경로를 추측하지 않는다.")
+      lines.append("- 파일은 이 폴더 안에만 만든다. 다른 경로를 추측하지 않는다.")
       if p != nil {
         lines.append("- 이 폴더가 이 비서의 폴더다. 다른 비서의 폴더를 추측하지 않는다.")
       }

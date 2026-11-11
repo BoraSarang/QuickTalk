@@ -27,7 +27,7 @@ enum ReportWriteError: LocalizedError, Equatable {
     case .symlinkEscape(let path):
       return Lf("심볼릭 링크가 홈 폴더 밖을 가리킵니다: %@", path)
     case .createFailed(let path):
-      return Lf("리포트 폴더를 만들지 못했습니다: %@", path)
+      return Lf("작업 폴더를 만들지 못했습니다: %@", path)
     case .writeFailed(let reason):
       return Lf("리포트 파일을 쓰지 못했습니다: %@", reason)
     }
@@ -42,7 +42,7 @@ enum ReportWriter {
   /// 만들지는 않는다 — 검증과 생성 순서를 분리해 테스트한다.
   static func resolveFolder(_ raw: String) throws -> URL {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    let fallback = "~/Documents/Reports"
+    let fallback = WorkspaceFolder.defaultPath
     let expanded = (trimmed.isEmpty ? fallback : trimmed) as NSString
     let path = WriteScope.normalize(expanded.expandingTildeInPath)
 

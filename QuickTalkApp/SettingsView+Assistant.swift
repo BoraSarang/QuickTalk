@@ -189,10 +189,10 @@ struct AssistantSettingsSection: View {
       store.settings.personas.map { (Optional($0.id), $0.name) })
   }
 
-  // MARK: 리포트 폴더
+  // MARK: 작업 폴더
 
   private var reportCard: some View {
-    groupBox(L("리포트")) {
+    groupBox(L("작업 폴더")) {
       HStack(alignment: .center, spacing: 10) {
         Image(systemName: "folder")
           .foregroundColor(.secondary)
@@ -202,15 +202,15 @@ struct AssistantSettingsSection: View {
             .lineLimit(1)
             .truncationMode(.middle)
             .textSelection(.enabled)
-          Text(L("예약 작업의 Markdown 리포트가 저장되는 곳입니다."))
+          Text(L("도우미가 만든 파일과 예약 리포트가 저장되는 곳입니다."))
             .font(.caption).foregroundColor(.secondary)
         }
         Spacer()
         Button(L("변경…")) { chooseReportFolder() }
         Button(L("기본값")) {
-          store.settings.defaultReportFolder = "~/Documents/Reports"
+          store.settings.defaultReportFolder = WorkspaceFolder.defaultPath
         }
-        .disabled(store.settings.defaultReportFolder == "~/Documents/Reports")
+        .disabled(store.settings.defaultReportFolder == WorkspaceFolder.defaultPath)
       }
       caption(L("폴더가 없으면 실행할 때 만듭니다. 사용자 홈 폴더 밖은 허용하지 않습니다."))
     }
@@ -392,7 +392,7 @@ struct PersonaEditorSheet: View {
   let onCancel: () -> Void
 
   @State private var draft: Persona
-  /// 비서별 리포트 폴더 덮어쓰기 사용 여부.
+  /// 비서별 작업 폴더 덮어쓰기 사용 여부.
   @State private var useCustomFolder: Bool
 
   init(persona: Persona, isNew: Bool,
@@ -522,14 +522,14 @@ struct PersonaEditorSheet: View {
             toolToggle(L("파일 읽기"), L("파일·폴더·프로세스·화면을 읽습니다."), $draft.tools.read)
             toolToggle(L("웹 검색"), L("최신 소식을 확인합니다."), $draft.tools.web)
             toolToggle(L("셸"), L("명령을 실행합니다. 실행할 때마다 승인을 받습니다."), $draft.tools.shell)
-            toolToggle(L("파일 쓰기"), L("리포트 Markdown 파일을 저장합니다."), $draft.tools.write)
+            toolToggle(L("파일 쓰기"), L("작업 폴더에 파일을 만듭니다."), $draft.tools.write)
             toolToggle(L("앱 조작"), L("다른 앱의 화면 요소를 클릭·입력합니다."), $draft.tools.ui)
             caption(L("도구를 꺼도 실행 권한이 느슨해지지 않습니다. 승인 없는 실행은 없습니다."))
           }
 
           Divider()
 
-          Toggle(L("이 비서만 다른 리포트 폴더 사용"), isOn: $useCustomFolder)
+          Toggle(L("이 비서만 다른 작업 폴더 사용"), isOn: $useCustomFolder)
             .toggleStyle(.switch)
             .onChange(of: useCustomFolder) { _, on in
               if !on { draft.reportFolder = nil }

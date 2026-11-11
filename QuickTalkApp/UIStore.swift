@@ -567,6 +567,9 @@ final class UIStore: ObservableObject {
       }
       // 표시 정책: 메뉴바·Dock 둘 다 숨김 상태는 진입점이 없으므로 Dock을 켠다
       if s.normalizeVisibility() { changed = true }
+      // v0.36.1 — "리포트 폴더"는 실제로는 도우미의 작업 공간이었다.
+      // 앱이 만든 옛 이름(QuickTalkReport)만 새 기본 이름으로 **한 번** 옮긴다.
+      if WorkspaceFolder.migrate(settings: &s) { changed = true }
       settings = s
       if changed { saveSettings() }
     }
