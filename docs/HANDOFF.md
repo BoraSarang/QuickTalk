@@ -11,11 +11,22 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.3**(2026-11-11 23:10, `~/Applications/QuickTalk.app`, PID 71206) — 실행 계획 카드(`propose_plan`). v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.36.4**(2026-11-11 23:25, `~/Applications/QuickTalk.app`, PID 74134) — 작업 폴더 목적별 하위 폴더 규칙. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (23) — v0.36.4 **작업 폴더 파일은 목적별 하위 폴더에** — **PR #146 병합 · Debug 1.36.4 설치 · 실측 대기**
+
+- **계기(사용자)**: *"만약 workspace 에 파일을 작성하게 된다면.. 되도록 폴더를 만들어서(의미 있는 만들려는 파일명 과 같은 의미 있는 폴더명으로 만들어서) 작성하도록 유도해줘"*
+- **변경**: `SystemKnowledge.reportFolderText` 의 "하위 폴더로 정리해도 된다"(권장)를 **필수 규칙**으로 교체. `AgentInstructions.text` 에 "파일을 만들 때" 절 추가(shell 로 만드는 경우에도 같은 규칙).
+- **규칙**: 파일과 같은 뜻의 폴더를 먼저 만든다(`memtop/memtop.py`, `photo-organizer/sort-photos.py`) · 소문자·숫자·하이픈만 · `tmp`·`test`·`output`·`files`·`untitled` 금지 · 한 작업은 한 폴더 · 같은 목적의 폴더는 재사용 · 한 번 쓰는 짧은 `.md` 만 맨 위 허용.
+- **검증**: `swift test` **1001/1001**(6 skip, 신규 2 — 규칙 문구·예시·금지어) · Debug/Release **BUILD SUCCEEDED · 경고 0**.
+- **PR/병합**: **PR #146 → squash merge `ac2e56e`**.
+- **버전/설치**: 1.36.4(build 3604) · **2026-11-11 23:25 Debug 1.36.4** 교체·재실행(PID 74134, `QuickTalk.debug.dylib` SHA-256 `89275ed01b0a9363de14a872e308fcb8b00df0be7112731a330b41cb5caf2954`).
+- **한계**: 모델 지시문이라 준수 여부는 실기 확인 필요. Apple FM `compactText` 경로는 작업 폴더 경로가 없어 제외.
+- **실측 대기(이월)**: v0.36.2 run_test 재실행 범위 · v0.36.3 P1-1~P1-4(계획 카드). 23:15 [실행] 답변 머리 잘림 조사는 별도.
 
 ### 2026-11-11 인계 (22) — v0.36.3 **실행 계획 카드 `propose_plan`** — **PR #144 병합 · Debug 1.36.3 설치 · 실측 대기**
 
