@@ -162,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runSwitchPerfIfRequested() { return }
     // QA: `--switch-perf-live` — 실제 저장된 대화로 전환 비용 측정(레이아웃+그리기)
     if runSwitchPerfLiveIfRequested() { return }
+    // QA: `--qa-execute-routing` — [이대로 실행] 버튼의 표시 조건
+    if runQAExecuteRoutingIfRequested() { return }
     // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
     if runQAPasteRoutingIfRequested() { return }
     // QA: `--live-shot=<폴더>` — 실제 대화를 실제 크기로 그려 빈 화면 회귀를 재현

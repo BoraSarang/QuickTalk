@@ -39,7 +39,8 @@ public final class ConversationStore {
   public private(set) var conversation: Conversation
   public init(conversation: Conversation = Conversation()) { self.conversation = conversation }
   @discardableResult
-  public func submit(text: String, attachments: [Attachment] = []) throws -> Turn {
+  public func submit(text: String, attachments: [Attachment] = [],
+                     executesTurnID: UUID? = nil) throws -> Turn {
     let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if t.isEmpty && attachments.isEmpty { throw QuickTalkError.emptySubmission() }
     for a in attachments {
@@ -47,7 +48,7 @@ public final class ConversationStore {
     }
     let now = Date()
     let turn = Turn(role: .user, text: t, attachments: attachments, status: .submitting,
-                    createdAt: now)
+                    createdAt: now, executesTurnID: executesTurnID)
     conversation.turns.append(turn)
     conversation.updatedAt = now
     conversation.applyAutoTitle()
@@ -63,9 +64,9 @@ public final class ConversationStore {
   /// 스트리밍 응답용 빈 어시스턴트 턴 — 델타가 도착할 때마다 `appendStreaming`으로 채운다.
   /// 이때의 비서를 턴에 박아 둔다 — 도중에 비서를 바꿔도 답변 귀속이 흔들리지 않는다.
   @discardableResult
-  public func beginAssistantTurn() -> UUID {
+  public func beginAssistantTurn(executesTurnID: UUID? = nil) -> UUID {
     let turn = Turn(role: .assistant, text: "", createdAt: Date(),
-                    personaID: conversation.personaID)
+                    personaID: conversation.personaID, executesTurnID: executesTurnID)
     conversation.turns.append(turn)
     return turn.id
   }

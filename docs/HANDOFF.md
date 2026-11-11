@@ -11,10 +11,27 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.35.5**(2026-11-11, `~/Applications/QuickTalk.app`, PID 51066) — 사용자 요청대로 로컬 테스트는 Debug. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치) 모두 실측 통과. **v0.36 계획 수립** — `docs/plans/PLAN_v0.36_execution-agent_macos.md` (답변→실행 · 스킬·ego-browser 로드맵). 구현 전 결정 6개 확인 대기.
+> **현재 설치본은 Debug 1.35.5**(2026-11-11, `~/Applications/QuickTalk.app`, PID 51066) — 사용자 요청대로 로컬 테스트는 Debug. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치) 모두 실측 통과.
+> **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (19) — v0.36 P0 **답변 → 실행 `[▶ 실행]`** — **Debug 1.36.0 설치 · 실측 대기**
+
+- **계기(사용자)**: *"질문 답변도 좋지만 거의 이거 해줘. '이거 어떻게 하냐?'로 시작해서 '그거 해줘'로 끝나는 용도가 더 어울리네."*
+- **결정 6개(사용자 확정)**: ① [실행]은 **모든 답변**(실행 결과 턴만 제외) ② 기록은 **같은 대화 + 작업 카드** ③ 스킬 기본값 **전역 Off · 비서 On** ④ 브라우저는 **스킬+shell 먼저** ⑤ **예약 실행의 쓰기·전송 금지** ⑥ 용어는 **"스킬"**. `edit_file`·`search`·코딩 프로필은 **v0.36.2 후보**로만 기록(지금 만들지 않음).
+- **구현**:
+  - `Sources/QuickTalkCore/ExecutionPrompt.swift`(신규) — 말풍선은 짧은 문장(`이 답변대로 실행해 주세요.`), 모델에는 **실행 계약**. 계약은 번역표를 거치지 않고 앱 표시 언어가 영어면 **영어 계약**.
+  - `Turn.executesTurnID` + `isExecutionRequest`/`isExecutionResult` · `ConversationStore.submit(executesTurnID:)` · `beginAssistantTurn(executesTurnID:)` — **같은 대화**에 실행 출처가 남고 결과 답변에는 버튼을 다시 달지 않는다. 구버전 기록은 nil.
+  - `UIStore.send(allowCommands:executionOf:)` — 실행 턴은 **draft·첨부를 보존**하고 사전 웹 검색 판정을 건너뛴다. `shouldOfferExecute`/`executeAnswer`.
+  - `ContentView.answerFooter` — 보라색 **[▶ 실행]** 칩. 다른 액션(복사·읽어주기)과 달리 **호버와 무관하게** 보인다.
+  - `--qa-execute-routing`(헤드리스) + `SingleInstance` 예외 등록.
+- **안전**: **새 실행 경로를 만들지 않았다** — 기존 `AgentExecutor`·승인 카드·[중단]·되돌리기·샌드박스가 그대로 적용된다.
+- **검증**: `swift test` **972/972**(6 skip, 신규 8 `ExecutionPromptTests`) · Debug/Release **BUILD SUCCEEDED** · `--qa-execute-routing` **PASS**(`normal=1 hiddenResult=1 hiddenPersona=1`) · 번역 누락 2건 보충.
+- **버전/설치**: 1.36.0(build 3600) · `xcodegen generate` 뒤 `scripts/bump-version.sh 36 0` 로 복원 확인 · **2026-11-11 Debug 1.36.0** 교체·재실행(`~/Applications/QuickTalk.app`).
+- **실측 대기**: ① 일반 답변에 [▶ 실행]이 보인다 ② 눌러서 실제 실행·승인 카드·[중단]이 동작한다 ③ 실행 결과 답변에는 버튼이 없다 ④ 실행을 눌러도 입력창 draft·첨부가 남는다 ⑤ 도구를 끈 비서에서는 버튼이 없다.
+- **다음**: 실측 통과 → v0.36.1 P1 실행 계획 카드(`propose_plan`) · v0.37 스킬 · v0.38 ego-browser.
 
 ### 2026-11-11 인계 (18) — v0.35.5 **⌘Space pill 붙여넣기(⌘V) + 이미지·파일 첨부** — **Debug 설치 · 사용자 실측 확인**
 
