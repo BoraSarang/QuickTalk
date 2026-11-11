@@ -11,11 +11,21 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.6**(2026-11-11 23:42, `~/Applications/QuickTalk.app`, PID 77339) — 계획을 조사보다 먼저. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.36.7**(2026-11-11 23:55, `~/Applications/QuickTalk.app`, PID 79718) — 사고 중 자동 스크롤 떨림 수정. v0.35.3~v0.35.5·v0.36 P0~P1 상태는 아래 인계 참조.
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-11 인계 (26) — v0.36.7 **사고 중 자동 스크롤 떨림** — **PR #152 병합 · Debug 1.36.7 설치 · 실측 대기**
+
+- **증상(사용자)**: *"응답시, 생각중시에... 스크롤 잘 되.. 너무 잘 되서 응답 중... 이 부분이 계쏙 떨린다 ㅋㅋㅋ"*
+- **원인**: `liveReasoning` 은 글자마다 늘어나는데 `agentFollowToken` 이 글자 수를 그대로 담아 **델타마다** `followBottom → pinBottom → layoutSubtreeIfNeeded + scroll` 을 실행. 화면 높이가 그대로여도 1px 단위로 다시 붙어 하단 대기 말풍선이 떨렸다.
+- **수정**: `followBottom` 에 **80ms 최소 간격** + trailing 핀(마지막 변화 보정, 사용자가 위로 올렸으면 취소). `agentFollowToken` 의 사고 글자 수를 **24자 묶음**으로 양자화.
+- **검증**: `swift test` **1004/1004**(6 skip) · Debug/Release **BUILD SUCCEEDED · 경고 0**. 시간축 현상이라 정지 렌더로 재현 불가 — 사용자 실기 확인 필요.
+- **PR/병합**: **PR #152 → squash merge `caa66b2`**.
+- **버전/설치**: 1.36.7(build 3607) · **2026-11-11 23:55 Debug 1.36.7** 교체·재실행(PID 79718, `QuickTalk.debug.dylib` SHA-256 `f040a16b6f76c57fe47d217b9f4d61aaffc1cdc27843815dbe71b0190ecd1666`).
+- **실측 대기**: 사고 과정 중 "응답 중…" 말풍선이 더 이상 떨리지 않는지. 위로 스크롤하면 자동 따라가기가 멈추는지.
 
 ### 2026-11-11 인계 (25) — v0.36.6 **계획을 조사보다 먼저** — **PR #150 병합 · Debug 1.36.6 설치 · 실기 PASS**
 
