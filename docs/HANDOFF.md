@@ -11,7 +11,7 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.35.5**(2026-11-11, `~/Applications/QuickTalk.app`, PID 51066) — 사용자 요청대로 로컬 테스트는 Debug. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치) 모두 실측 통과. **다음 후보는 v0.36** — 실사용 피드백에서 선정.
+> **현재 설치본은 Debug 1.35.5**(2026-11-11, `~/Applications/QuickTalk.app`, PID 51066) — 사용자 요청대로 로컬 테스트는 Debug. v0.35.3(긴 대화 빈 화면)·v0.35.4(목차 위치) 모두 실측 통과. **v0.36 계획 수립** — `docs/plans/PLAN_v0.36_execution-agent_macos.md` (답변→실행 · 스킬·ego-browser 로드맵). 구현 전 결정 6개 확인 대기.
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
