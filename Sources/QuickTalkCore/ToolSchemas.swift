@@ -108,11 +108,13 @@ public enum AgentToolCatalog {
   public static let proposePlan = AgentTool(
     name: PlanTool.name,
     description: """
-      Propose an execution plan for a task that takes **three or more steps** and changes files or \
-      runs several commands. Call this BEFORE doing the work, then stop: the app shows a plan card \
-      and the user decides whether to run it. Do not use it for questions, explanations, or a single \
-      command. Steps must be 3–8 one-line actions in the user's language. Never include steps that \
-      are already done.
+      Propose an execution plan for a task that takes **three or more steps**: creating or changing \
+      files, or running several commands and checking the results. Call this as the **first tool \
+      call in the turn, before any exploration**, then stop: the app shows a plan card and the user \
+      decides whether to run it. If the target must be checked, make that step 1 of the plan. Do not \
+      use it for questions, explanations, or a single command. If there is nothing to do, answer \
+      without a plan. Steps must be 3–8 one-line actions in the user's language. Never include steps \
+      that are already done.
       """,
     parameters: [
       "type": "object",
@@ -461,9 +463,14 @@ public enum AgentInstructions {
     - 사용자가 직접 명령을 주고 싶어 하면(예: "이 명령 실행해줘") 그대로 실행한다.
 
     계획을 세울 때
-    - 파일을 만들고 실행·검증하는 등 **3단계 이상** 걸리는 작업은 시작 전에 `propose_plan` 으로
-      목표·단계·권한을 제시하고 **멈춘다.** 사용자가 [실행]을 누르면 그때 진행한다.
-    - 질문에 답하거나 명령 하나를 실행하는 경우에는 계획을 만들지 않는다.
+    - **파일을 만들거나 고치고, 여러 명령을 차례로 실행해 결과까지 확인해야 하는 요청**은
+      **3단계 이상**으로 보고, 시작 전에 `propose_plan` 을 **그 턴의 첫 도구 호출**로 제시한 뒤 **멈춘다.**
+      사용자가 [실행]을 누르면 그때 진행한다.
+    - 먼저 혼자 조사·확인하고 나서 계획을 만들지 않는다. 대상 확인이 필요하면 **1단계에 "대상 확인"을 넣는다.**
+      예: "사진 폴더 날짜별로 정리해 줘" → ① 정리 대상 확인 ② 날짜별 폴더로 이동 ③ 결과 확인
+      예: "스크립트 만들어 실행해 줘" → ① 스크립트 작성 ② 실행 ③ 결과 확인
+    - 질문·설명·명령 하나(예: "지금 메모리 얼마야", "이 명령 실행해 줘")에는 계획을 만들지 않는다.
+    - 확인해 보니 할 일이 없으면 계획 없이 이유만 답한다.
     - 단계는 3~8개, 각 단계는 한 줄. 이미 끝난 일은 단계에 넣지 않는다.
 
     명령을 실행할 때

@@ -651,6 +651,20 @@ final class AgentTests: XCTestCase {
     XCTAssertTrue(compact.contains("답을 바꾸지 않으면"))
   }
 
+  /// 계획 카드(v0.36.3)가 실기에서 안 뜨던 문제 — 모델이 조사부터 하고 계획을 건너뛰었다.
+  /// 지시문은 **첫 도구 호출**과 **대상 확인을 1단계에** 넣는 것을 분명히 말한다.
+  func testInstructionsRequirePlanBeforeMultiStepWork() {
+    let text = AgentInstructions.text
+    XCTAssertTrue(text.contains("첫 도구 호출"), "계획은 조사보다 먼저다")
+    XCTAssertTrue(text.contains("1단계에 \"대상 확인\""))
+    XCTAssertTrue(text.contains("할 일이 없으면 계획 없이"))
+    XCTAssertTrue(text.contains("명령 하나"), "단일 명령에는 계획을 만들지 않는다")
+    // 도구 설명도 같은 규칙을 말한다 — 모델은 도구 목록 설명도 읽는다.
+    let desc = AgentToolCatalog.proposePlan.description
+    XCTAssertTrue(desc.contains("first tool"), desc)
+    XCTAssertTrue(desc.contains("three or more steps"), desc)
+  }
+
   /// 앱은 **명령어 사전을 갖지 않는다**(v0.18 설계 원칙). 지시문에 명령 이름을 나열하면
   /// 그 이름이 곧 허용 신호가 되어, 그 도구가 설치된 사람에게만 다르게 동작한다.
   func testInstructionsDoNotEnumerateCommands() {
