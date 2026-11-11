@@ -18,11 +18,14 @@ final class ExecutionPromptTests: XCTestCase {
     let before = L10n.language
     defer { L10n.language = before }
     L10n.language = .korean
-    let c = ExecutionPrompt.contract
+    let c = ExecutionPrompt.contract()
     XCTAssertTrue(c.contains("실행"))
-    XCTAssertTrue(c.contains("3~6"))
+    XCTAssertTrue(c.contains("아직 실행하지 않은"), "이미 한 일을 반복하지 않는 규칙이 필요하다")
+    XCTAssertTrue(c.contains("반복하지 말고"))
+    XCTAssertTrue(c.contains("새로 만들거나 고치지 말고"))
+    XCTAssertTrue(c.contains("하나면 단계 목록 없이"), "단일 명령에는 계획을 강요하지 않는다")
     XCTAssertTrue(c.contains("실행할 수 없으면"), "불가능한 답변에서 멈추는 규칙이 필요하다")
-    XCTAssertLessThan(c.count, 600)
+    XCTAssertLessThan(c.count, 900)
   }
 
   /// 영어 UI에서는 영어 계약 — 한국어 지시문이 섞이지 않는다.
@@ -30,12 +33,65 @@ final class ExecutionPromptTests: XCTestCase {
     let before = L10n.language
     defer { L10n.language = before }
     L10n.language = .english
-    let c = ExecutionPrompt.contract
-    XCTAssertTrue(c.contains("carry out"))
+    let c = ExecutionPrompt.contract()
+    XCTAssertTrue(c.contains("Run only"))
     XCTAssertFalse(c.contains("실행"))
-    XCTAssertLessThan(c.count, 700)
+    XCTAssertLessThan(c.count, 1000)
     L10n.language = .korean
-    XCTAssertTrue(ExecutionPrompt.contract.contains("실행"))
+    XCTAssertTrue(ExecutionPrompt.contract().contains("실행"))
+  }
+
+  // MARK: - v0.36.2 이미 실행한 것 주입
+
+  private func event(_ command: String, _ state: AgentEvent.State = .done) -> AgentEvent {
+    AgentEvent(id: UUID().uuidString, toolName: "shell", title: command,
+               command: command, level: .read, risk: .normal,
+               state: state, output: "ok")
+  }
+
+  func testAlreadyRunBlockListsCommandsAndStates() {
+    let before = L10n.language
+    defer { L10n.language = before }
+    L10n.language = .korean
+    let block = ExecutionPrompt.alreadyRunBlock([
+      event("ls -l ~/Documents/QuickTalkWorkspace"),
+      event("python3 memtop.py -n 10"),
+      event("rm memtop.py", .denied)
+    ])
+    let text = try! XCTUnwrap(block)
+    XCTAssertTrue(text.contains("이미 실행한 것"))
+    XCTAssertTrue(text.contains("python3 memtop.py -n 10"))
+    XCTAssertTrue(text.contains("완료"))
+    XCTAssertTrue(text.contains("거부"))
+    XCTAssertFalse(text.contains("rm memtop.py → 완료"))
+  }
+
+  func testAlreadyRunBlockIsAbsentWhenNoEvents() {
+    XCTAssertNil(ExecutionPrompt.alreadyRunBlock(nil))
+    XCTAssertNil(ExecutionPrompt.alreadyRunBlock([]))
+    XCTAssertEqual(ExecutionPrompt.contract(alreadyRun: []), ExecutionPrompt.contract())
+  }
+
+  /// 기록이 길어도 프롬프트를 잡아먹지 않는다 — 최근 8개, 명령 100자.
+  func testAlreadyRunBlockIsCapped() throws {
+    let events = (1...30).map { event("command-\($0)-" + String(repeating: "x", count: 150)) }
+    let block = try XCTUnwrap(ExecutionPrompt.alreadyRunBlock(events))
+    let lines = block.split(separator: "\n").dropFirst()   // 헤더 제외
+    XCTAssertEqual(lines.count, 8)
+    XCTAssertTrue(block.contains("command-30-"), "최근 것을 남긴다")
+    XCTAssertFalse(block.contains("command-1-"), "오래된 것은 자른다")
+    for line in lines {
+      XCTAssertLessThanOrEqual(line.count, 130, "명령은 100자에서 자른다")
+    }
+  }
+
+  func testAlreadyRunBlockFollowsLanguage() {
+    let before = L10n.language
+    defer { L10n.language = before }
+    L10n.language = .english
+    let block = ExecutionPrompt.alreadyRunBlock([event("pwd")])
+    XCTAssertEqual(block?.contains("Already run"), true)
+    XCTAssertFalse(block?.contains("이미 실행한") == true)
   }
 
   func testSubmitRecordsExecutionSource() throws {
