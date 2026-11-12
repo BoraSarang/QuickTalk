@@ -3039,4 +3039,216 @@ extension AppDelegate {
     }
     return true
   }
+
+  // MARK: - 원격 승인 QA (v0.39)
+
+  /// `--qa-remote-approval` — Fake transport 로 전송·chat 제한·nonce 1회용·
+  /// 만료·Mac 처리·토큰 마스킹을 확인한다. **네트워크를 쓰지 않는다.**
+  func runQARemoteApprovalIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-remote-approval") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    Task { @MainActor in
+      let qaToken = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg"
+      let qaChatID = "123456789"
+      var settings = QuickTalkSettings()
+      let token: String? = qaToken
+      var clock = Date(timeIntervalSince1970: 1_700_000_000)
+      let transport = QATelegramTransport()
+      let service = RemoteApprovalService(
+        settingsProvider: { settings },
+        tokenProvider: { token },
+        transport: transport,
+        now: { clock },
+        autoPolling: false)
+      var decisions: [RemoteApprovalAction] = []
+      service.onDecision = { decisions.append($0) }
+      var checks: [(String, Bool)] = []
+
+      // ① 꺼짐 → 전송 없음
+      await service.offer(qaRemoteApproval(command: "mkdir -p ~/Documents/qa"))
+      checks.append(("꺼짐 — 전송 없음", transport.sent.isEmpty))
+
+      // ② 켜짐 + 잘못된 chat ID → 전송 없음
+      settings.remoteApprovalEnabled = true
+      settings.remoteApprovalChatID = "not-a-chat"
+      await service.offer(qaRemoteApproval(command: "mkdir -p ~/Documents/qa"))
+      checks.append(("잘못된 chat ID — 전송 없음", transport.sent.isEmpty))
+      checks.append(("설정 이유", service.config.inactivityReason != nil))
+
+      // ③ 정상 전송 — 본문·버튼
+      settings.remoteApprovalChatID = qaChatID
+      await service.offer(qaRemoteApproval(command: "mkdir -p ~/Documents/qa"))
+      let first = transport.sent.last
+      checks.append(("정상 전송 1회", transport.sent.count == 1))
+      checks.append(("본문 — 명령", first?.text.contains("mkdir -p ~/Documents/qa") == true))
+      checks.append(("본문 — 이유", first?.text.contains("작업 폴더 밖에") == true))
+      checks.append(("버튼 2개", first?.buttons.count == 2))
+      checks.append(("callback 64바이트 이하", first?.buttons.allSatisfy { $0.isValid } == true))
+      checks.append(("pending 1개", service.pending != nil))
+      let allowData = first?.buttons.first?.callbackData ?? ""
+
+      // ④ 다른 chat callback → 무시 + 거부 응답
+      let beforeWrongChat = decisions.count
+      await service.handleCallbackForQA(qaCallback(chatID: "999999", data: allowData))
+      checks.append(("다른 chat 무시", decisions.count == beforeWrongChat))
+      checks.append(("다른 chat 응답", transport.answers.last?.text == L("허용되지 않은 요청입니다.")))
+      checks.append(("다른 chat 뒤 pending 유지", service.pending != nil))
+
+      // ⑤ 올바른 allow → .allow 1회 + 메시지 편집
+      await service.handleCallbackForQA(qaCallback(chatID: qaChatID, data: allowData))
+      checks.append(("allow 1회", decisions == [.allow]))
+      checks.append(("allow 메시지", transport.edits.last?.text == L("✅ 허용됨 (원격)")))
+      checks.append(("allow 뒤 pending 없음", service.pending == nil))
+
+      // ⑥ 올바른 deny → .deny
+      await service.offer(qaRemoteApproval(command: "rm -rf ~/Documents/qa/tmp"))
+      let denyData = transport.sent.last?.buttons.last?.callbackData ?? ""
+      await service.handleCallbackForQA(qaCallback(chatID: qaChatID, data: denyData))
+      checks.append(("deny 1회", decisions.last == .deny))
+      checks.append(("deny 메시지", transport.edits.last?.text == L("❌ 거부됨 (원격)")))
+
+      // ⑦ 같은 nonce 재사용 → 결정 없음
+      let afterDeny = decisions.count
+      await service.handleCallbackForQA(qaCallback(chatID: qaChatID, data: allowData))
+      checks.append(("nonce 재사용 무시", decisions.count == afterDeny))
+
+      // ⑧ 만료 — 10분 뒤 callback 은 결정하지 않고 ⌛ 로 닫는다.
+      await service.offer(qaRemoteApproval(command: "mkdir -p ~/Documents/qa/late"))
+      let expiredData = transport.sent.last?.buttons.first?.callbackData ?? ""
+      clock = clock.addingTimeInterval(RemoteApprovalTicket.lifetime + 1)
+      let beforeExpired = decisions.count
+      await service.handleCallbackForQA(qaCallback(chatID: qaChatID, data: expiredData))
+      checks.append(("만료 무시", decisions.count == beforeExpired))
+      checks.append(("만료 메시지", transport.edits.last?.text == L("⌛ 시간 초과 — 자동 거부")))
+      checks.append(("만료 뒤 pending 없음", service.pending == nil))
+
+      // ⑨ Mac 에서 먼저 처리 → 메시지 🖥 + 원격 callback 무시
+      await service.offer(qaRemoteApproval(command: "mkdir -p ~/Documents/qa/mac"))
+      let localData = transport.sent.last?.buttons.first?.callbackData ?? ""
+      service.localResolution(.allowOnce)
+      try? await Task.sleep(nanoseconds: 60_000_000)
+      checks.append(("Mac 처리 메시지", transport.edits.last?.text == L("🖥 Mac에서 허용됨")))
+      let beforeLocal = decisions.count
+      await service.handleCallbackForQA(qaCallback(chatID: qaChatID, data: localData))
+      checks.append(("Mac 처리 뒤 원격 무시", decisions.count == beforeLocal))
+
+      // ⑩ 토큰 마스킹 — 명령에 봇 토큰이 섞여도 메시지에 원문이 없어야 한다.
+      await service.offer(qaRemoteApproval(command: "echo \(qaToken)"))
+      let masked = transport.sent.last?.text ?? ""
+      checks.append(("토큰 마스킹", !masked.contains(qaToken) && masked.contains("***")))
+
+      // ⑪ 연결 테스트 — 꺼져 있어도 토큰·chat 이 맞으면 getMe + 테스트 메시지 1회.
+      settings.remoteApprovalEnabled = false
+      let beforeTest = transport.sent.count
+      let testResult = await service.testConnection()
+      var testOK = false
+      if case .success(let name) = testResult { testOK = name == "@qt_qa_bot" }
+      checks.append(("연결 테스트", testOK))
+      checks.append(("연결 테스트 메시지", transport.sent.count == beforeTest + 1))
+
+      // ⑫ 새 요청이 이전 pending 을 대체
+      settings.remoteApprovalEnabled = true
+      await service.offer(qaRemoteApproval(command: "echo first", title: "첫 작업"))
+      await service.offer(qaRemoteApproval(command: "echo second", title: "둘째 작업"))
+      try? await Task.sleep(nanoseconds: 60_000_000)
+      checks.append(("새 요청이 이전 대체",
+                     transport.edits.last?.text == L("새 승인 요청으로 대체되었습니다.")))
+      checks.append(("pending 하나 유지", service.pending != nil))
+      checks.append(("요청 본문은 최신", transport.sent.last?.text.contains("둘째 작업") == true))
+
+      service.stop()
+      checks.append(("stop 뒤 pending 없음", service.pending == nil))
+      checks.append(("stop 뒤 polling 꺼짐", !service.isPolling))
+
+      let failed = checks.filter { !$0.1 }
+      for (name, ok) in checks {
+        NSLog("[QA-REMOTE-APPROVAL] %@=%@", name, ok ? "1" : "0")
+      }
+      NSLog("[QA-REMOTE-APPROVAL] checks=%d failed=%d — 기대: 0", checks.count, failed.count)
+      NSLog("[QA-REMOTE-APPROVAL] result=%@", failed.isEmpty ? "PASS" : "FAIL")
+      NSApp.terminate(nil)
+    }
+    return true
+  }
+
+  private func qaRemoteApproval(command: String,
+                                title: String = "이사 업체 비교") -> ScheduledApproval {
+    let request = AgentApprovalRequest(
+      command: command,
+      level: .write,
+      risk: .normal,
+      capability: .write(path: "~/Documents/qa"),
+      writablePaths: ["~/Documents/qa"],
+      reason: "작업 폴더 밖에 폴더를 만듭니다.",
+      allowsAlwaysAllow: true)
+    return ScheduledApproval(kind: .job,
+                             displayTitle: title,
+                             taskID: UUID(),
+                             conversationID: UUID(),
+                             turnID: UUID(),
+                             personaName: "QA 비서",
+                             request: request)
+  }
+
+  private func qaCallback(chatID: String, data: String) -> TelegramCallbackQuery {
+    TelegramCallbackQuery(
+      id: "qa-\(UUID().uuidString.prefix(8))",
+      from: TelegramUser(id: 42, isBot: false, firstName: "QA"),
+      message: TelegramMessage(messageID: 101,
+                               chat: TelegramChat(id: Int64(chatID) ?? 0, type: "private"),
+                               text: ""),
+      data: data)
+  }
+}
+
+/// QA 전용 Telegram transport — 네트워크 없이 전송·편집·응답을 기록한다.
+private final class QATelegramTransport: TelegramTransport {
+  struct Sent {
+    let chatID: String
+    let text: String
+    let buttons: [TelegramButton]
+  }
+
+  struct Edit {
+    let chatID: String
+    let messageID: Int64
+    let text: String
+  }
+
+  struct Answer {
+    let callbackID: String
+    let text: String
+  }
+
+  private(set) var sent: [Sent] = []
+  private(set) var edits: [Edit] = []
+  private(set) var answers: [Answer] = []
+  private var nextMessageID: Int64 = 100
+
+  func getMe(token: String) async throws -> TelegramBotInfo {
+    TelegramBotInfo(id: 1, isBot: true, firstName: "QA", username: "qt_qa_bot")
+  }
+
+  func sendMessage(token: String, chatID: String, text: String,
+                   buttons: [TelegramButton]) async throws -> TelegramMessage {
+    sent.append(Sent(chatID: chatID, text: text, buttons: buttons))
+    nextMessageID += 1
+    return TelegramMessage(messageID: nextMessageID,
+                           chat: TelegramChat(id: Int64(chatID) ?? 0, type: "private"),
+                           text: text)
+  }
+
+  func editMessageText(token: String, chatID: String, messageID: Int64,
+                       text: String) async throws {
+    edits.append(Edit(chatID: chatID, messageID: messageID, text: text))
+  }
+
+  func answerCallbackQuery(token: String, callbackID: String, text: String) async throws {
+    answers.append(Answer(callbackID: callbackID, text: text))
+  }
+
+  func getUpdates(token: String, offset: Int64?, timeout: Int) async throws -> [TelegramUpdate] {
+    []
+  }
 }

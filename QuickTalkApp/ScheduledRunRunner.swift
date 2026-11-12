@@ -43,6 +43,8 @@ final class ScheduledRunRunner {
     store.scheduledRun = context
     store.scheduledRunPersonaID = persona?.id
     defer {
+      // 남은 원격 승인 메시지가 있으면 취소로 닫는다 — 실행이 끝난 뒤 누르는 오탭 방지.
+      store.remoteApproval?.cancelPending()
       store.scheduledRun = nil
       store.scheduledRunPersonaID = nil
       store.scheduledApproval = nil

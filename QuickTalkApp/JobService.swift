@@ -191,6 +191,8 @@ final class JobService {
 
   private func finishActive(_ jobID: UUID) {
     guard activeJobID == jobID else { return }
+    // 실행이 끝났는데 승인 메시지가 남아 있으면 취소로 닫는다(v0.39).
+    store.remoteApproval?.cancelPending()
     activeJobID = nil
     runnerTask = nil
     onJobsChanged?()

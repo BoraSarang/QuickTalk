@@ -230,6 +230,11 @@ public struct QuickTalkSettings: Codable, Equatable {
   /// 모델이 브라우저 도구를 쓸 때 보이는 창을 자동으로 띄울지(v0.38.3). 기본 **켜짐**.
   /// 창은 `orderFrontRegardless` 로 띄워 앱 활성화·키보드 포커스를 빼앗지 않는다.
   public var browserShowWindowAutomatically: Bool = true
+  /// Telegram 원격 승인(v0.39) — 예약·맡긴 작업이 승인을 기다릴 때 버튼으로 응답한다.
+  /// 기본 **꺼짐**. 봇 토큰은 설정 파일이 아니라 `SecretStore` 에 저장한다.
+  public var remoteApprovalEnabled: Bool = false
+  /// 승인 메시지를 주고받을 Telegram chat ID — 이 하나만 처리한다. 비어 있으면 동작하지 않는다.
+  public var remoteApprovalChatID: String = ""
   /// 권한 정책 — 단계별 자동 처리·허한 규칙·제한.
   public var agentPolicy: AgentPolicy = AgentPolicy()
   /// 도구 실행 카드에서 **실제 명령·출력**을 보여줄지(기본 켜짐). 끄면 한 줄 요약만 남는다.
@@ -390,6 +395,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
     case agentToolsEnabled, agentPolicy, agentShowExecution, reasoningDisplay, uiControlEnabled
     case browserEnabled, browserProfileID, browserShowWindowAutomatically
+    case remoteApprovalEnabled, remoteApprovalChatID
     case skillsEnabled
     case disabledSkillIDs
     case agentStreamOutput, agentTimeoutSeconds
@@ -482,6 +488,11 @@ public struct QuickTalkSettings: Codable, Equatable {
     // v0.38.3 — 보이는 창은 새 기능이지만, 브라우저를 켠 사용자는 기본으로 보는 편이 낫다.
     browserShowWindowAutomatically = try c.decodeIfPresent(
       Bool.self, forKey: .browserShowWindowAutomatically) ?? true
+    // v0.39 — 원격 승인은 새 기능이라 구버전 설정에서는 **꺼짐**으로 시작한다.
+    remoteApprovalEnabled = try c.decodeIfPresent(
+      Bool.self, forKey: .remoteApprovalEnabled) ?? false
+    remoteApprovalChatID = try c.decodeIfPresent(
+      String.self, forKey: .remoteApprovalChatID) ?? ""
     agentShowExecution = try c.decodeIfPresent(Bool.self, forKey: .agentShowExecution) ?? true
     reasoningDisplay = Self.decodeEnum(ReasoningDisplayMode.self, c, .reasoningDisplay,
                                        default: .collapseWhenDone)
@@ -595,6 +606,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(browserEnabled, forKey: .browserEnabled)
     try c.encode(browserProfileID, forKey: .browserProfileID)
     try c.encode(browserShowWindowAutomatically, forKey: .browserShowWindowAutomatically)
+    try c.encode(remoteApprovalEnabled, forKey: .remoteApprovalEnabled)
+    try c.encode(remoteApprovalChatID, forKey: .remoteApprovalChatID)
     try c.encode(agentShowExecution, forKey: .agentShowExecution)
     try c.encode(reasoningDisplay, forKey: .reasoningDisplay)
     try c.encode(agentStreamOutput, forKey: .agentStreamOutput)

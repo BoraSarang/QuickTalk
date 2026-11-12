@@ -103,6 +103,9 @@
 		9E37D52B4BB4467F48E1C8D8 /* UndoStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6269B30CB5BB47B58A08AF /* UndoStack.swift */; };
 		A3380C6156FE5D79FE4AB56D /* BrowserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A26EA450CA8E3DEA9E4D23B /* BrowserService.swift */; };
 		B8F3C2A14D5E6F708192A3B5 /* BrowserWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F3C2A14D5E6F708192A3B4 /* BrowserWindow.swift */; };
+		C4A1B2C34D5E6F708192A3B7 /* RemoteApproval.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A1B2C34D5E6F708192A3B6 /* RemoteApproval.swift */; };
+		C4A1B2C34D5E6F708192A3B9 /* TelegramClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A1B2C34D5E6F708192A3B8 /* TelegramClient.swift */; };
+		C4A1B2C34D5E6F708192A3BB /* RemoteApprovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A1B2C34D5E6F708192A3BA /* RemoteApprovalService.swift */; };
 		A4C52DEDF313B0B67FACAE78 /* SettingsView+WebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA84ABEFD1876BF8ED75C710 /* SettingsView+WebSearch.swift */; };
 		A51415A7E3C7087EA16BDF47 /* ExecutionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */; };
 		A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */; };
@@ -184,6 +187,9 @@
 		0976E9528F4EF08DCFD398DB /* JobPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobPrompt.swift; sourceTree = "<group>"; };
 		0A26EA450CA8E3DEA9E4D23B /* BrowserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserService.swift; sourceTree = "<group>"; };
 		B8F3C2A14D5E6F708192A3B4 /* BrowserWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWindow.swift; sourceTree = "<group>"; };
+		C4A1B2C34D5E6F708192A3B6 /* RemoteApproval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteApproval.swift; sourceTree = "<group>"; };
+		C4A1B2C34D5E6F708192A3B8 /* TelegramClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelegramClient.swift; sourceTree = "<group>"; };
+		C4A1B2C34D5E6F708192A3BA /* RemoteApprovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteApprovalService.swift; sourceTree = "<group>"; };
 		0B3BA0ADF75FC7F4E2B4013D /* Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clipboard.swift; sourceTree = "<group>"; };
 		0B95A27F8FC443FF13FEC21C /* ScrollMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollMetrics.swift; sourceTree = "<group>"; };
 		0F91AE3B84BDE1E9B2CE0F90 /* ExaContents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExaContents.swift; sourceTree = "<group>"; };
@@ -372,6 +378,8 @@
 				D8152F28D892DECF7BC0DC46 /* AXAccess.swift */,
 				0A26EA450CA8E3DEA9E4D23B /* BrowserService.swift */,
 				B8F3C2A14D5E6F708192A3B4 /* BrowserWindow.swift */,
+				C4A1B2C34D5E6F708192A3BA /* RemoteApprovalService.swift */,
+				C4A1B2C34D5E6F708192A3B8 /* TelegramClient.swift */,
 				77FD8D1869EDCE96703FD11E /* CaptureOverlay.swift */,
 				DF65943E24398BA1601E016F /* CaptureService.swift */,
 				7F68FFC1BB0BE6E9BDD9D620 /* ChatInputField.swift */,
@@ -507,6 +515,7 @@
 				02D71ACB493AA7E5B659FB8F /* ProviderFallback.swift */,
 				9F0715989F821DC697284795 /* ProviderResolver.swift */,
 				EAC5CFD3D31AC29CE111FEDB /* ReportDocument.swift */,
+				C4A1B2C34D5E6F708192A3B6 /* RemoteApproval.swift */,
 				9635760D97508C2A50A0618D /* RiskClassifier.swift */,
 				CF440F448282A93D1CFE776C /* SandboxRunner.swift */,
 				F8DA628BB654E3E67B9506CF /* ScheduleChangeProposal.swift */,
@@ -658,6 +667,9 @@
 				873A88C07F54637C44F1193E /* BrowserPolicy.swift in Sources */,
 				A3380C6156FE5D79FE4AB56D /* BrowserService.swift in Sources */,
 				B8F3C2A14D5E6F708192A3B5 /* BrowserWindow.swift in Sources */,
+				C4A1B2C34D5E6F708192A3B7 /* RemoteApproval.swift in Sources */,
+				C4A1B2C34D5E6F708192A3B9 /* TelegramClient.swift in Sources */,
+				C4A1B2C34D5E6F708192A3BB /* RemoteApprovalService.swift in Sources */,
 				FC3D2CE8241F8519221D6F27 /* BrowserSnapshot.swift in Sources */,
 				AAC06A1C79D4F60FBEE76A2F /* BrowserTools.swift in Sources */,
 				DE125E6E50255538D9BAB7F3 /* CaptureGeometry.swift in Sources */,

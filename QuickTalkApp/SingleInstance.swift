@@ -40,6 +40,7 @@ enum SingleInstance {
       "--qa-plan-routing", "--qa-skills-routing", "--qa-job-routing",
       "--qa-artifact-routing",
       "--qa-browser-routing", "--qa-browser-live", "--qa-browser-window",
+      "--qa-remote-approval",
       "--live-shot=", "--live-shot-all=",
     ]
     return CommandLine.arguments.contains { arg in
