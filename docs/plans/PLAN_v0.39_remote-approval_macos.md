@@ -201,5 +201,6 @@ Fake transport로 실제 서비스 경로를 확인한다(네트워크 없음).
 ## 11. 결과 (2026-11-13)
 
 - **검증**: `swift test` **1119/1119**(6 skip, `RemoteApprovalTests` 27) · 번역 키 51개 · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-remote-approval` **PASS 31/31** · job/plan/execute/artifact(18/18)/browser-routing(23/23)/browser-live(14/14)/browser-window(24/24)/skills/paste PASS.
+- **PR**: **#171 → squash merge `ef7fd91`**.
 - **설치**: 1.39.0(build 3900) · Debug 번들 `~/Applications/QuickTalk.app` 교체·재실행 · `codesign --verify --strict --deep` OK · 백업 번들 없음.
 - **실측 대기**: 실제 BotFather 토큰 저장 → chat ID 연결 테스트 → 예약·Job 승인 시 Telegram 카드 수신 → [✅ 허용]/[❌ 거부] 1회 동작 → 10분 만료 → Mac 처리 시 🖥 표시.
