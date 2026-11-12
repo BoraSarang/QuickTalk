@@ -1,6 +1,6 @@
 # PLAN v0.38.3 — 격리 브라우저 보이는 창 · 주소창 (macOS)
 
-> 상태: **착수** · 2026-11-13 · 크기: **M**
+> 상태: **완료 (2026-11-13)** · 크기: **M**
 > 앞 문서: `PLAN_v0.38.1_browser_macos.md` (격리 브라우저) · `PLAN_v0.38.2_artifacts_macos.md` (산출물 카드)
 > 원칙: **새 브라우저 엔진을 만들지 않는다.** v0.38.1의 `BrowserService`·URL 정책·승인·감사·출처 카드를 그대로 쓰고, 창과 크롬만 더한다.
 
@@ -209,12 +209,23 @@ public var browserShowWindowAutomatically: Bool = true
 
 ## 13. 완료 조건
 
-- [ ] 계획 문서·TODO·DESIGN 갱신
-- [ ] `browserShowWindowAutomatically` 설정·번역
-- [ ] 보이는 창·주소창·뒤로/앞으로/새로고침·격리 배지·활동 표시
-- [ ] 설정 버튼·메뉴바 Hub 진입점
-- [ ] `swift test` 전부 통과(BrowserTests 설정 3건 추가)
-- [ ] `--qa-browser-window` PASS + 기존 QA 회귀 PASS
-- [ ] Debug/Release clean 빌드 경고 0
-- [ ] 1.38.3(3803) 버전 범프 · Debug 설치 · HANDOFF/CHANGELOG 갱신
-- [ ] 브랜치 → PR → squash merge
+- [x] 계획 문서·TODO·DESIGN 갱신
+- [x] `browserShowWindowAutomatically` 설정·번역
+- [x] 보이는 창·주소창·뒤로/앞으로/새로고침·격리 배지·활동 표시
+- [x] 설정 버튼·메뉴바 Hub 진입점
+- [x] `swift test` 전부 통과(1092/1092 · BrowserTests 설정 3건 갱신)
+- [x] `--qa-browser-window` **PASS 24/24** + 기존 QA 회귀 PASS
+- [x] Debug/Release clean 빌드 경고 0
+- [x] 1.38.3(3803) 버전 범프 · Debug 설치 · HANDOFF/CHANGELOG 갱신
+- [x] 브랜치 → PR → squash merge
+
+## 14. 구현 결과 (2026-11-13)
+
+- **창**: `BrowserWindow.swift` — 표준 타이틀바·툴바·주소창·격리 배지·활동 배지·안내 띠·빈 상태·진행 선. 프레임 autosave `QuickTalkBrowserWindow`, 최소 640×420.
+- **웹뷰 이동**: `BrowserService` 가 같은 `WKWebView` 를 보이는 창 ↔ 오프스크린 창 사이에서 옮긴다. 닫기 = `orderOut` + 오프스크린 복귀, 페이지 유지.
+- **자동 표시**: `browserShowWindowAutomatically` 기본 **켜짐**. `beginModelActivity` 가 `showWindow(activate:false)` — `orderFrontRegardless` 로 포커스를 빼앗지 않는다. 사용자가 [브라우저 창 열기]·Hub 로 열 때만 `NSApp.activate`.
+- **활동**: 6개 도구가 승인 직후 `beginModelActivity` / `defer endModelActivity`. 승인 대기·거부는 활동에 포함하지 않는다. 겹치면 깊이 카운터로 마지막까지 표시.
+- **안내**: 다운로드·팝업·파일·미디어·HTTP 인증·정책 위반·로드 실패를 창 안내 띠와 모델 스냅샷에 함께 남긴다.
+- **검증**: `swift test` **1092/1092**(6 skip) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-browser-window` **PASS 24/24** · `--qa-browser-routing` 23/23 · `--qa-browser-live` 14/14 · `--qa-artifact-routing` 18/18 · job/plan/execute/skills PASS.
+- **설치**: 1.38.3(build 3803) · Debug 교체·재실행(PID 84351, `QuickTalk.debug.dylib` SHA-256 `a2deac62…`, 백업 번들 없음).
+- **다음**: 실제 모델의 페이지 열기 → 창 자동 표시 → 주소창 직접 이동을 사용자 실측. 원격 승인(v0.39+).
