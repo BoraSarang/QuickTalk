@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-11 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-12 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
@@ -11,11 +11,24 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.36.8**(2026-11-12 00:20, `~/Applications/QuickTalk.app`, PID 84436) — heredoc 0바이트 "성공" 수정. v0.35.3~v0.35.5·v0.36 P0~v0.36.8 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.37.0**(2026-11-12 12:23, `~/Applications/QuickTalk.app`, PID 50049) — **v0.37 스킬**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8 상태는 아래 인계 참조.
+> **v0.37 구현·검증·병합·설치 완료(2026-11-12)** — `SKILL.md` 절차를 모델이 필요할 때 읽는 **스킬**. 전역 기본 Off · 비서 기본 On · 예약 미주입 · 번들 예시 1개 · 가져오기/교체/삭제. **PR #158 → squash merge `5278477`**. PLAN `docs/plans/PLAN_v0.37_skills_macos.md`, 인계 (28).
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-12 인계 (28) — v0.37 **스킬** — **PR #158 병합 · Debug 1.37.0 설치 · 실측 대기**
+
+- **기능**: `SKILL.md` 에 적힌 절차를 모델이 **필요할 때만** `read_skill` 로 읽는다. 목록에는 `id · 이름 · 설명 · 언제` 만 (1,200자 예산), 본문은 호출 시. `read_skill` 은 읽기 전용·승인 카드 없음·감사 1줄.
+- **결정(D1~D10)**: 일반 대화 `settings.skillsEnabled` 기본 **Off** · 비서 `Persona.skillsEnabled` 기본 **On** 이 전역을 덮어씀 · **예약 실행은 항상 Off**(목록·본문·도구 미주입) · 번들 예시 `web-research` 1개(읽기 전용) · 같은 id 가져오기는 확인 시트 후 교체(백업/롤백) · frontmatter 최소 YAML · `risk` 생략 시 도구로 추론(`shell` → write) · 권한 부족 스킬은 프롬프트에서만 숨김 · `Skills/` 는 `AppDataGuard` 보호 · `read_skill` 은 절대 경로 + 상대 `scripts/`.
+- **보안**: `tools:` 는 대화의 도구와 **교집합**만. 셸 승인·쓰기 범위·샌드박스는 그대로. 본문 뒤 "앱의 안전 규칙이 우선" 재확인. 가져오기 5MB·심볼릭 링크(숨김 포함) 거부.
+- **UI**: 설정 › 도구·권한 › **스킬** 그룹(전역 토글·목록·행별 사용·`권한 필요` 배지·가져오기·삭제 확인·무시된 스킬 N개). 비서 편집에 **스킬 토글**(기본 On). 실행 카드에 `스킬: <id>`(명령에 경로가 드러난 경우만).
+- **검증**: `swift test` **1040/1040**(6 skip, `SkillTests` 30) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-skills-routing` **PASS 14항목** · `--agent-test --skills` → `tool=read_skill level=read state=done`(6.5초) · 번역 커버리지(신규 28+α) · 렌더 `docs/qa/v0.37-skills/`(empty/list/warn/en · 비서 토글 한/영).
+- **QA 오염 방지**: `--qa-skills-routing` 은 `withSuppressedSettingsSave` 로 설정을 저장하지 않는다. 과거 실행이 `skillsEnabled=true` 를 저장한 적이 있어 UserDefaults 키를 제거해 복구했다(현재 기본 false).
+- **PR/버전/설치**: **PR #158 → squash merge `5278477`** · 1.37.0(build 3700) · **2026-11-12 12:23 Debug 1.37.0** 교체·재실행(PID 50049, 백업 번들 없음, `codesign --verify --strict --deep` OK, `QuickTalk.debug.dylib` SHA-256 `c0388ca45a553eb50c8c482d03aa0e2adb20de50b0a95e29c6ec904f246ba3e4`).
+- **실측 대기**: ① 설정 › 도구·권한에 번들 `web-research` 가 보이고 전역 토글이 **꺼짐**인지 ② 비서 대화에서 스킬이 실제로 목록에 뜨고 `read_skill` 카드가 조용히 지나가는지 ③ 폴더 가져오기·같은 id 교체 시트·삭제 ④ 예약 실행 답변에 스킬이 끼어들지 않는지.
+- **이어서**: (v0.37.1 후보) `/스킬` 슬래시 팔레트 · 스킬 편집(설정에서 SKILL.md 열기) · 가져오기 미리보기. (v0.38) 브라우저는 **스킬 + shell 먼저**.
 
 ### 2026-11-12 인계 (27) — v0.36.8 **heredoc 0바이트 "성공"** — **PR #154 병합 · Debug 1.36.8 설치 · 실측 대기**
 
