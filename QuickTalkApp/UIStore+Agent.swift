@@ -251,6 +251,10 @@ extension UIStore {
     case .ollama, .openAICompatible:
       var sections = [AgentInstructions.text,
                       AgentInstructions.selfKnowledge(settings: settings, persona: persona)]
+      // v0.38 — 최근 완료한 Job을 참고 사실로 넣는다("지난주에 어디까지 했지?").
+      // 완료된 작업만·최근 3개·한 줄씩이라 프롬프트가 작다.
+      let jobsBlock = jobMemoryBlock
+      if !jobsBlock.isEmpty { sections.append(jobsBlock) }
       if let skillsBlock, !skillsBlock.isEmpty { sections.append(skillsBlock) }
       base = sections.joined(separator: "\n\n")
     }

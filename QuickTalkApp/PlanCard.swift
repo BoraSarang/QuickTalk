@@ -11,6 +11,8 @@ struct PlanCard: View {
   let canRun: Bool
   let onRun: () -> Void
   let onEdit: () -> Void
+  /// [맡기기] — 백그라운드 Job으로 넘긴다(v0.38). nil 이면 버튼을 숨긴다.
+  var onDelegate: (() -> Void)? = nil
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -70,51 +72,77 @@ struct PlanCard: View {
   }
 
   private var footer: some View {
-    HStack(spacing: 8) {
-      if state.isRunning {
-        ProgressView()
-          .controlSize(.small)
-        Text(L("실행 중"))
-          .font(.system(size: 10.5))
-          .foregroundColor(.secondary)
-      } else if state.finished {
-        HStack(spacing: 3) {
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 10, weight: .semibold))
-          Text(L("실행 완료"))
-            .font(.system(size: 10.5, weight: .medium))
-        }
-        .foregroundColor(.purple)
-      }
-      Spacer(minLength: 4)
-      if canRun {
-        Button(action: onEdit) {
-          Text(L("수정"))
-            .font(.system(size: 10.5, weight: .medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(.secondary)
-        .help(L("계획을 입력창으로 가져와 고칩니다"))
-
-        Button(action: onRun) {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 8) {
+        if state.isRunning {
+          ProgressView()
+            .controlSize(.small)
+          Text(L("실행 중"))
+            .font(.system(size: 10.5))
+            .foregroundColor(.secondary)
+        } else if state.finished {
           HStack(spacing: 3) {
-            Image(systemName: "play.fill")
-              .font(.system(size: 8.5, weight: .bold))
-            Text(L("실행"))
-              .font(.system(size: 10.5, weight: .semibold))
+            Image(systemName: "checkmark.circle.fill")
+              .font(.system(size: 10, weight: .semibold))
+            Text(L("실행 완료"))
+              .font(.system(size: 10.5, weight: .medium))
           }
-          .padding(.horizontal, 9)
-          .padding(.vertical, 4)
-          .background(Capsule().fill(Color.purple.opacity(0.14)))
-          .overlay(Capsule().stroke(Color.purple.opacity(0.32), lineWidth: 1))
           .foregroundColor(.purple)
-          .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .help(L("이 계획을 순서대로 실행합니다"))
+        Spacer(minLength: 4)
+        if canRun {
+          Button(action: onEdit) {
+            Text(L("수정"))
+              .font(.system(size: 10.5, weight: .medium))
+              .padding(.horizontal, 8)
+              .padding(.vertical, 4)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .foregroundColor(.secondary)
+          .help(L("계획을 입력창으로 가져와 고칩니다"))
+
+          Button(action: onRun) {
+            HStack(spacing: 3) {
+              Image(systemName: "play.fill")
+                .font(.system(size: 8.5, weight: .bold))
+              Text(L("실행"))
+                .font(.system(size: 10.5, weight: .semibold))
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.purple.opacity(0.14)))
+            .overlay(Capsule().stroke(Color.purple.opacity(0.32), lineWidth: 1))
+            .foregroundColor(.purple)
+            .contentShape(Capsule())
+          }
+          .buttonStyle(.plain)
+          .help(L("이 계획을 순서대로 실행합니다"))
+
+          if let onDelegate {
+            Button(action: onDelegate) {
+              HStack(spacing: 3) {
+                Image(systemName: "shippingbox")
+                  .font(.system(size: 8.5, weight: .bold))
+                Text(L("맡기기"))
+                  .font(.system(size: 10.5, weight: .semibold))
+              }
+              .padding(.horizontal, 9)
+              .padding(.vertical, 4)
+              .background(Capsule().fill(Color.accentColor.opacity(0.10)))
+              .overlay(Capsule().stroke(Color.accentColor.opacity(0.28), lineWidth: 1))
+              .foregroundColor(.accentColor)
+              .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .help(L("앱이 백그라운드에서 끝까지 진행하고, 완료되면 알려 줍니다"))
+          }
+        }
+      }
+      if canRun, onDelegate != nil {
+        Text(L("작업 폴더에 파일을 만들고, 중요·치명적 명령은 항상 확인합니다."))
+          .font(.system(size: 9.5))
+          .foregroundColor(.secondary)
       }
     }
   }

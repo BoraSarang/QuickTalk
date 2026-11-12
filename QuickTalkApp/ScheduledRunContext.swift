@@ -11,8 +11,19 @@ import Foundation
 //   · 승인은 **그 예약 대화를 열었을 때만** 카드로 보이며,
 //   · 실행이 끝나면 대화 한 개가 통째로 보관함에 남는다.
 
-/// 예약 실행 1회의 상태.
+/// 실행 1회의 상태.
 final class ScheduledRunContext {
+  /// 비대면 실행의 종류 — 예약 작업 또는 맡긴 작업(Job). 카드·승인·알림 문구가 갈린다.
+  enum Kind: Equatable {
+    case scheduled
+    case job
+  }
+
+  let kind: Kind
+  /// Job 실행이면 그 Job id. 예약 실행이면 nil.
+  let jobID: UUID?
+  /// 알림·카드에 보여 줄 사람이 읽는 제목(Job 목표). 예약이면 일정 제목을 쓴다.
+  let displayTitle: String?
   let taskID: UUID
   /// 비서 전용 대화 저장소 — 현재 대화(`UIStore.core`)와 **완전히 분리**한다.
   let session: ConversationStore
@@ -40,10 +51,14 @@ final class ScheduledRunContext {
   /// 10분이 지나 자동 거부됐는가 — 실패 사유 문구를 가른다.
   var approvalTimedOut = false
 
-  init(taskID: UUID, session: ConversationStore, policy: AgentPolicy) {
+  init(taskID: UUID, session: ConversationStore, policy: AgentPolicy,
+       kind: Kind = .scheduled, jobID: UUID? = nil, displayTitle: String? = nil) {
     self.taskID = taskID
     self.session = session
     self.policy = policy
+    self.kind = kind
+    self.jobID = jobID
+    self.displayTitle = displayTitle
   }
 
   var conversation: Conversation { session.conversation }
@@ -51,6 +66,10 @@ final class ScheduledRunContext {
 
 /// 예약 실행이 승인을 기다리는 상태 — UI·알림이 함께 읽는다.
 struct ScheduledApproval: Equatable {
+  /// 예약 작업인지 맡긴 작업인지 — 알림 제목이 갈린다.
+  var kind: ScheduledRunContext.Kind = .scheduled
+  /// Job 목표(또는 일정 제목) — 알림 부제.
+  var displayTitle: String?
   let taskID: UUID
   let conversationID: UUID
   let turnID: UUID?

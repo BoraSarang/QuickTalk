@@ -76,10 +76,19 @@ final class AgentExecutor: AgentToolExecutor {
     }
   }
 
-  /// 감사 기록 — 예약 실행이면 `task:<id>` 태그를 붙인다(PLAN_v0.26 §6).
+  /// 감사 기록 — 예약 실행이면 `task:<id8>`, 맡긴 작업이면 `job:<id8>` 태그를 붙인다.
   func recordAudit(command: String, level: AgentPermissionLevel, risk: AgentRiskLevel,
                      decision: String, exitCode: Int32?, elapsedMs: Int) {
-    let note = store.scheduledRun.map { "task:\($0.taskID.uuidString.prefix(8))" }
+    let note: String?
+    if let run = store.scheduledRun {
+      if run.kind == .job, let jobID = run.jobID {
+        note = "job:\(jobID.uuidString.prefix(8))"
+      } else {
+        note = "task:\(run.taskID.uuidString.prefix(8))"
+      }
+    } else {
+      note = nil
+    }
     AgentAudit.record(command: command, level: level, risk: risk, decision: decision,
                       exitCode: exitCode, elapsedMs: elapsedMs, note: note)
   }

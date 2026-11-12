@@ -79,19 +79,24 @@ public struct Turn: Codable, Equatable {
   /// 이 답변이 제안한 **실행 계획**(v0.36.3) — 있으면 계획 카드를 그리고 [▶ 실행] 대신 쓴다.
   /// 구버전 기록에는 없으므로 nil.
   public var plan: ExecutionPlan?
+  /// 이 턴이 **맡긴 작업(Job)의 상태 카드**인가(v0.38) — 있으면 Job 상태 카드를 그린다.
+  /// 구버전 기록에는 없으므로 nil.
+  public var jobID: UUID?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
               elapsedMs: Int? = nil, sources: [TurnSource]? = nil,
               createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil,
               personaID: UUID? = nil, reasoning: String? = nil,
-              executesTurnID: UUID? = nil, plan: ExecutionPlan? = nil) {
+              executesTurnID: UUID? = nil, plan: ExecutionPlan? = nil,
+              jobID: UUID? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
     self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
     self.personaID = personaID; self.reasoning = reasoning
     self.executesTurnID = executesTurnID
     self.plan = plan
+    self.jobID = jobID
   }
 
   /// 사용자가 [이대로 실행]을 눌러 만든 **요청** 턴인가.

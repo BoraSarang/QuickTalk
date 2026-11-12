@@ -224,6 +224,30 @@ final class UIStore: ObservableObject {
   var notifications: NotificationService?
   @Published var notificationPermission: NotificationPermission = .unknown
 
+  // MARK: - 맡긴 작업 (v0.38)
+
+  /// 저장된 Job 목록 — 최신순. `JobService` 가 갱신한다.
+  @Published var jobs: [Job] = []
+  /// Job 실행기 — AppDelegate 가 만든다.
+  var jobService: JobService?
+
+  func job(id: UUID) -> Job? { jobs.first { $0.id == id } }
+
+  /// 지금 열려 있는 대화가 **실행 중인 Job의 전용 대화**인가.
+  /// 그동안 입력을 잠근다 — 사용자의 말과 Job의 턴이 같은 기록을 동시에 덮어쓰지 않게.
+  var isJobConversationBusy: Bool {
+    guard let job = jobs.first(where: { $0.conversationID == conversation.id }) else {
+      return false
+    }
+    switch job.status {
+    case .running, .queued, .waitingApproval: return true
+    case .paused, .interrupted, .completed, .failed, .cancelled: return false
+    }
+  }
+
+  /// 최근 완료 작업 — 시스템 지식에 넣을 블록(없으면 빈 문자열).
+  var jobMemoryBlock: String { JobMemory.prompt(jobs) }
+
   /// 예약 실행의 승인을 기다린다 — 10분이 지나면 거부로 끝난다.
   /// 알림에서는 승인할 수 없다(오탭 방지) — 사용자가 대화를 열어 카드에서 눌러야 한다.
   @MainActor
@@ -235,11 +259,19 @@ final class UIStore: ObservableObject {
       ctx.approval = request
       ctx.approvalContinuation = cont
       ctx.approvalTimedOut = false
-      scheduledApproval = ScheduledApproval(taskID: ctx.taskID,
+      if ctx.kind == .job, let jobID = ctx.jobID {
+        jobService?.markWaiting(jobID)
+      }
+      scheduledApproval = ScheduledApproval(kind: ctx.kind,
+                                            displayTitle: ctx.displayTitle,
+                                            taskID: ctx.taskID,
                                             conversationID: ctx.conversation.id,
                                             turnID: ctx.turnID,
                                             personaName: settings.persona(scheduledRunPersonaID)?.name,
                                             request: request)
+      // 승인 카드가 붙은 턴을 **지금** 보관함에도 반영한다 — 알림을 눌러 대화를 열었을 때
+      //   카드가 보이지 않으면 승인할 방법이 없기 때문이다(v0.38 Job).
+      dumpScheduledConversation(ctx)
       onScheduledApproval?(scheduledApproval!)
       scheduledApprovalTimer?.invalidate()
       let box = WeakMainActorBox(self)
@@ -263,6 +295,9 @@ final class UIStore: ObservableObject {
     guard let ctx = scheduledRun, let cont = ctx.approvalContinuation else { return }
     ctx.approvalContinuation = nil
     ctx.approval = nil
+    if ctx.kind == .job, let jobID = ctx.jobID, choice != .deny {
+      jobService?.markRunning(jobID)
+    }
     cont.resume(returning: choice)
   }
 
@@ -1694,6 +1729,15 @@ final class UIStore: ObservableObject {
     send(planOf: turn)
   }
 
+  /// 계획 카드의 **[맡기기]** — 백그라운드 Job으로 넘긴다(v0.38).
+  @MainActor
+  func delegatePlan(_ turn: Turn) {
+    guard shouldOfferPlan(turn), let plan = turn.plan else { return }
+    NSLog("[QuickTalk] 계획 맡기기 — turn=%@ · 단계 %d",
+          String(turn.id.uuidString.prefix(8)), plan.steps.count)
+    jobService?.start(plan: plan, from: activeSession)
+  }
+
   /// 계획 카드의 [수정] — 입력창에 계획을 풀어 놓는다. 보내면 일반 질문으로 실행된다.
   func editPlan(_ turn: Turn) {
     guard let plan = turn.plan else { return }
@@ -1844,6 +1888,14 @@ final class UIStore: ObservableObject {
       core.open(c)
       conversation = core.conversation
     }
+  }
+
+  /// 진행 중인 비대면 실행이 **지금 열려 있으면** 화면만 따라오게 한다(v0.38).
+  /// 디스크 저장은 하지 않는다 — 스트리밍 조각마다 저장하면 낭비다.
+  func updateScheduledConversationIfOpen(_ c: Conversation) {
+    guard conversation.id == c.id else { return }
+    core.open(c)
+    conversation = core.conversation
   }
 
   /// 대화별 권한 오버라이드 변경(v0.22) — 코어에 반영하고 즉시 저장한다.

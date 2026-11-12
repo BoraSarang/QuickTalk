@@ -134,6 +134,10 @@ final class SchedulerService {
   /// "지금 실행" — 예약 시각은 앞당기지 않는다(PLAN §8.2).
   func runNow(_ id: UUID) {
     guard runningTaskID == nil, let task = task(id) else { return }
+    guard store.scheduledRun == nil, store.jobService?.isExecuting != true else {
+      NSLog("[QuickTalk] 다른 작업이 실행 중 — 예약 실행을 미룹니다")
+      return
+    }
     // ★ 예약 폴링과 겹치지 않게 **동기적으로** 실행 중 표시를 먼저 잡는다.
     runningTaskID = task.id
     Task { @MainActor in
@@ -145,6 +149,9 @@ final class SchedulerService {
 
   func tick(now: Date = Date()) {
     guard store.settings.schedulerEnabled, runningTaskID == nil else { return }
+    // ★ `scheduledRun` 은 앱 전체에 하나뿐이다. 맡긴 작업(Job)이 쓰고 있으면
+    //   예약 실행을 시작하지 않는다 — 서로의 카드·승인을 덮어쓰게 된다(v0.38).
+    guard store.scheduledRun == nil, store.jobService?.isExecuting != true else { return }
     let snapshot = SchedulePlanner.tick(tasks, now: now)
 
     if !snapshot.missed.isEmpty {
