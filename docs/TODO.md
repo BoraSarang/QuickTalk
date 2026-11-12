@@ -10,7 +10,7 @@
 - **`write_file`**: 기본 카탈로그 **7개**. 절대 경로·UTF-8 300,000자·만들기/전체 교체. 승인 카드에 경로·덮어쓰기 여부·줄 수·**앞 20줄**. `PersonaTools.write` 게이트, Apple FM 미전달.
 - **안전**: 앱 데이터·시스템·심볼릭 링크 거부 · 백업 실패 시 덮어쓰지 않음 · `.atomic` 쓰기 · 감사에 내용 미기록. 셸 산출물은 `UndoEntry` 로 생성/수정/삭제 판정(무변경 제외·12개 상한).
 - **미리보기**: 텍스트 [변경 내용 | 현재 파일]·diff(쓰기 전 백업 대비, 5,000줄/400줄 상한) · 이미지 · 바이너리 안내 · 사라짐 안내. Job 완료 카드 파일 목록도 미리보기 버튼.
-- **검증**: `swift test` **1092/1092**(6 skip, `ArtifactTests` 14) · `LocalizationCoverageTests` 5/5(신규 47키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-artifact-routing` **PASS 18/18** · 기존 QA 5종 PASS.
+- **검증**: `swift test` **1092/1092**(6 skip, `ArtifactTests` 14) · `LocalizationCoverageTests` 5/5(신규 45키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-artifact-routing` **PASS 18/18** · 기존 QA 5종 PASS.
 - **PR/버전/설치**: **PR #166 → squash merge `bba1d44`** · 1.38.2(build 3802) · **2026-11-12 21:57 Debug 1.38.2** 교체·재실행(PID 25025, SHA-256 `8ac99d43…`, 백업 번들 없음).
 - **실측 대기**: 승인 카드 앞 20줄 · 생성/수정 카드 · diff 미리보기 · [되돌리기] 복원 · 셸 산출물 카드 · 재시작 후 카드 유지 · Job 파일 미리보기.
 - **다음**: 브라우저 보이는 창·주소창 UI → 원격 승인(v0.39+).

@@ -30,7 +30,7 @@
 - **셸 산출물**: 셸 실행이 성공한 쓰기의 `UndoEntry` 를 읽어 `created/modified/deleted` 를 판정한다. 백업과 현재 바이트가 같은 **무변경 항목은 제외**, 디렉터리 제외, 한 턴 최대 12개, 같은 경로는 마지막 기록으로 교체.
 - **저장·미리보기**: `Turn.artifacts` 는 **옵셔널**(구버전 `history.json` 호환). 파일 내용은 대화 기록에 저장하지 않는다 — 미리보기는 디스크를 **256KB까지** 읽고, diff는 `undoID → UndoStack` 의 쓰기 전 백업과 현재 파일을 비교해 그때 계산한다(5,000줄 초과·비텍스트는 줄 수 생략, 출력 400줄 상한). 텍스트는 [변경 내용 | 현재 파일] 전환, 이미지·바이너리·사라진 파일은 각각 안내.
 - **UI**: 답변 텍스트 아래·계획 카드 위에 산출물 카드. [되돌리기]는 같은 `undoID` 의 쓰기 전체를 한 번에 되돌리고 결과를 카드 아래 한 줄로 남긴다. Job 완료 카드의 파일 목록(최대 4개 + 외 N개)은 버튼이 되어 미리보기 시트를 연다(Job 산출물은 `undoID` 가 없어 [되돌리기] 숨김).
-- **검증**: `swift test` **1092/1092**(6 skip, `ArtifactTests` 14) · `LocalizationCoverageTests` 5/5(신규 47키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-artifact-routing` **PASS 18/18** · 기존 QA 5종 PASS.
+- **검증**: `swift test` **1092/1092**(6 skip, `ArtifactTests` 14) · `LocalizationCoverageTests` 5/5(신규 45키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-artifact-routing` **PASS 18/18** · 기존 QA 5종 PASS.
 - **PR/버전/설치**: **PR #166 → squash merge `bba1d44`** · 1.38.2(build 3802) · **2026-11-12 21:57 Debug 1.38.2** 교체·재실행(PID 25025, `codesign --verify --strict --deep` OK, `QuickTalk.debug.dylib` SHA-256 `8ac99d4319c64aaecd1948514111811321f097b2274b7928c80c4d6170a8bfb5`, 백업 번들 없음).
 - **실측 대기**: ① "보고서 파일 만들어 줘" → 승인 카드 앞 20줄 → 생성 카드 ② 미리보기 [변경 내용 | 현재 파일]·diff ③ [되돌리기]로 원래 내용 복원 ④ 셸로 만든 파일도 카드에 붙는지 ⑤ 앱 재시작 후 카드 유지 ⑥ Job 완료 카드 파일 미리보기.
 - **한계**: 셸 산출물은 `WriteScope.candidatePaths` 가 잡은 경로만 수집한다(글롭·파이프 내부는 놓칠 수 있음). 백업이 정리되면 diff는 볼 수 없다(현재 파일은 보임). 미리보기는 256KB까지만 읽는다. 바이너리는 [열기]로 기본 앱에서 연다. Job 카드에는 작업 폴더 기준 상대 경로만 나온다.
