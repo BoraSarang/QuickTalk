@@ -3,6 +3,19 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-12 KST
 
+## 구현·검증 완료 (2026-11-12) — v0.37 **스킬** — SKILL.md 절차를 필요할 때 읽는다 [PR #158 병합 · Debug 1.37.0 설치 · 실측 대기]
+
+- **계기**: "질문→답변"을 넘어 "답변→실행"으로 — 긴 절차 문서를 매번 프롬프트에 넣지 않고, 모델이 **필요할 때만** `read_skill` 로 읽는다.
+- **결정(D1~D10)**: 일반 대화 기본 **Off** · 비서 기본 **On** · **예약 실행은 항상 Off** · 번들 예시 1개(읽기 전용) · 같은 id 가져오기는 확인 후 교체 · 최소 YAML · `risk` 자동 추론 · 권한 부족은 프롬프트에서만 숨김 · `Skills/` 보호 · 절대 경로 반환.
+- **Core**: `Skill`·`SkillMarkdown`·`SkillRegistry` — 필수 키 검증 · 한도/경로 탈출/심볼릭 링크 · 사용자 우선 · `SkillLocations.skillID(referencedIn:)`.
+- **프롬프트**: 1,200자 목록(본문 미포함) · 도구 교집합 · 비서 우선 · 예약 차단. `read_skill` 은 읽기 전용·카드 없음·감사 1줄.
+- **UI**: 설정 › 도구·권한 **스킬**(전역 토글·목록·사용 토글·`권한 필요`·가져오기·삭제·무시된 경고), 비서 편집 **스킬 토글**(기본 On). `SkillImporter` 는 스테이징·백업·롤백.
+- **표시**: `shell` 명령에 드러난 스킬 경로 → 실행 카드 `스킬: <id>`.
+- **검증**: `swift test` **1040/1040**(6 skip, 신규 30) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-skills-routing` **PASS 14항목** · `--agent-test --skills` 실제 `read_skill` 호출 · 번역 28+α · 렌더 `docs/qa/v0.37-skills/`.
+- **PR/버전/설치**: **PR #158 → squash merge `5278477`** · 1.37.0(build 3700) · **2026-11-12 12:23 Debug 1.37.0** 교체·재실행(PID 50049, SHA-256 `c0388ca4…`).
+- **실측 대기**: 번들 예시·전역 기본 꺼짐 · 비서 대화 스킬 목록/`read_skill` · 폴더 가져오기·교체·삭제 · 예약 실행 미주입.
+- **다음**: (v0.37.1 후보) `/스킬` 슬래시 팔레트 · 설정에서 SKILL.md 열기 · 가져오기 미리보기. (v0.38) 브라우저는 **스킬 + shell 먼저**.
+
 ## 구현·검증 완료 (2026-11-12) — v0.36.8 heredoc 0바이트 "성공" 수정 [PR #154 병합 · Debug 1.36.8 설치 · 실측 대기]
 
 - **계기(run_test 20턴)**: `cat > sort-photos.py <<'PY' … PY` 가 **0바이트 + exit 0** 으로 "완료" 기록. `/bin/sh: cannot create temp file for here document: Operation not permitted`.
