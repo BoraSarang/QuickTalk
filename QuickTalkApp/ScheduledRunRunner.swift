@@ -73,7 +73,8 @@ final class ScheduledRunRunner {
       includingUI: store.settings.uiControlEnabled && provider.type != .appleFM,
       // 예약 실행 중에는 **목록만** — 사람이 없는 자리에서 일정이 늘거나 지워지면 안 된다.
       includingSchedule: true,
-      includingScheduleMutations: false)
+      includingScheduleMutations: false,
+      includingBrowser: store.settings.browserEnabled && provider.type != .appleFM)
 
     // ③ 실행 — 최종 답변은 턴에 흘려 넣는다(사용자가 나중에 열어 봐도 그대로 남는다).
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 12)

@@ -231,6 +231,13 @@ final class UIStore: ObservableObject {
   /// Job 실행기 — AppDelegate 가 만든다.
   var jobService: JobService?
 
+  // MARK: - 격리 브라우저 (v0.38.1)
+
+  /// 대화 ID별 브라우저 — Job 대화와 현재 대화가 서로의 페이지를 덮지 않는다.
+  var browserServices: [UUID: BrowserService] = [:]
+  /// 대화 ID별 마지막 사용 시각 — 15분 유휴 정리·LRU 2개 제한에 쓴다.
+  var browserLastUsed: [UUID: Date] = [:]
+
   func job(id: UUID) -> Job? { jobs.first { $0.id == id } }
 
   /// 지금 열려 있는 대화가 **실행 중인 Job의 전용 대화**인가.
@@ -2497,7 +2504,8 @@ final class UIStore: ObservableObject {
             for: conversationPersona,
             includingWebSearch: searchToolReady && p.type != .appleFM,
             includingUI: settings.uiControlEnabled && p.type != .appleFM,
-            includingSchedule: true)
+            includingSchedule: true,
+            includingBrowser: settings.browserEnabled && p.type != .appleFM)
           let skillsBlock = self.skillsBlockForPrompt(persona: conversationPersona,
                                                       provider: p, tools: baseAgentTools)
           var agentTools = baseAgentTools

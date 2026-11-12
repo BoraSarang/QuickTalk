@@ -221,6 +221,12 @@ public struct QuickTalkSettings: Codable, Equatable {
   /// 컴퓨터 제어 — 다른 앱의 화면 요소를 읽고(Phase 1), 클릭·입력까지 할지(Phase 2)의 마스터 스위치.
   /// 기본 **꺼짐**: 켜지 않으면 도구 자체가 모델에 등록되지 않는다(PLAN_v0.25).
   public var uiControlEnabled: Bool = false
+  /// 격리 브라우저(v0.38.1) — 전용 프로필로 웹 페이지를 열고 읽을지. 기본 **꺼짐**.
+  /// 켜지 않으면 `browser_*` 도구가 모델에 등록되지 않는다.
+  public var browserEnabled: Bool = false
+  /// 격리 브라우저의 전용 프로필 ID(WebKit 데이터 저장소 식별자). 비밀이 아니다.
+  /// 비어 있으면 앱이 UUID를 만들어 저장한다 — Safari와 쿠키·캐시를 공유하지 않기 위한 값.
+  public var browserProfileID: String = ""
   /// 권한 정책 — 단계별 자동 처리·허한 규칙·제한.
   public var agentPolicy: AgentPolicy = AgentPolicy()
   /// 도구 실행 카드에서 **실제 명령·출력**을 보여줄지(기본 켜짐). 끄면 한 줄 요약만 남는다.
@@ -380,6 +386,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case autoCompact, compactKeepTurns
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
     case agentToolsEnabled, agentPolicy, agentShowExecution, reasoningDisplay, uiControlEnabled
+    case browserEnabled, browserProfileID
     case skillsEnabled
     case disabledSkillIDs
     case agentStreamOutput, agentTimeoutSeconds
@@ -466,6 +473,9 @@ public struct QuickTalkSettings: Codable, Equatable {
     skillsEnabled = try c.decodeIfPresent(Bool.self, forKey: .skillsEnabled) ?? false
     disabledSkillIDs = try c.decodeIfPresent([String].self, forKey: .disabledSkillIDs) ?? []
     uiControlEnabled = try c.decodeIfPresent(Bool.self, forKey: .uiControlEnabled) ?? false
+    // v0.38.1 — 격리 브라우저는 새 기능이라 구버전 설정에서는 **꺼짐**으로 시작한다.
+    browserEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserEnabled) ?? false
+    browserProfileID = try c.decodeIfPresent(String.self, forKey: .browserProfileID) ?? ""
     agentShowExecution = try c.decodeIfPresent(Bool.self, forKey: .agentShowExecution) ?? true
     reasoningDisplay = Self.decodeEnum(ReasoningDisplayMode.self, c, .reasoningDisplay,
                                        default: .collapseWhenDone)
@@ -576,6 +586,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(skillsEnabled, forKey: .skillsEnabled)
     try c.encode(disabledSkillIDs, forKey: .disabledSkillIDs)
     try c.encode(uiControlEnabled, forKey: .uiControlEnabled)
+    try c.encode(browserEnabled, forKey: .browserEnabled)
+    try c.encode(browserProfileID, forKey: .browserProfileID)
     try c.encode(agentShowExecution, forKey: .agentShowExecution)
     try c.encode(reasoningDisplay, forKey: .reasoningDisplay)
     try c.encode(agentStreamOutput, forKey: .agentStreamOutput)

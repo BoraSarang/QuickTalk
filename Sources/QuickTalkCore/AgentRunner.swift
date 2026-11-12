@@ -380,6 +380,21 @@ public struct AgentRunner {
       let label = kind?.displayName ?? (raw.isEmpty ? call.name : raw)
       let app = (call.stringArgument("app") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       return app.isEmpty ? label : Lf("%@ — %@", label, app)
+    case "browser_open":
+      return Lf("브라우저 열기 — %@", call.stringArgument("url") ?? "")
+    case "browser_read":
+      return L("현재 페이지 읽기")
+    case "browser_back":
+      return L("브라우저 뒤로 가기")
+    case "browser_click":
+      let purpose = call.stringArgument("purpose") ?? ""
+      return purpose.isEmpty ? L("페이지 요소 클릭") : Lf("페이지 클릭 — %@", purpose)
+    case "browser_type":
+      let purpose = call.stringArgument("purpose") ?? ""
+      return purpose.isEmpty ? L("페이지에 입력") : Lf("페이지 입력 — %@", purpose)
+    case "browser_submit":
+      let purpose = call.stringArgument("purpose") ?? ""
+      return purpose.isEmpty ? L("양식 제출") : Lf("양식 제출 — %@", purpose)
     default:
       return tools.first { $0.name == call.name }?.name ?? call.name
     }
@@ -393,6 +408,11 @@ public struct AgentRunner {
         .compactMap { call.stringArgument($0) }
         .joined(separator: "|")
         + "|" + String((call.stringArgument("text") ?? "").prefix(40))
+    }
+    if call.name.hasPrefix("browser_") {
+      return ["url", "ref", "text"]
+        .compactMap { call.stringArgument($0) }
+        .joined(separator: "|")
     }
     return call.stringArgument("command")
       ?? call.stringArgument("path")

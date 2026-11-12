@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ notification: Notification) {
     scheduler?.stop()
     scheduler?.save()
+    store.teardownBrowsers()
     SingleInstance.release()
   }
 
@@ -177,6 +178,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runQAPlanRoutingIfRequested() { return }
     // QA: `--qa-job-routing` — 맡긴 작업(Job) 카드·상태 전이·저장(v0.38)
     if runQAJobRoutingIfRequested() { return }
+    // QA: `--qa-browser-routing` — 격리 브라우저 게이트·URL 정책·렌더(v0.38.1)
+    if runQABrowserRoutingIfRequested() { return }
+    // QA: `--qa-browser-live` — 실제 WKWebView로 로컬 HTML 읽기·입력(v0.38.1)
+    if runQABrowserLiveIfRequested() { return }
     // QA: `--qa-skills-routing` — 스킬 목록 노출·차단 규칙(v0.37)
     if runQASkillsRoutingIfRequested() { return }
     // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
