@@ -25,10 +25,10 @@ APP=build/DerivedData/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTal
 | 파일 | 상태 | 확인한 것 |
 | --- | --- | --- |
 | `empty/settings-tools-ko.png` | 스킬 0개 | 빈 상태 문구 · 전역 토글 기본 **꺼짐** · 가져오기 버튼 |
-| `list/settings-tools-ko.png` | 2개 | 이름·설명·`언제` · 기본/사용자 배지 · 읽기/쓰기 배지 · 행별 [사용] 토글 |
+| `list/settings-tools-ko.png` | 2개 | **사용법(평소처럼 질문)** · 범위 안내(일반/비서) · 예시 · 이름·설명·`언제` · 기본/사용자 배지 · 읽기/쓰기 배지 · 행별 [사용] 토글 |
 | `warn/settings-tools-ko.png` | 경고 2건 | `권한 필요` 배지 + 사유 캡션(`ui_snapshot`) · `무시된 스킬 2개` 펼침 |
-| `en/settings-tools-en.png` | English | `Skills` · `Basic`/`User` · `Read`/`Write` · `Import from Folder` |
-| `persona/persona-skills-ko.png` | 비서 편집 | `도구` 그룹의 `스킬` 토글 **기본 켜짐** · 전역과 별개 설명 |
+| `en/settings-tools-en.png` | English | `Skills` · `Use skills in regular chats` · `Basic`/`User` · `Read`/`Write` · `Import from Folder` |
+| `persona/persona-skills-ko.png` | 비서 편집 | `도구` 그룹의 `스킬` 토글 **기본 켜짐** · "따로 명령하지 않아도 필요할 때 골라 읽습니다" · 일반 대화 설정과 별개 설명 |
 | `persona-en/persona-skills-en.png` | English | `Skills` 토글 · 캡션 번역 |
 
 ## 헤드리스 라우팅
@@ -71,6 +71,18 @@ APP=build/DerivedData/Build/Products/Debug/QuickTalk.app/Contents/MacOS/QuickTal
 - 모델이 목록에서 스킬을 고르고 `read_skill` 을 **실제로 호출**했다.
 - `read_skill` 은 읽기 전용이라 승인 카드·권한 상승이 없고, 감사 로그만 남는다.
 - `--skills` 는 QA 전용 — 전역 토글을 **메모리에서만** 켜고 끝나면 되돌린다(저장 없음).
+
+## UI 문구 개선 (2026-11-12)
+
+사용자 피드백 *"어떻게 하라는거지 …"* — 화면이 **스킬이 무엇인지**만 설명하고
+**켠 뒤 무엇을 하는지**가 없었다. 두 단계 토글(일반 대화 / 비서 대화)도 한눈에 구분되지 않았다.
+
+- 전역 토글 설명을 **행동 중심**으로: "켜 두면 평소처럼 질문하기만 하면 됩니다. 필요할 때 모델이 스킬을 골라 읽고 절차를 따릅니다."
+- 현재 범위를 **상태에 따라** 표시: 꺼짐이면 "지금은 비서 대화에서만 사용합니다 — 비서는 기본으로 켜져 있습니다.", 켜짐이면 "일반 대화와 비서 대화에서 사용합니다 — 비서별로 끌 수 있습니다."
+- **예시 한 줄** 추가: “최근 AI 브라우저 3개를 비교해 줘” → 필요할 때 알맞은 스킬의 절차를 읽습니다.
+- 행 토글 툴팁을 "프롬프트" 대신 **"모델에게 보여 주기"** 로.
+- 비서 편집 캡션: "따로 명령하지 않아도 필요할 때 모델이 골라 읽습니다. 기본은 켜짐입니다."
+- 빈 상태: "SKILL.md 가 있는 폴더를 가져오면 필요할 때 모델이 읽습니다."
 
 ## 한계(정직)
 

@@ -625,11 +625,11 @@ struct PersonaToolsSection: View {
       toolToggle(L("셸"), L("명령을 실행합니다. 실행할 때마다 승인을 받습니다."), $tools.shell)
       toolToggle(L("파일 쓰기"), L("작업 폴더에 파일을 만듭니다."), $tools.write)
       toolToggle(L("앱 조작"), L("다른 앱의 화면 요소를 클릭·입력합니다."), $tools.ui)
-      toolToggle(L("스킬"), L("이 비서 대화에서 스킬 목록을 씁니다. 기본은 켜짐입니다."), $skillsEnabled)
+      toolToggle(L("스킬"), L("따로 명령하지 않아도 필요할 때 모델이 골라 읽습니다. 기본은 켜짐입니다."), $skillsEnabled)
       Text(L("도구를 꺼도 실행 권한이 느슨해지지 않습니다. 승인 없는 실행은 없습니다."))
         .font(.caption).foregroundColor(.secondary)
         .fixedSize(horizontal: false, vertical: true)
-      Text(L("스킬은 절차 문서입니다. 전역 설정과 별개로 이 비서에서만 켜고 끌 수 있습니다."))
+      Text(L("스킬은 절차 문서입니다. 일반 대화 설정과 별개로 이 비서에서만 켜고 끌 수 있습니다."))
         .font(.caption).foregroundColor(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }

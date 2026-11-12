@@ -552,11 +552,32 @@ extension SettingsView {
     groupBox(L("스킬")) {
       toggleRow(L("일반 대화에서 스킬 사용"),
                 isOn: $store.settings.skillsEnabled,
-                description: L("스킬은 SKILL.md 에 적힌 절차입니다. 모델이 필요할 때 본문을 읽고 그 절차를 따릅니다. 기본은 꺼짐입니다."))
-      caption(L("비서 대화는 비서 설정을 따릅니다 — 비서는 기본으로 켜져 있습니다."))
+                description: L("켜 두면 평소처럼 질문하기만 하면 됩니다. 필요할 때 모델이 스킬을 골라 읽고 절차를 따릅니다."))
+      HStack(alignment: .top, spacing: 4) {
+        Image(systemName: store.settings.skillsEnabled ? "checkmark.circle" : "info.circle")
+          .font(.system(size: 10))
+          .padding(.top, 1)
+        Text(store.settings.skillsEnabled
+             ? L("일반 대화와 비서 대화에서 사용합니다 — 비서별로 끌 수 있습니다.")
+             : L("지금은 비서 대화에서만 사용합니다 — 비서는 기본으로 켜져 있습니다."))
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .font(.caption)
+      .foregroundColor(.secondary)
+      .padding(.leading, 2)
+      HStack(alignment: .top, spacing: 4) {
+        Image(systemName: "text.bubble")
+          .font(.system(size: 10))
+          .padding(.top, 1)
+        Text(L("예: “최근 AI 브라우저 3개를 비교해 줘” → 필요할 때 알맞은 스킬의 절차를 읽습니다."))
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .font(.caption)
+      .foregroundColor(.secondary)
+      .padding(.leading, 2)
 
       if loadedSkills.isEmpty {
-        caption(L("아직 스킬이 없습니다. SKILL.md 가 있는 폴더를 가져오세요."))
+        caption(L("아직 스킬이 없습니다. SKILL.md 가 있는 폴더를 가져오면 필요할 때 모델이 읽습니다."))
       } else {
         VStack(alignment: .leading, spacing: 0) {
           ForEach(loadedSkills) { skill in
@@ -685,7 +706,8 @@ extension SettingsView {
       .labelsHidden()
       .toggleStyle(.switch)
       .controlSize(.mini)
-      .help(enabled ? L("이 스킬을 프롬프트에서 뺍니다") : L("이 스킬을 프롬프트에 넣습니다"))
+      .help(enabled ? L("이 스킬을 모델에게 보여 주지 않습니다")
+                    : L("이 스킬을 모델에게 보여 줍니다"))
       Menu {
         Button(L("Finder에서 보기")) { SkillImporter.reveal(id: skill.id) }
           .disabled(skill.source == .bundled)
