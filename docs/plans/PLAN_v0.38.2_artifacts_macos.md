@@ -206,7 +206,7 @@ public struct TurnArtifact: Codable, Equatable, Identifiable {
 | 항목 | 결과 |
 |---|---|
 | `swift test` | **1092/1092** 통과 (6 skip, 0 failures) — `ArtifactTests` 14개 포함 |
-| `LocalizationCoverageTests` | 5/5 — 산출물·미리보기·`write_file` 문구 47키 영어 번역 |
+| `LocalizationCoverageTests` | 5/5 — 산출물·미리보기·`write_file` 문구 45키 영어 번역 |
 | Debug 빌드 | **BUILD SUCCEEDED · 경고 0** (clean) |
 | Release 빌드 | **BUILD SUCCEEDED · 경고 0** (clean) |
 | `--qa-artifact-routing` | **PASS 18/18** |
