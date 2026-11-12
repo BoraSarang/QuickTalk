@@ -12,7 +12,7 @@ public struct PersonaTools: Codable, Equatable, Hashable {
   public var web: Bool
   /// 셸 명령 (`shell`) — 실행할 때마다 승인 카드가 뜬다
   public var shell: Bool
-  /// 파일 쓰기 — 도구 이름은 없고, 리포트 저장 여부를 정한다
+  /// 파일 쓰기 (`write_file`, v0.38.2) — 쓰기 전 승인·백업·산출물 카드가 붙는다
   public var write: Bool
   /// 다른 앱 조작 (`ui_snapshot`, `ui_action`)
   public var ui: Bool
@@ -37,6 +37,7 @@ public struct PersonaTools: Codable, Equatable, Hashable {
     var names: [String] = []
     if read { names += ["read_file", "list_dir", "processes", "screenshot"] }
     if web { names += ["web_search", "web_fetch"] }
+    if write { names.append("write_file") }
     if shell { names.append("shell") }
     if ui { names += ["ui_snapshot", "ui_action"] }
     return names

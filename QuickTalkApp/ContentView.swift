@@ -1085,6 +1085,12 @@ struct ContentView: View {
             .foregroundColor(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // v0.38.2 — 이 턴이 만든 파일. 답변 아래에 미리보기·되돌리기 카드를 붙인다.
+        if let artifacts = t.artifacts, !artifacts.isEmpty {
+          ArtifactCard(artifacts: artifacts)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
+        }
         // v0.36.3 — 계획을 제안한 답변이면 실행 계획 카드를 붙인다.
         // [실행] 전에는 아무것도 실행되지 않는다(계획은 입이지 손이 아니다).
         if let plan = t.plan {

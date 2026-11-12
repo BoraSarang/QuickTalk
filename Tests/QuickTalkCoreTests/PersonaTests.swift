@@ -119,10 +119,11 @@ final class PersonaTests: XCTestCase {
     let tools = PersonaTools()
     XCTAssertEqual(tools.toolNames,
                    ["read_file", "list_dir", "processes", "screenshot",
-                    "web_search", "web_fetch"])
+                    "web_search", "web_fetch", "write_file"])
     XCTAssertFalse(tools.allows(toolNamed: "shell"))
     XCTAssertTrue(tools.allows(toolNamed: "web_search"))
     XCTAssertTrue(tools.allows(toolNamed: "web_fetch"))
+    XCTAssertTrue(tools.allows(toolNamed: "write_file"))
   }
 
   func testAllToolsIncludesShellAndUI() {

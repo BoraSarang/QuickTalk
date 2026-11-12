@@ -104,6 +104,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "shell": return await runShell(call)
     case "read_file": return await readFile(call)
     case "list_dir": return await listDir(call)
+    case "write_file": return await runWriteFile(call)
     case "processes": return await runProcesses(call)
     case "screenshot": return await captureScreenshot(call)
     case "web_search": return await runWebSearch(call)
@@ -214,6 +215,186 @@ final class AgentExecutor: AgentToolExecutor {
   /// 승인을 받은 뒤의 실측 — 위험 판정을 이미 통과한 명령.
   private static func probeApprovedOffMain(_ command: String) async -> SandboxProbe {
     await Task.detached(priority: .userInitiated) { SandboxRunner.probeApproved(command) }.value
+  }
+
+  // MARK: - 파일 쓰기 (v0.38.2)
+
+  /// `write_file` — 텍스트 파일 생성·전체 교체.
+  ///
+  /// 셸을 거치지 않으므로 샌드박스가 없다. 대신 **경로 검증 → 정책 → 승인 카드 → 백업 → 원자적 쓰기**
+  /// 순서로 같은 신뢰 경계를 만든다. 기존 파일 백업에 실패하면 **덮어쓰지 않는다**.
+  private func runWriteFile(_ call: AgentToolCall) async -> AgentToolOutcome {
+    let started = Date()
+    let rawPath = (call.stringArgument("path") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let content = call.rawStringArgument("content") ?? ""
+    let purpose = (call.stringArgument("purpose") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+    func fail(_ message: String, denied: Bool = true) -> AgentToolOutcome {
+      appendEvent(AgentEvent(id: call.id, toolName: call.name,
+                             title: Lf("파일 쓰기 — %@", rawPath.isEmpty ? L("(경로 없음)") : rawPath),
+                             command: rawPath, level: .write, risk: .normal,
+                             state: .denied, output: message))
+      recordAudit(command: "write_file \(rawPath)", level: .write, risk: .normal,
+                  decision: "deny", exitCode: nil, elapsedMs: 0)
+      return AgentToolOutcome(output: message, denied: denied, level: .write, risk: .normal)
+    }
+
+    // ① 경로 — 절대 경로만. 부모 폴더의 심볼릭 링크는 실제 경로로 해석한다.
+    guard !rawPath.isEmpty else { return fail(L("파일 경로가 비어 있습니다.")) }
+    let normalized = WriteScope.normalize(rawPath)
+    guard normalized.hasPrefix("/"), normalized != "/", normalized != NSHomeDirectory() else {
+      return fail(L("절대 경로를 지정해야 합니다."))
+    }
+    let rawParent = (normalized as NSString).deletingLastPathComponent
+    guard !rawParent.isEmpty, rawParent != "/" else {
+      return fail(L("이 위치에는 파일을 만들 수 없습니다."))
+    }
+    let parent = WriteScope.normalize(
+      URL(fileURLWithPath: rawParent, isDirectory: true).resolvingSymlinksInPath().path)
+    let target = WriteScope.normalize((parent as NSString)
+      .appendingPathComponent((normalized as NSString).lastPathComponent))
+
+    // ② 항상 거부 — 앱 자기 데이터·시스템 영역·심볼릭 링크·폴더.
+    if AppDataGuard.isProtected(path: target) {
+      return fail(L("QuickTalk의 저장 데이터는 도구로 쓸 수 없습니다."))
+    }
+    if TerminalHandoff.isSystemWrite(target) || WriteScope.isSystemPath(target) {
+      return fail(L("시스템 영역에는 파일을 쓸 수 없습니다. 터미널에서 직접 작성해 주세요."))
+    }
+    let fm = FileManager.default
+    // 대상이 심볼릭 링크면 거부한다 — 링크 대상이 승인 범위 밖일 수 있고,
+    // 끊어진 링크도 .atomic 쓰기로 **링크 자체를 교체**해 버릴 수 있다.
+    if (try? fm.destinationOfSymbolicLink(atPath: target)) != nil {
+      return fail(L("심볼릭 링크에는 쓸 수 없습니다."))
+    }
+    var isDir: ObjCBool = false
+    if fm.fileExists(atPath: target, isDirectory: &isDir) {
+      if isDir.boolValue { return fail(L("같은 이름의 폴더가 있습니다.")) }
+    }
+    let isNew = !fm.fileExists(atPath: target)
+
+    // ③ 내용 — UTF-8 텍스트·크기·NUL.
+    guard content.utf8.count <= 300_000 else {
+      return fail(L("파일 내용이 너무 큽니다(최대 300,000자). 나눠서 작성하세요."))
+    }
+    guard !content.unicodeScalars.contains(where: { $0.value == 0 }) else {
+      return fail(L("파일 내용에 NUL 문자를 넣을 수 없습니다."))
+    }
+    let data = Data(content.utf8)
+    let lineCount = LineDiff.lines(content).count
+
+    // ④ 정책 — 승인 범위 안이면 자동 허용, 밖이면 승인 카드.
+    let risk = RiskClassifier.classify("tee \(target)")
+    guard risk != .critical else {
+      return fail(L("치명적인 경로라 파일을 쓰지 않았습니다."))
+    }
+    let policy = store.effectiveAgentPolicy(for: session)
+    let approvedScopes = store.approvedWriteScopes(for: session)
+    let decision = PolicyEngine.decide(command: "write_file \(target)",
+                                       capability: .write(path: target),
+                                       risk: risk, policy: policy,
+                                       approvedScopes: approvedScopes)
+    switch decision {
+    case .deny(let reason):
+      return fail(reason)
+    case .ask:
+      let preview = FileWritePreview(path: target, isNew: isNew, content: content)
+      let request = AgentApprovalRequest(
+        command: target, level: .write, risk: risk,
+        capability: .write(path: target), writablePaths: [target],
+        reason: Lf("쓰기 권한이 필요합니다: %@", target),
+        detail: isNew ? L("새 파일을 만듭니다.") : L("기존 파일을 덮어씁니다."),
+        allowsAlwaysAllow: false, filePreview: preview)
+      appendEvent(AgentEvent(id: call.id, toolName: call.name,
+                             title: purpose.isEmpty ? Lf("파일 쓰기 — %@", target) : "\(purpose) — \(target)",
+                             command: target, level: .write, risk: risk,
+                             state: .pending,
+                             output: isNew ? L("새 파일") : L("덮어쓰기")))
+      let choice = await requestApproval(request)
+      guard choice != .deny else {
+        let text = L("사용자가 파일 쓰기를 거부했습니다.")
+        updateEvent(call.id) { $0.state = .denied; $0.output = text }
+        recordAudit(command: "write_file \(target)", level: .write, risk: risk,
+                    decision: "deny", exitCode: nil, elapsedMs: 0)
+        return AgentToolOutcome(output: text, denied: true, level: .write, risk: risk)
+      }
+      if choice == .allowScope {
+        store.approveWriteScopes(request.writeScopes, session: session)
+      }
+      updateEvent(call.id) { $0.state = .running }
+    case .allow:
+      appendEvent(AgentEvent(id: call.id, toolName: call.name,
+                             title: purpose.isEmpty ? Lf("파일 쓰기 — %@", target) : "\(purpose) — \(target)",
+                             command: target, level: .write, risk: risk,
+                             state: .running,
+                             output: isNew ? L("새 파일") : L("덮어쓰기")))
+    }
+
+    // ⑤ 쓰기 직전 백업 — 기존 파일인데 백업하지 못하면 덮어쓰지 않는다.
+    let before = isNew ? nil : fm.contents(atPath: target)
+    let undo = await UndoStack.shared.snapshot(command: "write_file \(target)",
+                                               scope: parent, paths: [target])
+    if !isNew, undo.items.first?.backup == nil {
+      await UndoStack.shared.discard(id: undo.id)
+      let text = L("기존 파일을 백업하지 못해 덮어쓰지 않았습니다. 파일이 너무 크거나 권한이 없습니다.")
+      updateEvent(call.id) { $0.state = .failed; $0.output = text }
+      recordAudit(command: "write_file \(target)", level: .write, risk: risk,
+                  decision: "deny", exitCode: nil, elapsedMs: 0)
+      return AgentToolOutcome(output: text, denied: true, level: .write, risk: risk)
+    }
+
+    // ⑥ 원자적 쓰기 — 같은 폴더에 임시 파일을 만들고 교체한다(Foundation atomic).
+    do {
+      try fm.createDirectory(atPath: parent, withIntermediateDirectories: true)
+      try data.write(to: URL(fileURLWithPath: target), options: .atomic)
+    } catch {
+      await UndoStack.shared.discard(id: undo.id)
+      let text = Lf("파일을 쓰지 못했습니다: %@", error.localizedDescription)
+      updateEvent(call.id) { $0.state = .failed; $0.output = text }
+      recordAudit(command: "write_file \(target)", level: .write, risk: risk,
+                  decision: "allow", exitCode: 1, elapsedMs: 0)
+      return AgentToolOutcome(output: text, denied: false, level: .write, risk: risk)
+    }
+    await UndoStack.shared.commit(undo)
+
+    // ⑦ 산출물 — 내용이 실제로 바뀐 경우에만 카드에 붙인다.
+    let afterData = data
+    let changed = before != afterData
+    var artifact: TurnArtifact?
+    if changed || isNew {
+      let beforeText = before.flatMap { $0.count <= FileArtifacts.previewBytes
+        ? String(data: $0, encoding: .utf8) : nil }
+      var diff: TextDiff?
+      if isNew {
+        diff = LineDiff.compare(before: "", after: content)
+      } else if let beforeText {
+        diff = LineDiff.compare(before: beforeText, after: content)
+      }
+      artifact = FileArtifacts.make(path: target, change: isNew ? .created : .modified,
+                                    byteCount: afterData.count, diff: diff,
+                                    undoID: undo.id)
+      if let artifact { store.appendAgentArtifact(artifact, session: session) }
+    }
+
+    let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    var summary = isNew
+      ? Lf("새 파일을 만들었습니다: %@ (%d줄)", target, lineCount)
+      : (changed ? Lf("파일을 덮어썼습니다: %@ (%d줄)", target, lineCount)
+                 : Lf("내용이 같아 파일을 바꾸지 않았습니다: %@", target))
+    if let artifact, let lines = artifact.lineChangeText {
+      summary += " " + lines
+    }
+    summary += "\n" + L("쓰기 전 상태로 되돌릴 수 있습니다.")
+    updateEvent(call.id) {
+      $0.state = .done
+      $0.output = summary
+      $0.elapsedMs = elapsed
+      $0.undoID = undo.id
+    }
+    store.registerAgentUndo(undo, eventID: call.id, session: session)
+    recordAudit(command: "write_file \(target)", level: .write, risk: risk,
+                decision: "allow", exitCode: 0, elapsedMs: elapsed)
+    return AgentToolOutcome(output: summary, denied: false, level: .write, risk: risk)
   }
 
   /// 승인된 범위만 열고 실행한다.
@@ -382,6 +563,14 @@ final class AgentExecutor: AgentToolExecutor {
     }
     if let undo {
       store.registerAgentUndo(undo, eventID: call.id, session: session)
+    }
+    // v0.38.2 — 성공한 쓰기가 실제로 바꾼 파일을 산출물 카드로 남긴다.
+    // 되돌리기 기록(UndoEntry)의 백업과 현재 파일을 비교하므로, 건드리지 않은 파일은 빠진다.
+    if let undo, !failed {
+      let artifacts = FileArtifacts.collect(undo: undo)
+      if !artifacts.isEmpty {
+        store.appendAgentArtifacts(artifacts, session: session)
+      }
     }
     recordAudit(command: command, level: level, risk: risk,
           decision: denied ? "deny" : "allow",

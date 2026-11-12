@@ -53,6 +53,26 @@ extension UIStore {
     updateAgentEvent(id: id, session: activeSession, mutate)
   }
 
+  /// 산출물 1건을 **그 대화방 세션**의 실행 턴에 붙인다(v0.38.2).
+  /// 예약 실행 중이면 그 실행의 대화에만 붙는다.
+  @MainActor
+  func appendAgentArtifact(_ artifact: TurnArtifact, session: ChatSession) {
+    if let ctx = scheduledRun {
+      guard let turnID = ctx.turnID else { return }
+      ctx.session.appendArtifact(artifact, to: turnID)
+      ctx.session.touch()
+      return
+    }
+    guard let turnID = session.agentTurnID else { return }
+    session.core.appendArtifact(artifact, to: turnID)
+    session.conversation = session.core.conversation
+  }
+
+  @MainActor
+  func appendAgentArtifacts(_ artifacts: [TurnArtifact], session: ChatSession) {
+    for artifact in artifacts { appendAgentArtifact(artifact, session: session) }
+  }
+
   /// 카드 한 건을 **그 대화방 세션**에서 고친다.
   @MainActor
   func updateAgentEvent(id: String, session: ChatSession, _ mutate: (inout AgentEvent) -> Void) {

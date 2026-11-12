@@ -9,6 +9,7 @@ import SwiftUI
 struct JobStatusCard: View {
   let jobID: UUID
   @EnvironmentObject private var store: UIStore
+  @State private var previewRequest: ArtifactPreviewRequest?
 
   private var job: Job? { store.job(id: jobID) }
 
@@ -67,11 +68,25 @@ struct JobStatusCard: View {
       if job.status == .completed, !job.artifactPaths.isEmpty {
         VStack(alignment: .leading, spacing: 2) {
           ForEach(Array(job.artifactPaths.prefix(4)), id: \.self) { path in
-            Text("• \(path)")
-              .font(.system(size: 10.5, design: .monospaced))
-              .foregroundColor(.secondary)
-              .lineLimit(1)
-              .truncationMode(.middle)
+            Button {
+              previewRequest = ArtifactPreviewRequest(path: absolutePath(path, in: job),
+                                                      artifact: nil)
+            } label: {
+              HStack(spacing: 4) {
+                Text("• \(path)")
+                  .font(.system(size: 10.5, design: .monospaced))
+                  .foregroundColor(.secondary)
+                  .lineLimit(1)
+                  .truncationMode(.middle)
+                Image(systemName: "eye")
+                  .font(.system(size: 9))
+                  .foregroundColor(.secondary.opacity(0.75))
+                Spacer(minLength: 0)
+              }
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L("미리보기"))
           }
           if job.artifactPaths.count > 4 {
             Text(Lf("외 %d개", job.artifactPaths.count - 4))
@@ -88,6 +103,15 @@ struct JobStatusCard: View {
       .fill(tint(job.status).opacity(0.05)))
     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
       .stroke(tint(job.status).opacity(0.20), lineWidth: 1))
+    .sheet(item: $previewRequest) { request in
+      ArtifactPreviewSheet(request: request)
+    }
+  }
+
+  /// Job 파일 목록은 작업 폴더 기준 **상대 경로**다 — 미리보기에는 절대 경로가 필요하다.
+  private func absolutePath(_ path: String, in job: Job) -> String {
+    if path.hasPrefix("/") { return path }
+    return (job.workspacePath as NSString).appendingPathComponent(path)
   }
 
   private func header(_ job: Job) -> some View {

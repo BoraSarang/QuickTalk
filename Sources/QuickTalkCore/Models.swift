@@ -82,6 +82,9 @@ public struct Turn: Codable, Equatable {
   /// 이 턴이 **맡긴 작업(Job)의 상태 카드**인가(v0.38) — 있으면 Job 상태 카드를 그린다.
   /// 구버전 기록에는 없으므로 nil.
   public var jobID: UUID?
+  /// 이 턴에 남긴 **산출물**(v0.38.2) — 답변 아래 카드·미리보기·되돌리기에 쓴다.
+  /// 파일 내용은 저장하지 않는다(경로·크기·변경·줄 수만). 구버전 기록에는 nil.
+  public var artifacts: [TurnArtifact]?
 
   public init(id: UUID = UUID(), role: TurnRole, text: String,
               attachments: [Attachment] = [], status: TurnStatus = .done,
@@ -89,7 +92,7 @@ public struct Turn: Codable, Equatable {
               createdAt: Date? = nil, agentEvents: [AgentEvent]? = nil,
               personaID: UUID? = nil, reasoning: String? = nil,
               executesTurnID: UUID? = nil, plan: ExecutionPlan? = nil,
-              jobID: UUID? = nil) {
+              jobID: UUID? = nil, artifacts: [TurnArtifact]? = nil) {
     self.id = id; self.role = role; self.text = text
     self.attachments = attachments; self.status = status; self.elapsedMs = elapsedMs
     self.sources = sources; self.createdAt = createdAt; self.agentEvents = agentEvents
@@ -97,6 +100,7 @@ public struct Turn: Codable, Equatable {
     self.executesTurnID = executesTurnID
     self.plan = plan
     self.jobID = jobID
+    self.artifacts = artifacts
   }
 
   /// 사용자가 [이대로 실행]을 눌러 만든 **요청** 턴인가.
