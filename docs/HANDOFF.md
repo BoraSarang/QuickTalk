@@ -11,7 +11,8 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.38.3**(2026-11-13 00:22, `~/Applications/QuickTalk.app`, PID 84351) — **v0.38.3 격리 브라우저 보이는 창**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37·v0.38.0·v0.38.1 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.39.0**(2026-11-13 00:58, `~/Applications/QuickTalk.app`, PID 97021) — **v0.39 Telegram 원격 승인**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37·v0.38.0~v0.38.3 상태는 아래 인계 참조.
+> **v0.39 구현·검증·설치 완료(2026-11-13)** — 예약 작업·맡긴 작업(Job)이 승인 때문에 멈췄을 때 **Telegram 메시지의 [✅ 허용]/[❌ 거부]** 버튼으로 한 번만 응답한다. Bot API **long polling**(아웃바운드 HTTPS)만 쓰고 인바운드 포트·웹훅은 열지 않는다. 기본 꺼짐 · 봇 토큰 `SecretStore` 0600 · 설정한 chat 하나만 · nonce 128비트 1회용 · 기존 10분 만료·Job 상태 전이·감사 로그·Mac 알림 그대로. PLAN `docs/plans/PLAN_v0.39_remote-approval_macos.md`, 인계 (34). **실측 대기** — 실제 봇 토큰·chat ID·Telegram 카드.
 > **v0.38.3 구현·검증·병합·설치 완료(2026-11-13)** — 모델이 읽는 격리 브라우저 페이지를 **보이는 창**에 띄우고 주소창·뒤로·앞으로·새로고침·격리 배지·모델 활동을 보여 준다. 같은 `WKWebView` 를 옮겨 붙이고, 닫으면 오프스크린으로 복귀해 페이지·모델 읽기를 유지한다. 자동 표시 기본 켜짐·포커스 스틸 없음. **PR #169 → squash merge `41c056f`**. PLAN `docs/plans/PLAN_v0.38.3_browser-window_macos.md`, 인계 (33).
 > **v0.38.2 구현·검증·병합·설치 완료(2026-11-12)** — 도우미가 만든 파일을 답변 아래 **산출물 카드**로 보여 주고, 미리보기·diff·[되돌리기]를 제공. 텍스트 파일은 셸 대신 `write_file` 로 쓴다(승인 카드에 앞 20줄·백업 실패 시 덮어쓰지 않음). **PR #166 → squash merge `bba1d44`**. PLAN `docs/plans/PLAN_v0.38.2_artifacts_macos.md`, 인계 (32).
 > **v0.38.1 구현·검증·병합·설치 완료(2026-11-12)** — 모델이 Safari와 분리된 전용 프로필로 페이지를 읽고, 입력·제출은 항상 승인. **PR #164 → squash merge `1984f53`**. PLAN `docs/plans/PLAN_v0.38.1_browser_macos.md`, 인계 (31).
@@ -22,6 +23,20 @@
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-13 인계 (34) — v0.39 **Telegram 원격 승인** — **Debug 1.39.0 설치 · 실측 대기**
+
+- **기능**: 예약 작업·맡긴 작업(Job)이 승인 때문에 멈추면 **Telegram** 으로 카드 한 장을 보낸다 — `🔐 승인 필요 — <제목>` · `명령`(마스킹·한 줄·300자) · `위험: 보통 · 쓰기` · `이유` · `쓰기 범위` · `비서`. **[✅ 허용] [❌ 거부]** 버튼으로 **한 번만** 응답한다. 메시지는 `✅ 허용됨 (원격)`/`❌ 거부됨 (원격)`/`🖥 Mac에서 허용됨`/`⌛ 시간 초과 — 자동 거부`/`취소됨 — 실행이 끝났습니다.` 로 바뀌고 버튼이 사라진다.
+- **결정 경로 재사용**: 새 승인 엔진이 없다. `RemoteApprovalService` 는 입력만 넘기고 실제 결정은 기존 `UIStore.resolveScheduledApproval(.allowOnce/.deny)` 가 한다. 10분 만료·Job 상태 전이·감사 로그·Mac 알림·산출물 카드가 그대로 적용된다.
+- **안전**: 기본 **꺼짐** · 봇 토큰은 `SecretStore` account `telegramApprovalBotToken`(파일 0600) · 설정 파일·로그·메시지에 토큰 금지 · **설정한 chat 하나**만 처리(다른 chat 은 "허용되지 않은 요청입니다.") · nonce 128비트(32 hex) 1회용, callback data `qt:<nonce>:allow|deny`(64바이트 이하, 명령 미포함) · `.alwaysAllow`·쓰기 범위 영구 승인 불가 · 파일 내용·페이지 본문·입력값 미전송 · 명령의 토큰/비밀번호/Authorization 패턴 `***`.
+- **네트워크**: `https://api.telegram.org` **아웃바운드 long polling**(`getUpdates` timeout 25초)만. 인바운드 포트·웹훅 없음. 오류는 3→30초 백오프, 네트워크 오류는 토큰 포함 URL 을 숨긴 `TelegramError.transport` 로 변환. 전송 실패는 Job 을 막지 않는다.
+- **수명**: pending 은 앱 전체 1개. 새 요청이 오면 이전 메시지를 "새 승인 요청으로 대체되었습니다."로 닫는다. Mac 처리·만료·예약/Job 종료·설정 끔·앱 종료에서 정리. 앱이 꺼져 있으면 응답 불가 — 메시지에 명시. 재시작 시 이전 메시지는 처리하지 않는다.
+- **설정 UI**: 설정 › 비서 › **원격 승인 (Telegram)** — 토글·봇 토큰 저장/삭제·chat ID·[연결 테스트](`getMe` + 테스트 메시지)·BotFather 안내·보안 캡션.
+- **검증**: `swift test` **1119/1119**(6 skip, `RemoteApprovalTests` 27) · `LocalizationCoverageTests` 통과(신규 51키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-remote-approval` **PASS 31/31**(꺼짐/잘못된 설정 전송 없음 · 전송 본문·버튼 · 다른 chat 무시 · allow/deny · nonce 재사용 · 만료 · Mac 처리 · 토큰 마스킹 · 연결 테스트 · pending 대체 · stop) · job/plan/execute/artifact(18/18)/browser-routing(23/23)/browser-live(14/14)/browser-window(24/24)/skills/paste PASS.
+- **PR/버전/설치**: **PR #171 → squash merge `ef7fd91`** · 1.39.0(build 3900) · **2026-11-13 00:58 Debug 1.39.0** 교체·재실행(PID 97021, `codesign --verify --strict --deep` OK, `QuickTalk.debug.dylib` SHA-256 `27bbc873ed5b58a1bef38d5c391ce11e0e3a07bf048deed168164f3730e1ddd0`, 백업 번들 없음).
+- **실측 대기**: ① BotFather 봇 토큰 저장 → [연결 테스트]로 테스트 메시지 수신 ② chat ID 저장 ③ 예약/Job 이 작업 폴더 밖에 쓰려 멈출 때 Telegram 카드 수신 ④ [✅ 허용] 1회 → Job 이 이어서 실행 ⑤ [❌ 거부] → 일시 중지 ⑥ 10분 방치 → ⌛ 자동 거부 ⑦ Mac 카드에서 먼저 처리 → 🖥 표시·버튼 제거 ⑧ 앱을 끈 상태에서 버튼을 눌러도 아무 일도 없는지.
+- **한계**: Telegram 만 지원(iMessage·웹훅 없음). 원격은 한 번 허용/거부만 — 항상 허용·쓰기 범위 영구 승인·새 작업 시작·파일 열람은 Mac 전용. 실제 봇·예약/Job 승인은 사용자 실측으로 확정한다.
+- **다음**: v0.39 실측 확인 후 남은 로드맵 후보 검토(iMessage 원격 승인·웹훅은 별도 계획).
 
 ### 2026-11-13 인계 (33) — v0.38.3 **격리 브라우저 보이는 창** — **PR #169 병합 · Debug 1.38.3 설치 · 실측 대기**
 

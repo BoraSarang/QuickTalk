@@ -3,6 +3,20 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-13 KST
 
+## 구현·검증 완료 (2026-11-13) — v0.39 **Telegram 원격 승인** — 자리를 떠나도 버튼으로 한 번 [PR #171 병합 · Debug 1.39.0 설치 · 실측 대기]
+
+- **계기**: Job·예약 작업이 승인 때문에 멈추면 Mac 앞에 있을 때만 이어갈 수 있었다. "밭에 가서도 승인"이 남은 구멍이었다.
+- **경험**: `🔐 승인 필요 — 이사 업체 견적 비교` · `명령: mkdir -p ~/Documents/이사` · `위험: 보통 · 쓰기` · `이유: 작업 폴더 밖에 폴더를 만듭니다.` · **[✅ 허용] [❌ 거부]** · "10분 안에 응답하지 않으면 자동 거부됩니다."
+- **결정 경로 재사용**: `RemoteApprovalService` 는 입력만 넘긴다. 실제 결정은 기존 `resolveScheduledApproval(.allowOnce/.deny)` — 10분 만료·Job 상태 전이·감사 로그·Mac 알림·산출물 카드가 그대로 적용된다.
+- **안전**: 기본 **꺼짐** · 봇 토큰 `SecretStore`(0600) · 설정한 **chat 하나**만 · nonce 128비트 1회용 · callback data `qt:<nonce>:allow|deny`(64바이트 이하, 명령 미포함) · `.alwaysAllow` 불가 · 파일 내용·페이지 본문·입력값 미전송 · 명령 마스킹.
+- **네트워크**: `api.telegram.org` **아웃바운드 long polling** 만. 인바운드 포트·웹훅 없음. 오류는 3→30초 백오프, 토큰 포함 URL 은 오류에서 숨김. 전송 실패가 Job 을 막지 않는다.
+- **수명**: pending 앱 전체 1개 — 새 요청·Mac 처리·만료·실행 종료·설정 끔·앱 종료에서 정리. 앱이 꺼져 있으면 응답 불가(메시지에 명시).
+- **설정 UI**: 설정 › 비서 › **원격 승인 (Telegram)** — 토글·토큰 저장/삭제·chat ID·[연결 테스트]·BotFather 안내·보안 캡션.
+- **검증**: `swift test` **1119/1119**(6 skip, `RemoteApprovalTests` 27) · 번역 키 51개 · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · `--qa-remote-approval` **PASS 31/31** · job/plan/execute/artifact(18/18)/browser-routing(23/23)/browser-live(14/14)/browser-window(24/24)/skills/paste PASS.
+- **버전/설치**: **PR #171 → squash merge `ef7fd91`** · 1.39.0(build 3900) · **2026-11-13 Debug 1.39.0** 교체·재실행(PID 97021, `codesign --verify --strict --deep` OK, SHA-256 `27bbc873…`, 백업 번들 없음).
+- **실측 대기**: 봇 토큰 저장 · 연결 테스트 · 예약/Job 승인 카드 수신 · 허용/거부 1회 · 10분 만료 · Mac 처리 🖥 표시.
+- **다음**: 실측 확인 후 iMessage 원격 승인·웹훅 등 후속 후보 검토.
+
 ## 구현·검증 완료 (2026-11-13) — v0.38.3 **격리 브라우저 보이는 창** — 주소창·뒤로/앞으로·모델 활동 [PR #169 병합 · Debug 1.38.3 설치 · 실측 대기]
 
 - **계기**: 모델이 페이지를 읽어도 무슨 페이지인지 보이지 않았다. 승인 카드만으로는 "지금 어디를 보고 있는지"를 알 수 없었다.
