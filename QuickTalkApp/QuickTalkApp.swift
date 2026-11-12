@@ -63,11 +63,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var jobs: JobService?
   /// 예약 작업 알림 (v0.26 5단계).
   private var notifications: NotificationService?
+  /// 원격 승인 — Telegram long polling (v0.39).
+  private var remoteApproval: RemoteApprovalService?
 
   /// 앱 종료 — 잠금을 명시적으로 푼다(OS 가 어차피 풀지만, 즉시 재실행이 막히지 않게).
   func applicationWillTerminate(_ notification: Notification) {
     scheduler?.stop()
     scheduler?.save()
+    remoteApproval?.stop()
     store.teardownBrowsers()
     SingleInstance.release()
   }
@@ -106,6 +109,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     store.onScheduledRunFinished = { [weak notifications] notice in
       notifications?.notifyRunFinished(notice)
     }
+    // 원격 승인 — Telegram long polling (v0.39). 기본 꺼짐 — 설정이 준비됐을 때만 시작한다.
+    let remoteApproval = RemoteApprovalService(
+      settingsProvider: { [weak store] in store?.settings ?? QuickTalkSettings() },
+      tokenProvider: { SecretStore.load(account: RemoteApprovalConfig.tokenAccount) },
+      transport: URLSessionTelegramTransport())
+    remoteApproval.onDecision = { [weak store] action in
+      store?.resolveScheduledApproval(action == .allow ? .allowOnce : .deny)
+    }
+    self.remoteApproval = remoteApproval
+    store.remoteApproval = remoteApproval
+    remoteApproval.applySettings()
     // 맡긴 작업(Job) — 저장된 Job을 복구하고, [맡기기] 실행을 맡는다(v0.38).
     let jobs = JobService(store: store)
     self.jobs = jobs
@@ -186,6 +200,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runQABrowserLiveIfRequested() { return }
     // QA: `--qa-browser-window` — 보이는 창·주소창·자동 표시·숨김(v0.38.3)
     if runQABrowserWindowIfRequested() { return }
+    // QA: `--qa-remote-approval` — Telegram 원격 승인 경로·nonce·만료(v0.39)
+    if runQARemoteApprovalIfRequested() { return }
     // QA: `--qa-skills-routing` — 스킬 목록 노출·차단 규칙(v0.37)
     if runQASkillsRoutingIfRequested() { return }
     // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
@@ -421,7 +437,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.applyPointerTracking(s)
         self?.applyShortcuts(s)
         self?.applyPanelLevel()
-        Task { @MainActor in self?.scheduler?.applySettings() }
+        Task { @MainActor in
+          self?.scheduler?.applySettings()
+          self?.remoteApproval?.applySettings()
+        }
       }
       .store(in: &cancellables)
   }

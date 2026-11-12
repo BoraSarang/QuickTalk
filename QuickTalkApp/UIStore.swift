@@ -223,6 +223,8 @@ final class UIStore: ObservableObject {
   /// 알림 서비스·권한 상태 (5단계) — AppDelegate 가 만든다.
   var notifications: NotificationService?
   @Published var notificationPermission: NotificationPermission = .unknown
+  /// 원격 승인(Telegram, v0.39) — AppDelegate 가 만들고 넣어 준다.
+  var remoteApproval: RemoteApprovalService?
 
   // MARK: - 맡긴 작업 (v0.38)
 
@@ -279,13 +281,19 @@ final class UIStore: ObservableObject {
       // 승인 카드가 붙은 턴을 **지금** 보관함에도 반영한다 — 알림을 눌러 대화를 열었을 때
       //   카드가 보이지 않으면 승인할 방법이 없기 때문이다(v0.38 Job).
       dumpScheduledConversation(ctx)
-      onScheduledApproval?(scheduledApproval!)
+      if let approval = scheduledApproval {
+        onScheduledApproval?(approval)
+        // 원격 승인은 **전송 실패가 승인 대기를 막지 않는다** — 기다리지 않고 병행한다.
+        Task { [weak self] in await self?.remoteApproval?.offer(approval) }
+      }
       scheduledApprovalTimer?.invalidate()
       let box = WeakMainActorBox(self)
       scheduledApprovalTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: false) { _ in
         Task { @MainActor in
           guard let self = box.value,
                 let ctx = self.scheduledRun, ctx.approvalContinuation != nil else { return }
+          // Telegram 메시지가 있으면 `⌛` 로 닫고, 그다음 기존 거부 경로로 보낸다.
+          self.remoteApproval?.expire()
           ctx.approvalTimedOut = true
           self.resolveScheduledApproval(.deny)
         }
@@ -296,6 +304,9 @@ final class UIStore: ObservableObject {
   /// 사용자가 카드에서 승인/거부를 눌렀다.
   @MainActor
   func resolveScheduledApproval(_ choice: AgentApprovalChoice) {
+    // Mac 카드에서 먼저 처리됐으면 Telegram 메시지의 버튼을 지운다.
+    // 원격 결정이면 서비스가 pending 을 이미 비웠으므로 아무 일도 하지 않는다.
+    remoteApproval?.localResolution(choice)
     scheduledApprovalTimer?.invalidate()
     scheduledApprovalTimer = nil
     scheduledApproval = nil

@@ -41,12 +41,18 @@ struct AssistantSettingsSection: View {
   @State private var editingPersona: Persona?
   @State private var isNewPersona = false
   @State private var deletingPersona: Persona?
+  /// 원격 승인 — 봇 토큰 입력·저장·연결 테스트 안내(v0.39)
+  @State private var telegramTokenInput = ""
+  @State private var telegramTokenMessage: String?
+  @State private var remoteApprovalTestMessage: String?
+  @State private var remoteApprovalTesting = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       personaCard
       reportCard
       scheduleCard
+      remoteApprovalCard
 
       Text(L("비서를 만들지 않으면 지금과 똑같이 동작합니다. 대화마다 비서를 고를 수 있고, 고르지 않으면 기본(비서 없음)입니다."))
         .font(.caption).foregroundColor(.secondary)
@@ -259,6 +265,90 @@ struct AssistantSettingsSection: View {
     .onChange(of: store.settings.notificationsEnabled) { _, on in
       guard on else { return }
       Task { await store.notifications?.requestAuthorizationIfNeeded() }
+    }
+  }
+
+  // MARK: 원격 승인 (Telegram, v0.39)
+
+  private var remoteApprovalCard: some View {
+    groupBox(L("원격 승인 (Telegram)")) {
+      toggleRow(L("Telegram으로 승인 받기"),
+                isOn: $store.settings.remoteApprovalEnabled,
+                description: L("자리를 비웠을 때 예약 작업·맡긴 작업이 승인을 기다리면 Telegram 메시지의 버튼으로 한 번만 허용하거나 거부할 수 있습니다."))
+
+      HStack(spacing: 8) {
+        SecureField(L("봇 토큰"), text: $telegramTokenInput)
+          .textFieldStyle(.roundedBorder)
+        Button(L("저장")) { saveTelegramToken() }
+          .controlSize(.small)
+        if SecretStore.has(account: RemoteApprovalConfig.tokenAccount) {
+          Button(L("삭제")) { deleteTelegramToken() }
+            .controlSize(.small)
+        }
+      }
+      caption(SecretStore.has(account: RemoteApprovalConfig.tokenAccount)
+        ? L("봇 토큰이 이 Mac의 비밀 파일에 저장되어 있습니다.")
+        : L("BotFather에서 만든 봇 토큰을 넣으세요. 토큰은 설정 파일이 아니라 이 Mac의 비밀 파일(0600)에만 저장됩니다."))
+      if let message = telegramTokenMessage { caption(message) }
+
+      HStack(spacing: 8) {
+        Text(L("chat ID")).font(.body)
+        TextField(L("예: 123456789"), text: $store.settings.remoteApprovalChatID)
+          .textFieldStyle(.roundedBorder)
+        Button(remoteApprovalTesting ? L("확인 중…") : L("연결 테스트")) {
+          testRemoteApproval()
+        }
+        .controlSize(.small)
+        .disabled(remoteApprovalTesting)
+      }
+      if let message = remoteApprovalTestMessage { caption(message) }
+
+      caption(L("Telegram에서 @BotFather 로 봇을 만들고, 봇과 대화를 시작한 뒤 그 chat ID를 넣으세요. 설정한 chat 하나만 처리합니다."))
+      caption(L("원격에서는 한 번 허용/거부만 할 수 있습니다. 메시지에는 명령·위험·이유만 담기고 파일 내용은 보내지 않습니다. QuickTalk가 꺼져 있으면 응답할 수 없습니다."))
+    }
+  }
+
+  private func saveTelegramToken() {
+    let token = telegramTokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard RemoteApprovalConfig.isValidToken(token) else {
+      telegramTokenMessage = L("봇 토큰 형식이 올바르지 않습니다. BotFather가 준 토큰을 그대로 붙여 넣으세요.")
+      return
+    }
+    if SecretStore.save(account: RemoteApprovalConfig.tokenAccount, secret: token) {
+      telegramTokenInput = ""
+      telegramTokenMessage = L("저장됨 (로컬 파일)")
+      store.remoteApproval?.applySettings()
+    } else {
+      telegramTokenMessage = L("저장 실패 — 비밀 파일을 쓸 수 없습니다.")
+    }
+  }
+
+  private func deleteTelegramToken() {
+    if SecretStore.delete(account: RemoteApprovalConfig.tokenAccount) {
+      telegramTokenMessage = L("삭제됨")
+      remoteApprovalTestMessage = nil
+      store.remoteApproval?.applySettings()
+    } else {
+      telegramTokenMessage = L("삭제할 토큰이 없습니다.")
+    }
+  }
+
+  private func testRemoteApproval() {
+    guard let service = store.remoteApproval else {
+      remoteApprovalTestMessage = L("원격 승인 서비스를 사용할 수 없습니다.")
+      return
+    }
+    remoteApprovalTesting = true
+    remoteApprovalTestMessage = L("연결을 확인하는 중…")
+    Task { @MainActor in
+      let result = await service.testConnection()
+      remoteApprovalTesting = false
+      switch result {
+      case .success(let name):
+        remoteApprovalTestMessage = Lf("연결되었습니다 — %@. 테스트 메시지를 보냈습니다.", name)
+      case .failure(let error):
+        remoteApprovalTestMessage = error.safeDescription
+      }
     }
   }
 
