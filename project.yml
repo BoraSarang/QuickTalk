@@ -11,6 +11,11 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: QuickTalkApp
+        # 스킬 폴더는 **폴더 참조**로 넣는다 — 파일을 낱개로 복사하면 scripts/ 구조가 사라진다.
+        excludes:
+          - "Resources/Skills"
+      - path: QuickTalkApp/Resources/Skills
+        type: folder
       - path: Sources/QuickTalkCore
     settings:
       base:

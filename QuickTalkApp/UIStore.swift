@@ -987,6 +987,15 @@ final class UIStore: ObservableObject {
     }
   }
 
+  /// QA 자가진단 전용 — 설정 변경을 **저장하지 않고** 잠시 실행한다.
+  /// (`--qa-skills-routing` 처럼 값을 바꿔 보는 하네스가 사용자 설정을 오염시키지 않게)
+  func withSuppressedSettingsSave(_ body: () -> Void) {
+    let was = suppressSettingsSave
+    suppressSettingsSave = true
+    body()
+    suppressSettingsSave = was
+  }
+
   /// QA 렌더 하네스 전용 — 저장 없이 설정 한 항목만 바꾼다(사용자 설정 오염 금지).
   func applyRenderOverride(ttsEngine: TTSEngine) {
     suppressSettingsSave = true
@@ -2430,6 +2439,17 @@ final class UIStore: ObservableObject {
         do {
           let p = provider
           let reply: String
+          // v0.37 — 스킬 목록과 도구 목록은 **같은 스냅샷**으로 만든다(부분집합 판정).
+          // 스킬이 하나라도 노출되면 `read_skill` 도 함께 붙는다.
+          let baseAgentTools = AgentToolCatalog.available(
+            for: conversationPersona,
+            includingWebSearch: searchToolReady && p.type != .appleFM,
+            includingUI: settings.uiControlEnabled && p.type != .appleFM,
+            includingSchedule: true)
+          let skillsBlock = self.skillsBlockForPrompt(persona: conversationPersona,
+                                                      provider: p, tools: baseAgentTools)
+          var agentTools = baseAgentTools
+          if skillsBlock != nil { agentTools.append(AgentToolCatalog.readSkill) }
           if let precomputedAnswer {
             // 툴 콜링이 검색 없이 답한 경우 — 그대로 표시한다(스트리밍 없음).
             reply = precomputedAnswer
@@ -2438,16 +2458,12 @@ final class UIStore: ObservableObject {
             session.conversation = session.core.conversation
           } else if let agentClient = self.makeAgentClientIfEnabled(provider: p,
                                                                     persona: conversationPersona,
-                                                                    session: session) {
+                                                                    session: session,
+                                                                    skillsBlock: skillsBlock) {
             // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
             // 웹 검색도 **같은 루프**에 넣는다(v0.23) — 모델이 답을 모르면 `web_search` 를 고른다.
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.
             // 컴퓨터 제어(ui_snapshot)는 마스터 토글이 켜져 있을 때만 목록에 넣는다.
-            let agentTools = AgentToolCatalog.available(
-              for: settings.persona(conversation.personaID),
-              includingWebSearch: searchToolReady && p.type != .appleFM,
-              includingUI: settings.uiControlEnabled && p.type != .appleFM,
-              includingSchedule: true)
             do {
               reply = try await self.runAgentTurn(
                 session: session,

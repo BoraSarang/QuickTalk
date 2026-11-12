@@ -235,13 +235,24 @@ extension UIStore {
   func makeAgentClient(provider: LLMProviderConfig,
                        executor: any AgentToolExecutor,
                        persona: Persona?) -> AgentClient? {
+    makeAgentClient(provider: provider, executor: executor, persona: persona, skillsBlock: nil)
+  }
+
+  /// 비서 프롬프트를 얹은 클라이언트(v0.26) — `persona == nil` 이면 기존과 **완전히 동일**하다.
+  /// `skillsBlock` 은 v0.37 스킬 목록 — `AgentInstructions` 뒤, 비서 헤더 앞에 들어간다.
+  func makeAgentClient(provider: LLMProviderConfig,
+                       executor: any AgentToolExecutor,
+                       persona: Persona?,
+                       skillsBlock: String?) -> AgentClient? {
     let base: String
     switch provider.type {
     case .appleFM:
       base = AgentInstructions.compactText
     case .ollama, .openAICompatible:
-      base = AgentInstructions.text + "\n\n" + AgentInstructions.selfKnowledge(settings: settings,
-                                                                              persona: persona)
+      var sections = [AgentInstructions.text,
+                      AgentInstructions.selfKnowledge(settings: settings, persona: persona)]
+      if let skillsBlock, !skillsBlock.isEmpty { sections.append(skillsBlock) }
+      base = sections.joined(separator: "\n\n")
     }
     // 전역 안전 규칙은 지우지 않고 **앞에 정체성만** 붙인다(`PersonaPrompt`).
     let instructions = PersonaPrompt.compose(persona, base: base)
@@ -327,12 +338,33 @@ extension UIStore {
   @MainActor
   func makeAgentClientIfEnabled(provider: LLMProviderConfig,
                                 persona: Persona? = nil,
-                                session: ChatSession? = nil) -> AgentClient? {
+                                session: ChatSession? = nil,
+                                skillsBlock: String? = nil) -> AgentClient? {
     guard settings.agentToolsEnabled else { return nil }
     let s = session ?? activeSession
     let executor = AgentExecutor(store: self, session: s)
     s.agentExecutor = executor
-    return makeAgentClient(provider: provider, executor: executor, persona: persona)
+    return makeAgentClient(provider: provider, executor: executor, persona: persona,
+                           skillsBlock: skillsBlock)
+  }
+
+  /// 이번 턴에 프롬프트에 넣을 스킬 목록(v0.37). 없으면 nil.
+  ///
+  /// - 예약 실행·Apple FM·도구 꺼짐이면 nil.
+  /// - `tools` 는 이번 턴에 모델에 넘길 도구 목록 — 스킬의 `tools` 가 그 부분집합일 때만 넣는다.
+  @MainActor
+  func skillsBlockForPrompt(persona: Persona?, provider: LLMProviderConfig,
+                            tools: [AgentTool]) -> String? {
+    guard provider.type != .appleFM else { return nil }
+    guard settings.agentToolsEnabled else { return nil }
+    guard SkillPrompt.effectiveEnabled(settings: settings, persona: persona,
+                                       scheduled: scheduledRun != nil) else { return nil }
+    let loaded = SkillRegistry.load(bundledRoot: SkillLocations.bundledRoot(),
+                                    userRoot: SkillLocations.userRoot())
+    let enabled = loaded.skills.filter { !settings.disabledSkillIDs.contains($0.id) }
+    let usable = SkillPrompt.availableSkills(enabled,
+                                             availableTools: Set(tools.map(\.name)))
+    return SkillPrompt.block(for: usable)
   }
 
   /// 도구를 **실제로** 쓸 수 있는가 — `makeAgentClient` 와 같은 조건(모델·주소·키).
@@ -372,19 +404,50 @@ extension UIStore {
   /// 승인이 필요한 명령은 **거부**로 처리한다(헤드리스에서 대면 창이 없으므로).
   @MainActor
   func agentSelfTest(query: String) async -> String {
+    await agentSelfTest(query: query, includeSkills: false)
+  }
+
+  /// QA 전용 — `includeSkills` 면 전역 토글과 무관하게 스킬 목록·`read_skill` 을 붙인다.
+  /// (게이트 자체는 `--qa-skills-routing` 이 검증한다. 여기서는 모델이 실제로 읽는지 본다)
+  @MainActor
+  func agentSelfTest(query: String, includeSkills: Bool) async -> String {
     guard let provider = settings.activeProvider else { return "FAIL no-provider" }
+    // QA --skills: 실행 단계의 게이트도 통과하도록 **메모리에서만** 켠다(저장 금지).
+    let savedSkillsEnabled = settings.skillsEnabled
+    if includeSkills {
+      withSuppressedSettingsSave { settings.skillsEnabled = true }
+    }
+    defer {
+      if includeSkills {
+        withSuppressedSettingsSave { settings.skillsEnabled = savedSkillsEnabled }
+      }
+    }
     agentSelfTestMode = true
     defer { agentSelfTestMode = false }
     let executor = AgentExecutor(store: self, session: activeSession)
     agentExecutor = executor
     agentEvents = []
-    guard let client = makeAgentClient(provider: provider, executor: executor) else {
+
+    var tools = AgentToolCatalog.all
+    var skillsBlock: String?
+    if includeSkills {
+      if webSearchToolAvailable { tools += [AgentToolCatalog.webSearch, AgentToolCatalog.webFetch] }
+      let loaded = SkillRegistry.load(bundledRoot: SkillLocations.bundledRoot(),
+                                      userRoot: SkillLocations.userRoot())
+      let enabled = loaded.skills.filter { !settings.disabledSkillIDs.contains($0.id) }
+      let usable = SkillPrompt.availableSkills(enabled, availableTools: Set(tools.map(\.name)))
+      skillsBlock = SkillPrompt.block(for: usable)
+      if skillsBlock != nil { tools.append(AgentToolCatalog.readSkill) }
+    }
+
+    guard let client = makeAgentClient(provider: provider, executor: executor, persona: nil,
+                                       skillsBlock: skillsBlock) else {
       return "FAIL client-unavailable"
     }
     let runner = AgentRunner(client: client, executor: executor, maxSteps: 8)
     do {
-      let result = try await runner.run(prompt: query, history: [], tools: AgentToolCatalog.all)
-      var lines = ["OK steps=\(result.steps) tools=\(result.events.count) denied=\(result.hadDenial ? 1 : 0)"]
+      let result = try await runner.run(prompt: query, history: [], tools: tools)
+      var lines = ["OK steps=\(result.steps) tools=\(result.events.count) denied=\(result.hadDenial ? 1 : 0) skills=\(skillsBlock != nil ? 1 : 0)"]
       for e in result.events {
         lines.append("tool=\(e.toolName) level=\(e.level.rawValue) risk=\(e.risk.rawValue) state=\(e.state.rawValue) cmd=\(e.command.prefix(60))")
       }

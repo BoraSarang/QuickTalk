@@ -517,15 +517,8 @@ struct PersonaEditorSheet: View {
 
           Divider()
 
-          VStack(alignment: .leading, spacing: 6) {
-            Text(L("도구")).font(.body)
-            toolToggle(L("파일 읽기"), L("파일·폴더·프로세스·화면을 읽습니다."), $draft.tools.read)
-            toolToggle(L("웹 검색"), L("최신 소식을 확인합니다."), $draft.tools.web)
-            toolToggle(L("셸"), L("명령을 실행합니다. 실행할 때마다 승인을 받습니다."), $draft.tools.shell)
-            toolToggle(L("파일 쓰기"), L("작업 폴더에 파일을 만듭니다."), $draft.tools.write)
-            toolToggle(L("앱 조작"), L("다른 앱의 화면 요소를 클릭·입력합니다."), $draft.tools.ui)
-            caption(L("도구를 꺼도 실행 권한이 느슨해지지 않습니다. 승인 없는 실행은 없습니다."))
-          }
+          // 도구·스킬 토글 — 시트와 QA 렌더가 **같은 뷰**를 쓴다.
+          PersonaToolsSection(tools: $draft.tools, skillsEnabled: $draft.skillsEnabled)
 
           Divider()
 
@@ -592,20 +585,6 @@ struct PersonaEditorSheet: View {
     }
   }
 
-  private func toolToggle(_ label: String, _ description: String,
-                          _ binding: Binding<Bool>) -> some View {
-    HStack(alignment: .top, spacing: 8) {
-      Toggle("", isOn: binding)
-        .labelsHidden().toggleStyle(.switch).controlSize(.small)
-        .padding(.top, 2)
-      VStack(alignment: .leading, spacing: 1) {
-        Text(label).font(.callout)
-        Text(description).font(.caption).foregroundColor(.secondary)
-      }
-      Spacer()
-    }
-  }
-
   private func caption(_ text: String) -> some View {
     Text(text)
       .font(.caption)
@@ -628,6 +607,46 @@ struct PersonaEditorSheet: View {
     panel.prompt = L("선택")
     guard panel.runModal() == .OK, let url = panel.url else { return }
     draft.reportFolder = url.path
+  }
+}
+
+// MARK: - 비서 도구·스킬 토글 (v0.37)
+
+/// 비서 편집 시트의 도구 그룹. QA 렌더도 **이 뷰 하나**를 그린다(중복 구현 금지).
+struct PersonaToolsSection: View {
+  @Binding var tools: PersonaTools
+  @Binding var skillsEnabled: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(L("도구")).font(.body)
+      toolToggle(L("파일 읽기"), L("파일·폴더·프로세스·화면을 읽습니다."), $tools.read)
+      toolToggle(L("웹 검색"), L("최신 소식을 확인합니다."), $tools.web)
+      toolToggle(L("셸"), L("명령을 실행합니다. 실행할 때마다 승인을 받습니다."), $tools.shell)
+      toolToggle(L("파일 쓰기"), L("작업 폴더에 파일을 만듭니다."), $tools.write)
+      toolToggle(L("앱 조작"), L("다른 앱의 화면 요소를 클릭·입력합니다."), $tools.ui)
+      toolToggle(L("스킬"), L("이 비서 대화에서 스킬 목록을 씁니다. 기본은 켜짐입니다."), $skillsEnabled)
+      Text(L("도구를 꺼도 실행 권한이 느슨해지지 않습니다. 승인 없는 실행은 없습니다."))
+        .font(.caption).foregroundColor(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      Text(L("스킬은 절차 문서입니다. 전역 설정과 별개로 이 비서에서만 켜고 끌 수 있습니다."))
+        .font(.caption).foregroundColor(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func toolToggle(_ label: String, _ description: String,
+                          _ binding: Binding<Bool>) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Toggle("", isOn: binding)
+        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+        .padding(.top, 2)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(label).font(.callout)
+        Text(description).font(.caption).foregroundColor(.secondary)
+      }
+      Spacer()
+    }
   }
 }
 

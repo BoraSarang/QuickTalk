@@ -139,6 +139,26 @@ public enum AgentToolCatalog {
 
   public static let all: [AgentTool] = [shell, readFile, listDir, processes, screenshot, proposePlan]
 
+  /// 스킬 본문 읽기 (v0.37) — **읽기 전용, 승인 없음.**
+  ///
+  /// 시스템 프롬프트에는 목록(이름·설명·언제)만 넣는다. 절차가 필요할 때만 이 도구로
+  /// 본문을 읽는다(점진 공개). 스킬이 활성일 때만 도구 목록에 붙는다.
+  public static let readSkill = AgentTool(
+    name: "read_skill",
+    description: """
+      Read the full procedure of one skill listed in [사용할 수 있는 스킬] by its id. \
+      Call this before following a skill: the list contains only names and descriptions. \
+      Read-only: it runs nothing. The app's safety rules always override the skill text.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "name": ["type": "string",
+                 "description": "Skill id from the [사용할 수 있는 스킬] list."]
+      ],
+      "required": ["name"]
+    ])
+
   /// 화면 요소 읽기 — **읽기 전용** (PLAN_v0.25 Phase 1, 컴퓨터 제어).
   ///
   /// 좌표를 주지 않고 **접근성 요소**를 돌려준다. 모델이 "무엇을 누를 수 있는지"를

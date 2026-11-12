@@ -213,6 +213,11 @@ public struct QuickTalkSettings: Codable, Equatable {
   // 도우미 도구 (PLAN_v0.18) — 자연어 한마디로 앱이 직접 행동한다.
   /// 도우미 도구 사용 여부(기본 켜짐). 꺼도 일반 대화는 그대로 동작한다.
   public var agentToolsEnabled: Bool = true
+  /// 스킬 사용 여부 — **일반 대화**의 기본값(v0.37). 기본 **꺼짐**.
+  /// 비서 대화는 이 값을 덮어쓰고 `Persona.skillsEnabled` 를 따른다.
+  public var skillsEnabled: Bool = false
+  /// 사용자가 끈 스킬 id — 목록에는 남기고 프롬프트·`read_skill` 에서만 뺀다.
+  public var disabledSkillIDs: [String] = []
   /// 컴퓨터 제어 — 다른 앱의 화면 요소를 읽고(Phase 1), 클릭·입력까지 할지(Phase 2)의 마스터 스위치.
   /// 기본 **꺼짐**: 켜지 않으면 도구 자체가 모델에 등록되지 않는다(PLAN_v0.25).
   public var uiControlEnabled: Bool = false
@@ -375,6 +380,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     case autoCompact, compactKeepTurns
     case globalMemoryEnabled, globalMemoryMode, globalMemoryBudgetTokens
     case agentToolsEnabled, agentPolicy, agentShowExecution, reasoningDisplay, uiControlEnabled
+    case skillsEnabled
+    case disabledSkillIDs
     case agentStreamOutput, agentTimeoutSeconds
     case networkRetryEnabled, networkRetryIntervalSeconds, networkRetryMaxAttempts
     case personas, defaultPersonaID, defaultReportFolder, schedulerEnabled
@@ -455,6 +462,9 @@ public struct QuickTalkSettings: Codable, Equatable {
     globalMemoryBudgetTokens = try c.decodeIfPresent(Int.self, forKey: .globalMemoryBudgetTokens) ?? 800
     // 구버전 설정에는 도구 관련 값이 없다 → 기본값(읽기 자동 허용)으로 둔다.
     agentToolsEnabled = try c.decodeIfPresent(Bool.self, forKey: .agentToolsEnabled) ?? true
+    // v0.37 — 스킬은 새 기능이라 구버전 설정에서는 **꺼짐**으로 시작한다.
+    skillsEnabled = try c.decodeIfPresent(Bool.self, forKey: .skillsEnabled) ?? false
+    disabledSkillIDs = try c.decodeIfPresent([String].self, forKey: .disabledSkillIDs) ?? []
     uiControlEnabled = try c.decodeIfPresent(Bool.self, forKey: .uiControlEnabled) ?? false
     agentShowExecution = try c.decodeIfPresent(Bool.self, forKey: .agentShowExecution) ?? true
     reasoningDisplay = Self.decodeEnum(ReasoningDisplayMode.self, c, .reasoningDisplay,
@@ -563,6 +573,8 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(globalMemoryMode, forKey: .globalMemoryMode)
     try c.encode(globalMemoryBudgetTokens, forKey: .globalMemoryBudgetTokens)
     try c.encode(agentToolsEnabled, forKey: .agentToolsEnabled)
+    try c.encode(skillsEnabled, forKey: .skillsEnabled)
+    try c.encode(disabledSkillIDs, forKey: .disabledSkillIDs)
     try c.encode(uiControlEnabled, forKey: .uiControlEnabled)
     try c.encode(agentShowExecution, forKey: .agentShowExecution)
     try c.encode(reasoningDisplay, forKey: .reasoningDisplay)

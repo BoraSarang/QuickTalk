@@ -49,6 +49,7 @@
 		41C9DFB768BFB22D67D26C70 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6AD7A5FD9FEE38DBEFCCA6 /* Localization.swift */; };
 		44D1BD6959AEEBDDB0109047 /* SchedulerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46373C502FECDCEB5E747F5F /* SchedulerService.swift */; };
 		47E1A8A2DE2E0630D3D8F25B /* SettingsView+General.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD338D166DB5AE50DCF5D204 /* SettingsView+General.swift */; };
+		49CE6D7AB1B2FFDB5E2DDB82 /* Skills in Resources */ = {isa = PBXBuildFile; fileRef = 1B3A5553F246BB21F3FE3BA5 /* Skills */; };
 		4DCA2E907F44B14C7985D97C /* ScheduleConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AEC5852C2F446E6E7CD73B8 /* ScheduleConfirmation.swift */; };
 		4EC29EFA6D647C1B20775DC1 /* WebSearchRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F61147C3B2655DC0CB01A7 /* WebSearchRouting.swift */; };
 		50A6E25B690910E8A214FD48 /* PolicyEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7384EC161F1050F560476B8 /* PolicyEngine.swift */; };
@@ -66,6 +67,7 @@
 		679A668473E1358257C9314D /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77FD8D1869EDCE96703FD11E /* CaptureOverlay.swift */; };
 		67C2CF2B768C089F59CE8012 /* ScheduleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC482F57EA12FABAD0E35FC /* ScheduleStore.swift */; };
 		6A356F904F1674935204D6E8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 316CC826702D5F3CB63E0347 /* Assets.xcassets */; };
+		6A6CB974FE1C422E7B4D33B2 /* SkillPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D8DF5C77EBAB5C007FCE82 /* SkillPrompt.swift */; };
 		6ABB4743902CBE2E1ABCFC51 /* ScheduledRunRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FA5916C6FDF5943D7A865D7 /* ScheduledRunRunner.swift */; };
 		6B0C647CC70EA838805B307E /* ScheduleListText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C19E044A37942C1AE71EBA /* ScheduleListText.swift */; };
 		6DBBB252637D4202995CBC8E /* SettingsView+Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E3A0BFC302ECA3A8A7A23D /* SettingsView+Tools.swift */; };
@@ -95,6 +97,7 @@
 		A51415A7E3C7087EA16BDF47 /* ExecutionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */; };
 		A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */; };
 		A5CD27110B006E899FDD8692 /* ShelfView+Files.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */; };
+		A8984CCD621C046D6E48C90E /* SkillImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392ACEB28963F034017EB0B2 /* SkillImporter.swift */; };
 		A8C24C4FAAD2298EE9627A48 /* UiControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E048253A4C817E28F6FA8A /* UiControlService.swift */; };
 		A9C667A15F2953D41BD3B3FD /* PersonaReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EDF53D257FC51709F48BE06 /* PersonaReports.swift */; };
 		AB6236003E2B9B9F69C19673 /* AgentToolPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6345A09B2B0001EB084EFDFC /* AgentToolPermission.swift */; };
@@ -124,6 +127,7 @@
 		CAE236DFCFEBB144D15F94E2 /* SystemKnowledge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF33EC241CC70976B39F3D3 /* SystemKnowledge.swift */; };
 		CDD7663C48A4356FB0D7A010 /* UiAppGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF78945CBB50D93456CC3BA7 /* UiAppGrant.swift */; };
 		CE054468F120FDBFBBC39623 /* UIStore+Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F7B5A8E2365B16A7EB2007 /* UIStore+Agent.swift */; };
+		D244521BD4E3A7133C95412C /* Skill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10EA5008FF24C157E82FFBFC /* Skill.swift */; };
 		D2FD79560F4A1B153C59D078 /* ProcessSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 857D6BD5840713F9857BDAA2 /* ProcessSpeechService.swift */; };
 		D7D8D487CEC9C251E33CF6D8 /* GlobalMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E6ECE09008A24E1EEEB89E /* GlobalMemory.swift */; };
 		D9B42D1320EDF70B8D7D74A1 /* AgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D3828DBCF825ABE9923CBA /* AgentRunner.swift */; };
@@ -168,11 +172,13 @@
 		0FA5916C6FDF5943D7A865D7 /* ScheduledRunRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledRunRunner.swift; sourceTree = "<group>"; };
 		0FC65C65BFBB1162A8D544DC /* WindowAttachmentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowAttachmentService.swift; sourceTree = "<group>"; };
 		10A6A392C00B66229CE61970 /* QuickTalkIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTalkIntents.swift; sourceTree = "<group>"; };
+		10EA5008FF24C157E82FFBFC /* Skill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skill.swift; sourceTree = "<group>"; };
 		11322B1559F34D94C359655E /* Markdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Markdown.swift; sourceTree = "<group>"; };
 		12C19E044A37942C1AE71EBA /* ScheduleListText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleListText.swift; sourceTree = "<group>"; };
 		16AE56A6897A359876CF86FC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		18F0C670FDE6AF2A0F611E90 /* Shortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcut.swift; sourceTree = "<group>"; };
 		193BAC3ECAE8EDFC362DE39E /* ShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfView.swift; sourceTree = "<group>"; };
+		1B3A5553F246BB21F3FE3BA5 /* Skills */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Skills; path = QuickTalkApp/Resources/Skills; sourceTree = SOURCE_ROOT; };
 		1F8551CF6821225E0A023062 /* LocalFileOpen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileOpen.swift; sourceTree = "<group>"; };
 		21D23D396D3BC79572A34D4A /* Persona.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persona.swift; sourceTree = "<group>"; };
 		2661C91699C0376DABA4CC86 /* AgentExecutor+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentExecutor+UI.swift"; sourceTree = "<group>"; };
@@ -182,6 +188,7 @@
 		3162FEEF38956DB714FAB39B /* LocalFileLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileLinks.swift; sourceTree = "<group>"; };
 		316CC826702D5F3CB63E0347 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		37CDDB2204F4936E0652DA8C /* AgentExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentExecutor.swift; sourceTree = "<group>"; };
+		392ACEB28963F034017EB0B2 /* SkillImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillImporter.swift; sourceTree = "<group>"; };
 		3C00AAA487722AB98F565B6A /* AccessibilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityService.swift; sourceTree = "<group>"; };
 		3D921B01A80E01801140A170 /* PersonaChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaChip.swift; sourceTree = "<group>"; };
 		3DAE054BCDAF40168124449F /* AgentOverride.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentOverride.swift; sourceTree = "<group>"; };
@@ -192,6 +199,7 @@
 		4490D9592A0BF3BF1ED648BD /* AgentExecutor+Schedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentExecutor+Schedule.swift"; sourceTree = "<group>"; };
 		46373C502FECDCEB5E747F5F /* SchedulerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulerService.swift; sourceTree = "<group>"; };
 		46AB59036E6CDC9C1D797893 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
+		46D8DF5C77EBAB5C007FCE82 /* SkillPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillPrompt.swift; sourceTree = "<group>"; };
 		4956DF420ECFD0E68E65A64B /* DesignMockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignMockView.swift; sourceTree = "<group>"; };
 		4AEB9B4D98927B08C68C5DDA /* AgentTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTypes.swift; sourceTree = "<group>"; };
 		4BDA30A073442043AE6BCCAE /* QuickTalk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = QuickTalk.entitlements; sourceTree = "<group>"; };
@@ -381,6 +389,7 @@
 				59DF2B1F53868ED7E3A10D2C /* ShelfView+Clipboard.swift */,
 				6CF6D0A5D4F19F599F7EA81B /* ShelfView+Files.swift */,
 				D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */,
+				392ACEB28963F034017EB0B2 /* SkillImporter.swift */,
 				C765AE231078C7BE029074BD /* SpeechService.swift */,
 				A38DD5B5D86A1EAB3D909428 /* TaskListSheet.swift */,
 				DAE367EE55830F812D29A8B5 /* TerminalHandoffService.swift */,
@@ -397,6 +406,7 @@
 		1855F682700CB4CEA33EB5C2 = {
 			isa = PBXGroup;
 			children = (
+				1B3A5553F246BB21F3FE3BA5 /* Skills */,
 				18498D6F8E9273CB93D37119 /* QuickTalkApp */,
 				6323193096B89483EA1E08EF /* QuickTalkCore */,
 				50F081A85257E753DE66FD51 /* Products */,
@@ -471,6 +481,8 @@
 				18F0C670FDE6AF2A0F611E90 /* Shortcut.swift */,
 				A612B6D868B3F98ACB3FC91B /* ShortcutAutoSend.swift */,
 				ADB22DE1D96B2C98BECA63D0 /* ShortcutEntry.swift */,
+				10EA5008FF24C157E82FFBFC /* Skill.swift */,
+				46D8DF5C77EBAB5C007FCE82 /* SkillPrompt.swift */,
 				89015FB0E8F76C04A874CFB2 /* SlashCommand.swift */,
 				B2A02B9140976F463DA5AB0D /* SpeechCatalog.swift */,
 				E5AEE95E9756FB6329F5C014 /* Store.swift */,
@@ -498,6 +510,13 @@
 			);
 			name = QuickTalkCore;
 			path = Sources/QuickTalkCore;
+			sourceTree = "<group>";
+		};
+		"TEMP_DA1C6584-3FF5-48C9-9D29-E4DB5D7D1B81" /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -561,6 +580,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6A356F904F1674935204D6E8 /* Assets.xcassets in Resources */,
+				49CE6D7AB1B2FFDB5E2DDB82 /* Skills in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -687,6 +707,9 @@
 				37DD9F595A45EFE2044C0971 /* ShortcutAutoSend.swift in Sources */,
 				B28D62906DD82AFC5FAC5F57 /* ShortcutEntry.swift in Sources */,
 				7F28B9045857176BA1C4D784 /* SingleInstance.swift in Sources */,
+				D244521BD4E3A7133C95412C /* Skill.swift in Sources */,
+				A8984CCD621C046D6E48C90E /* SkillImporter.swift in Sources */,
+				6A6CB974FE1C422E7B4D33B2 /* SkillPrompt.swift in Sources */,
 				4128C50BE2DA848837F56DEB /* SlashCommand.swift in Sources */,
 				E42DC23D1B42C59918FB3F52 /* SpeechCatalog.swift in Sources */,
 				BD0D181F3B0507A51A874335 /* SpeechService.swift in Sources */,

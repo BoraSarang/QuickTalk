@@ -95,6 +95,8 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
   /// nil = 프로바이더의 모델. **예약 실행에만** 적용되는 모델 덮어쓰기(v0.27).
   public var model: String?
   public var tools: PersonaTools
+  /// 이 비서 대화에서 스킬 목록을 쓸지(v0.37). **기본 켜짐** — 전역 `settings.skillsEnabled` 를 덮어쓴다.
+  public var skillsEnabled: Bool
   /// nil = 설정의 기본 리포트 폴더
   public var reportFolder: String?
   public var createdAt: Date
@@ -102,7 +104,7 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
   public init(id: UUID = UUID(), name: String, role: String = "", tone: String = "",
               emoji: String? = nil, providerID: String? = nil, model: String? = nil,
               tools: PersonaTools = PersonaTools(), reportFolder: String? = nil,
-              createdAt: Date = Date()) {
+              createdAt: Date = Date(), skillsEnabled: Bool = true) {
     self.id = id
     self.name = name
     self.role = role
@@ -111,8 +113,31 @@ public struct Persona: Codable, Identifiable, Equatable, Hashable {
     self.providerID = providerID
     self.model = model
     self.tools = tools
+    self.skillsEnabled = skillsEnabled
     self.reportFolder = reportFolder
     self.createdAt = createdAt
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id, name, role, tone, emoji, providerID, model, tools
+    case skillsEnabled, reportFolder, createdAt
+  }
+
+  /// 구버전 `personas.json` 에는 `skillsEnabled` 키가 없다 — 그때는 **켜짐**으로 읽는다.
+  /// (`decodeIfPresent` 없이 합성 디코더를 쓰면 키가 없다는 이유로 전체 비서 목록을 잃는다)
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decode(UUID.self, forKey: .id)
+    name = try c.decode(String.self, forKey: .name)
+    role = try c.decodeIfPresent(String.self, forKey: .role) ?? ""
+    tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? ""
+    emoji = try c.decodeIfPresent(String.self, forKey: .emoji)
+    providerID = try c.decodeIfPresent(String.self, forKey: .providerID)
+    model = try c.decodeIfPresent(String.self, forKey: .model)
+    tools = try c.decodeIfPresent(PersonaTools.self, forKey: .tools) ?? PersonaTools()
+    skillsEnabled = try c.decodeIfPresent(Bool.self, forKey: .skillsEnabled) ?? true
+    reportFolder = try c.decodeIfPresent(String.self, forKey: .reportFolder)
+    createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
   }
 
   /// 비서 이름이 비었을 때 쓰는 표시 이름.
