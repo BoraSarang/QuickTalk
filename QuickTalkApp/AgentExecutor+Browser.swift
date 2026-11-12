@@ -68,6 +68,8 @@ extension AgentExecutor {
                                         reason: L("웹 페이지를 읽기 위해 엽니다."),
                                         irreversible: false, force: false)
     guard approved else { return browserDenied(call, command: "browser_open \(url.absoluteString)") }
+    service.beginModelActivity(call.name)
+    defer { service.endModelActivity() }
     updateEvent(call.id) { $0.state = .running }
     let started = Date()
     do {
@@ -96,6 +98,8 @@ extension AgentExecutor {
                                         reason: L("페이지의 최신 내용과 참조를 확인합니다."),
                                         irreversible: false, force: false)
     guard approved else { return browserDenied(call, command: "browser_read \(command)") }
+    service.beginModelActivity(call.name)
+    defer { service.endModelActivity() }
     updateEvent(call.id) { $0.state = .running }
     let started = Date()
     do {
@@ -124,6 +128,8 @@ extension AgentExecutor {
                                         reason: L("앞 페이지로 돌아가 내용을 확인합니다."),
                                         irreversible: false, force: false)
     guard approved else { return browserDenied(call, command: "browser_back \(command)") }
+    service.beginModelActivity(call.name)
+    defer { service.endModelActivity() }
     updateEvent(call.id) { $0.state = .running }
     let started = Date()
     do {
@@ -188,6 +194,8 @@ extension AgentExecutor {
       guard approved else { return browserDenied(call, command: audit, level: .execute) }
     }
 
+    service.beginModelActivity(call.name)
+    defer { service.endModelActivity() }
     updateEvent(call.id) { $0.state = .running }
     let started = Date()
     do {
@@ -249,6 +257,8 @@ extension AgentExecutor {
                                         irreversible: true, force: true)
     guard approved else { return browserDenied(call, command: audit, level: .execute) }
 
+    service.beginModelActivity(call.name)
+    defer { service.endModelActivity() }
     updateEvent(call.id) { $0.state = .running }
     let started = Date()
     do {
@@ -310,6 +320,8 @@ extension AgentExecutor {
                                         irreversible: true, force: true)
     guard approved else { return browserDenied(call, command: audit, level: .execute) }
 
+    service.beginModelActivity(call.name)
+    defer { service.endModelActivity() }
     updateEvent(call.id) { $0.state = .running }
     let started = Date()
     do {

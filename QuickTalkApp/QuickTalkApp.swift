@@ -184,6 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runQABrowserRoutingIfRequested() { return }
     // QA: `--qa-browser-live` — 실제 WKWebView로 로컬 HTML 읽기·입력(v0.38.1)
     if runQABrowserLiveIfRequested() { return }
+    // QA: `--qa-browser-window` — 보이는 창·주소창·자동 표시·숨김(v0.38.3)
+    if runQABrowserWindowIfRequested() { return }
     // QA: `--qa-skills-routing` — 스킬 목록 노출·차단 규칙(v0.37)
     if runQASkillsRoutingIfRequested() { return }
     // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
@@ -625,11 +627,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     case .continueConversation:
       if let recent = store.archive.first { store.openConversation(recent) }
       openPanel(tab: 0)
+    case .openBrowser: openBrowserWindow()
     case .openSettings: openSettings()
     case .toggleVoice: store.toggleVoice()
     case .stopSpeaking: store.stopSpeaking()
     case .about: showAbout()
     case .terminate: NSApp.terminate(nil)
+    }
+  }
+
+  /// 메뉴바 Hub — 현재 대화의 격리 브라우저 창을 연다(v0.38.3).
+  /// 브라우저·도구가 꺼져 있으면 Hub 행 자체가 숨겨지지만, 이중 확인한다.
+  private func openBrowserWindow() {
+    Task { @MainActor in
+      guard store.openBrowserWindow() else {
+        NSLog("[WARN] E-MAC-RENDER-0003 격리 브라우저가 꺼져 있어 창을 열지 않습니다")
+        return
+      }
     }
   }
 

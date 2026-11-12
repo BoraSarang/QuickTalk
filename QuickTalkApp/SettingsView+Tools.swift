@@ -27,7 +27,16 @@ extension SettingsView {
       caption(L("기본은 꺼짐입니다. 켜면 비서의 '웹 검색' 도구를 가진 대화에서만 브라우저 도구가 모델에 전달됩니다. 읽기(열기·읽기·뒤로)는 읽기 권한 정책을 따르고, 링크가 아닌 클릭·입력·제출은 항상 승인을 받습니다."))
       caption(L("비밀번호·파일·숨김·결제·인증번호 필드는 읽지도 입력하지도 않습니다. 다운로드·새 창·팝업·파일 선택·카메라·마이크는 차단합니다. 로그인·2단계 인증·CAPTCHA가 필요한 페이지는 읽기만 됩니다."))
       caption(L("한계: 주소에 위험 신호(로그아웃·삭제·결제)가 있는 링크는 승인을 받지만, GET 링크가 서버 상태를 바꾸는 경우와 DNS 리바인딩은 완전히 막지 못합니다."))
+      toggleRow(L("모델이 페이지를 열면 창 표시"),
+                isOn: $store.settings.browserShowWindowAutomatically,
+                description: L("모델이 브라우저 도구를 쓸 때 격리 브라우저 창을 자동으로 띄웁니다. 창은 포커스를 빼앗지 않고 뒤에 나타납니다."))
+      caption(L("창을 닫아도 페이지는 남아 있고, 모델은 계속 읽을 수 있습니다."))
       HStack(spacing: 8) {
+        Button(L("브라우저 창 열기")) {
+          browserWindowMessage = store.openBrowserWindow()
+            ? nil : L("웹 브라우저 사용을 먼저 켜세요.")
+        }
+        .disabled(!store.settings.browserEnabled || !store.settings.agentToolsEnabled)
         Button(L("브라우저 데이터 지우기")) {
           browserDataClearing = true
           browserDataMessage = nil
@@ -43,9 +52,13 @@ extension SettingsView {
         }
         Spacer()
       }
+      if let browserWindowMessage {
+        caption(browserWindowMessage)
+      }
       if let browserDataMessage {
         caption(browserDataMessage)
       }
+      caption(L("주소창에 직접 주소를 입력해도 됩니다. 로컬·사설 네트워크 주소는 열지 않습니다."))
       caption(L("프로필은 WebKit 관리 영역에 저장되며 QuickTalk의 대화·설정 데이터와 별개입니다."))
     }
 

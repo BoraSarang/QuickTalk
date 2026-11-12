@@ -16,6 +16,7 @@ enum HubMenuAction {
   case newConversation
   case openArchive
   case continueConversation
+  case openBrowser
   case openSettings
   case toggleVoice
   case stopSpeaking
@@ -124,6 +125,12 @@ struct QuickTalkHubView: View {
       if store.isSpeaking {
         hubRow(icon: "stop.fill", title: L("읽어주기 중지"), sub: L("지금 읽고 있는 답변을 멈춥니다"), combo: nil) {
           onAction(.stopSpeaking)
+        }
+      }
+      if store.settings.browserEnabled && store.settings.agentToolsEnabled {
+        hubRow(icon: "globe", title: L("격리 브라우저"),
+               sub: L("Safari와 분리된 전용 프로필"), combo: nil) {
+          onAction(.openBrowser)
         }
       }
       hubRow(icon: "brain", title: Lf("AI: %@", store.settings.activeProvider?.displayName ?? L("없음")),
