@@ -115,6 +115,9 @@ final class AgentExecutor: AgentToolExecutor {
     case "schedule_task": return await proposeSchedule(call)
     case "schedule_update": return await proposeScheduleChange(call)
     case "schedule_delete": return await proposeScheduleDeletion(call)
+    case "browser_open", "browser_read", "browser_back",
+         "browser_click", "browser_type", "browser_submit":
+      return await runBrowser(call, tools: tools)
     default:
       let text = Lf("지원하지 않는 도구입니다: %@", call.name)
       return AgentToolOutcome(output: text, denied: true, level: .execute, risk: .normal)
@@ -472,7 +475,8 @@ final class AgentExecutor: AgentToolExecutor {
       for: persona,
       includingWebSearch: store.webSearchToolAvailable,
       includingUI: store.settings.uiControlEnabled,
-      includingSchedule: false).map(\.name))
+      includingSchedule: false,
+      includingBrowser: store.settings.browserEnabled).map(\.name))
     let missing = skill.tools.filter { !availableTools.contains($0) }
     guard missing.isEmpty else {
       let text = "이 대화에서는 \(missing.joined(separator: ", ")) 도구가 없어 이 스킬을 쓸 수 없습니다."

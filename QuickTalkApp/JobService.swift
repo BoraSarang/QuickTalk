@@ -263,7 +263,8 @@ final class JobService {
         && provider.type != .appleFM,
       includingUI: store.settings.uiControlEnabled && provider.type != .appleFM,
       includingSchedule: true,
-      includingScheduleMutations: false)
+      includingScheduleMutations: false,
+      includingBrowser: store.settings.browserEnabled && provider.type != .appleFM)
     let runner = AgentRunner(client: client, executor: executor,
                              maxSteps: Self.segmentSteps, stopAtStepLimit: true)
 

@@ -38,6 +38,7 @@ enum SingleInstance {
       "--compact-test", "--compact-auto-test=", "--fallback-test",
       "--switch-perf-test", "--switch-perf-live", "--qa-paste-routing", "--qa-execute-routing",
       "--qa-plan-routing", "--qa-skills-routing", "--qa-job-routing",
+      "--qa-browser-routing", "--qa-browser-live",
       "--live-shot=", "--live-shot-all=",
     ]
     return CommandLine.arguments.contains { arg in

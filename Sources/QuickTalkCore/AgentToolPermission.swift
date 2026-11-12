@@ -16,7 +16,11 @@ public enum AgentToolPermission {
   public static func level(for tool: String) -> AgentPermissionLevel {
     switch tool {
     case "read_file", "list_dir", "processes", "screenshot", "ui_snapshot": return .read
-    case "shell", "ui_action": return .execute
+    // 격리 브라우저(v0.38.1) — 열기·읽기·뒤로는 읽기다. `browser_click` 은 **호출 시점에**
+    // 링크인지에 따라 읽기/실행이 갈리므로 실행기에서 다시 판정하고, 여기서는 링크 기본값인 읽기를 준다.
+    // 입력·제출은 항상 실행(승인) 단계다.
+    case "browser_open", "browser_read", "browser_back", "browser_click": return .read
+    case "shell", "ui_action", "browser_type", "browser_submit": return .execute
     // 정의되지 않은 도구는 **가장 좁은(가장 묻는)** 단계로 본다 — 모르면 묻는다.
     default: return .execute
     }

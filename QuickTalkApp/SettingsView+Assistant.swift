@@ -621,7 +621,7 @@ struct PersonaToolsSection: View {
     VStack(alignment: .leading, spacing: 6) {
       Text(L("도구")).font(.body)
       toolToggle(L("파일 읽기"), L("파일·폴더·프로세스·화면을 읽습니다."), $tools.read)
-      toolToggle(L("웹 검색"), L("최신 소식을 확인합니다."), $tools.web)
+      toolToggle(L("웹 검색"), L("최신 소식을 확인하고, 필요하면 격리 브라우저로 페이지를 읽습니다."), $tools.web)
       toolToggle(L("셸"), L("명령을 실행합니다. 실행할 때마다 승인을 받습니다."), $tools.shell)
       toolToggle(L("파일 쓰기"), L("작업 폴더에 파일을 만듭니다."), $tools.write)
       toolToggle(L("앱 조작"), L("다른 앱의 화면 요소를 클릭·입력합니다."), $tools.ui)
