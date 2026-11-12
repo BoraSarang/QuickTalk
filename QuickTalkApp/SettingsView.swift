@@ -164,8 +164,22 @@ struct SettingsView: View {
   @State var showAgentAudit = false
   /// 규칙 테스터 — 판정을 미리 확인할 명령(v0.22). 실행하지는 않는다.
   @State var agentRuleProbe: String = ""
+  /// 스킬 목록 — 설정 › 도구(v0.37)
+  @State var loadedSkills: [Skill] = []
+  @State var skillWarnings: [SkillWarning] = []
+  @State var showSkillWarnings = false
+  @State var pendingSkillReplace: SkillImporter.Prepared?
+  @State var deletingSkill: Skill?
+  @State var skillImportError: String?
+  @State var showSkillImportError = false
   /// QA 렌더용: 규칙 테스터에 미리 넣을 명령(저장하지 않음)
   var initialAgentRuleProbe: String = ""
+  /// QA 렌더용: 스킬 목록을 디스크 대신 주어진 값으로 그린다(저장하지 않음). nil = 실제 폴더를 읽는다.
+  var initialSkills: [Skill]?
+  /// QA 렌더용: 무시된 스킬 목록
+  var initialSkillWarnings: [SkillWarning] = []
+  /// QA 렌더용: 경고 목록을 펼친 상태로 그린다
+  var initialSkillWarningsExpanded: Bool = false
   /// 로그인 시 자동 시작 — 시스템 로그인 항목 상태(설정 JSON 에는 저장하지 않는다)
   @State var launchAtLogin = LoginItem.isEnabled
   @State var loginItemError: String?
@@ -181,6 +195,7 @@ struct SettingsView: View {
     .onAppear {
       tab = initialTab
       if !initialAgentRuleProbe.isEmpty { agentRuleProbe = initialAgentRuleProbe }
+      if initialSkillWarningsExpanded { showSkillWarnings = true }
     }
     .sheet(item: $editingProvider) { p in
       ProviderEditorSheet(provider: p, isNew: editingIsNew)

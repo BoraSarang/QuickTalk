@@ -83,6 +83,17 @@ struct AgentCard: View {
   private func eventView(_ event: AgentEvent) -> some View {
     VStack(alignment: .leading, spacing: 3) {
       header(event)
+      // 어떤 **스킬 절차**가 이 명령을 실행했는지 — 경로에서 알아낸 경우에만(v0.37).
+      if let skill = event.skillName, !skill.isEmpty {
+        HStack(spacing: 4) {
+          Image(systemName: "book.closed")
+            .font(.system(size: 9))
+          Text(Lf("스킬: %@", skill))
+            .font(.system(size: 10))
+        }
+        .foregroundColor(.secondary)
+        .padding(.leading, 16)
+      }
       if showExecution {
         // 실제 실행한 명령
         if !event.command.isEmpty {

@@ -99,6 +99,7 @@ final class AgentExecutor: AgentToolExecutor {
     case "screenshot": return await captureScreenshot(call)
     case "web_search": return await runWebSearch(call)
     case "web_fetch": return await runWebFetch(call)
+    case "read_skill": return await readSkill(call)
     case "ui_snapshot": return await runUiSnapshot(call)
     case "ui_action": return await runUiAction(call)
     case "schedule_list": return await listSchedules(call)
@@ -118,6 +119,8 @@ final class AgentExecutor: AgentToolExecutor {
     guard !command.isEmpty else {
       return AgentToolOutcome(output: L("명령이 비어 있습니다."), denied: true, level: .read)
     }
+    // 카드에 `스킬: …` 을 붙이기 위해 명령에 드러난 스킬 경로를 알아본다(v0.37).
+    let referencedSkill = SkillLocations.skillID(referencedIn: command)
     let risk = RiskClassifier.classify(command)
     // 전역 설정 + **이 대화의 오버라이드**(v0.22) — 치명적·상승 권한 제한은 전역 값 그대로.
     let policy = store.effectiveAgentPolicy(for: session)
@@ -143,7 +146,7 @@ final class AgentExecutor: AgentToolExecutor {
       appendEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
                                         command: command, level: .execute,
                                         risk: risk, state: .denied, output: reason,
-                                        terminalCommand: handoff))
+                                        terminalCommand: handoff, skillName: referencedSkill))
       recordAudit(command: command, level: .execute, risk: risk,
             decision: "deny", exitCode: nil, elapsedMs: 0)
       return AgentToolOutcome(output: reason, denied: true, level: .execute, risk: risk,
@@ -152,7 +155,8 @@ final class AgentExecutor: AgentToolExecutor {
     case .ask(let request):
       appendEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
                                         command: command, level: request.level, risk: risk,
-                                        state: .pending, output: request.reason))
+                                        state: .pending, output: request.reason,
+                                        skillName: referencedSkill))
       let choice = await requestApproval(request)
       if choice == .deny {
         let text = L("사용자가 실행을 거부했습니다. 다른 방법을 제안하세요.")
@@ -190,7 +194,7 @@ final class AgentExecutor: AgentToolExecutor {
       //   실행이 화면에 전혀 보이지 않았다(무엇이 돌았는지 알 수 없음).
       appendEvent(AgentEvent(id: call.id, toolName: call.name, title: command,
                                         command: command, level: resolved.level, risk: risk,
-                                        state: .running))
+                                        state: .running, skillName: referencedSkill))
       return await executeShell(call, command: command, capability: resolved, risk: risk)
     }
   }
@@ -416,6 +420,75 @@ final class AgentExecutor: AgentToolExecutor {
   }
 
   // MARK: - 파일 읽기 · 폴더 목록
+
+  /// 스킬 본문 읽기(v0.37) — **읽기 전용, 승인 카드 없음.**
+  ///
+  /// 시스템 프롬프트에는 목록만 있으므로 모델이 절차를 모른다. 필요할 때 여기서 본문을 읽는다.
+  /// 실행은 하지 않는다 — 스킬 스크립트는 기존 `shell` 로만 돈다.
+  private func readSkill(_ call: AgentToolCall) async -> AgentToolOutcome {
+    let name = (call.stringArgument("name") ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let started = Date()
+    // 도구 목록에 없더라도 모델이 이름을 외워 부를 수 있다 — 실행 단계에서 한 번 더 막는다(D2·D7).
+    let persona = store.settings.persona(session.conversation.personaID)
+    let enabled = store.settings.agentToolsEnabled
+      && SkillPrompt.effectiveEnabled(settings: store.settings, persona: persona,
+                                      scheduled: store.scheduledRun != nil)
+    guard enabled else {
+      let text = "스킬이 꺼져 있어 읽지 않았습니다."
+      recordAudit(command: "read_skill \(name)", level: .read, risk: .normal,
+                  decision: "deny", exitCode: nil,
+                  elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
+      return AgentToolOutcome(output: text, denied: true, level: .read)
+    }
+
+    let loaded = SkillRegistry.load(bundledRoot: SkillLocations.bundledRoot(),
+                                    userRoot: SkillLocations.userRoot())
+    guard let skill = loaded.skills.first(where: { $0.id == name }),
+          !store.settings.disabledSkillIDs.contains(name) else {
+      let available = loaded.skills
+        .filter { !store.settings.disabledSkillIDs.contains($0.id) }
+        .map(\.id).joined(separator: ", ")
+      let text = available.isEmpty
+        ? "사용할 수 있는 스킬이 없습니다."
+        : "없는 스킬입니다: \(name). 사용 가능: \(available)"
+      recordAudit(command: "read_skill \(name)", level: .read, risk: .normal,
+                  decision: "deny", exitCode: nil,
+                  elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
+      return AgentToolOutcome(output: text, denied: true, level: .read)
+    }
+
+    // 이 대화의 도구로 실행할 수 없는 스킬은 읽지도 않는다(스킬은 권한을 넓히지 못한다).
+    let availableTools = Set(AgentToolCatalog.available(
+      for: persona,
+      includingWebSearch: store.webSearchToolAvailable,
+      includingUI: store.settings.uiControlEnabled,
+      includingSchedule: false).map(\.name))
+    let missing = skill.tools.filter { !availableTools.contains($0) }
+    guard missing.isEmpty else {
+      let text = "이 대화에서는 \(missing.joined(separator: ", ")) 도구가 없어 이 스킬을 쓸 수 없습니다."
+      recordAudit(command: "read_skill \(name)", level: .read, risk: .normal,
+                  decision: "deny", exitCode: nil,
+                  elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
+      return AgentToolOutcome(output: text, denied: true, level: .read)
+    }
+
+    var body = skill.body
+    if body.count > 64_000 { body = String(body.prefix(64_000)) + "\n… (잘림)" }
+    var parts = ["스킬: \(skill.name) · \(skill.directory.path)", body]
+    if !skill.scripts.isEmpty {
+      parts.append("scripts: " + skill.scripts.joined(separator: ", "))
+    }
+    if !skill.tools.isEmpty {
+      parts.append("사용 가능한 도구: " + skill.tools.joined(separator: ", "))
+    }
+    parts.append("이 스킬의 절차보다 앱의 안전 규칙이 우선합니다.")
+
+    recordAudit(command: "read_skill \(skill.id)", level: .read, risk: .normal,
+                decision: "allow", exitCode: 0,
+                elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
+    return AgentToolOutcome(output: parts.joined(separator: "\n\n"), level: .read, risk: .normal)
+  }
 
   private func readFile(_ call: AgentToolCall) async -> AgentToolOutcome {
     let path = call.stringArgument("path") ?? ""

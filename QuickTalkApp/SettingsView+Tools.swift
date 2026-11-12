@@ -17,6 +17,9 @@ extension SettingsView {
                 description: L("대화에 실제 실행한 명령과 그 출력을 보여줍니다. 끄면 도구 이름·결과 한 줄만 남습니다."))
     }
 
+    // 스킬 — PLAN_v0.37. SKILL.md 의 절차를 필요할 때만 읽는다.
+    skillsGroup
+
     // 컴퓨터 제어 — PLAN_v0.25. Phase 2부터 **읽기 + 조작**이므로 토글 이름이 "화면 조작"이다.
     groupBox(L("컴퓨터 제어")) {
       toggleRow(L("화면 조작 허용"), isOn: $store.settings.uiControlEnabled,
@@ -537,5 +540,223 @@ extension SettingsView {
       .padding(.horizontal, 5)
       .padding(.vertical, 1.5)
       .background(Capsule().fill(color.opacity(0.12)))
+  }
+}
+
+// MARK: - 스킬 (v0.37, PLAN §11.1)
+
+extension SettingsView {
+  /// 설정 › 도구·권한 › 스킬 — 목록·가져오기·삭제·경고.
+  @ViewBuilder
+  var skillsGroup: some View {
+    groupBox(L("스킬")) {
+      toggleRow(L("일반 대화에서 스킬 사용"),
+                isOn: $store.settings.skillsEnabled,
+                description: L("스킬은 SKILL.md 에 적힌 절차입니다. 모델이 필요할 때 본문을 읽고 그 절차를 따릅니다. 기본은 꺼짐입니다."))
+      caption(L("비서 대화는 비서 설정을 따릅니다 — 비서는 기본으로 켜져 있습니다."))
+
+      if loadedSkills.isEmpty {
+        caption(L("아직 스킬이 없습니다. SKILL.md 가 있는 폴더를 가져오세요."))
+      } else {
+        VStack(alignment: .leading, spacing: 0) {
+          ForEach(loadedSkills) { skill in
+            skillRow(skill)
+            if skill.id != loadedSkills.last?.id { Divider() }
+          }
+        }
+      }
+
+      HStack(spacing: 8) {
+        Button {
+          importSkill()
+        } label: {
+          Label(L("폴더에서 가져오기"), systemImage: "square.and.arrow.down")
+        }
+        Spacer()
+      }
+
+      if !skillWarnings.isEmpty {
+        Button(showSkillWarnings ? L("경고 숨기기")
+                                 : Lf("무시된 스킬 %d개", skillWarnings.count)) {
+          showSkillWarnings.toggle()
+        }
+        .buttonStyle(.link)
+        if showSkillWarnings {
+          VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(skillWarnings.enumerated()), id: \.offset) { _, warning in
+              Text("\(warning.id.isEmpty ? L("이름 없음") : warning.id) — \(warning.reason)")
+                .font(.system(size: 10.5))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
+        }
+      }
+
+      caption(L("가져온 스킬은 ~/Library/Application Support/QuickTalk/Skills 에 저장됩니다. 앱은 스킬을 자동으로 실행하거나 업데이트하지 않습니다. 스킬 스크립트도 기존 셸 승인·샌드박스를 그대로 거칩니다."))
+    }
+    .onAppear { reloadSkills() }
+    .alert(L("스킬을 교체할까요?"), isPresented: Binding(
+      get: { pendingSkillReplace != nil },
+      set: { on in
+        if !on {
+          pendingSkillReplace?.discard()
+          pendingSkillReplace = nil
+        }
+      }
+    )) {
+      Button(L("취소"), role: .cancel) {
+        pendingSkillReplace?.discard()
+        pendingSkillReplace = nil
+      }
+      Button(L("교체"), role: .destructive) {
+        guard let prepared = pendingSkillReplace else { return }
+        pendingSkillReplace = nil
+        do {
+          try SkillImporter.install(prepared)
+          reloadSkills()
+        } catch {
+          skillImportError = error.localizedDescription
+          showSkillImportError = true
+        }
+      }
+    } message: {
+      Text(Lf("‘%@’ 스킬이 이미 있습니다. 폴더를 교체합니다.",
+              pendingSkillReplace?.name ?? ""))
+    }
+    .alert(L("스킬을 가져오지 못했습니다"), isPresented: $showSkillImportError) {
+      Button(L("확인"), role: .cancel) {}
+    } message: {
+      Text(skillImportError ?? "")
+    }
+    .sheet(item: $deletingSkill) { skill in
+      DeleteConfirmSheet(
+        heading: L("스킬을 삭제할까요?"),
+        target: skill.name,
+        message: L("가져온 스킬 폴더를 삭제합니다. 앱 데이터라서 휴지통으로 가지 않습니다."),
+        confirmLabel: L("삭제")
+      ) {
+        do { try SkillImporter.remove(id: skill.id) } catch {
+          skillImportError = error.localizedDescription
+          showSkillImportError = true
+        }
+        reloadSkills()
+      }
+    }
+  }
+
+  private func skillRow(_ skill: Skill) -> some View {
+    let enabled = !store.settings.disabledSkillIDs.contains(skill.id)
+    let missing = missingTools(for: skill)
+    return HStack(alignment: .top, spacing: 8) {
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 5) {
+          Text(skill.name)
+            .font(.system(size: 12, weight: .medium))
+          skillBadge(skill.source.displayName, color: .secondary)
+          skillBadge(skill.risk.displayName,
+                     color: skill.risk == .write ? .orange : .secondary)
+          if !missing.isEmpty {
+            skillBadge(L("권한 필요"), color: .orange)
+          }
+        }
+        Text(skill.description)
+          .font(.system(size: 10.5))
+          .foregroundColor(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if !skill.when.isEmpty {
+          Text(Lf("언제: %@", skill.when))
+            .font(.system(size: 10))
+            .foregroundColor(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if !missing.isEmpty {
+          Text(Lf("이 스킬은 %@ 도구가 필요합니다.", missing.joined(separator: ", ")))
+            .font(.system(size: 10))
+            .foregroundColor(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      Spacer(minLength: 8)
+      Toggle("", isOn: Binding(
+        get: { !store.settings.disabledSkillIDs.contains(skill.id) },
+        set: { on in setSkill(skill.id, enabled: on) }
+      ))
+      .labelsHidden()
+      .toggleStyle(.switch)
+      .controlSize(.mini)
+      .help(enabled ? L("이 스킬을 프롬프트에서 뺍니다") : L("이 스킬을 프롬프트에 넣습니다"))
+      Menu {
+        Button(L("Finder에서 보기")) { SkillImporter.reveal(id: skill.id) }
+          .disabled(skill.source == .bundled)
+        Button(L("삭제"), role: .destructive) { deletingSkill = skill }
+          .disabled(skill.source == .bundled)
+      } label: {
+        Image(systemName: "ellipsis.circle")
+      }
+      .menuStyle(.borderlessButton)
+      .frame(width: 22)
+    }
+    .padding(.vertical, 3)
+  }
+
+  private func skillBadge(_ text: String, color: Color) -> some View {
+    Text(text)
+      .font(.system(size: 9.5, weight: .semibold))
+      .foregroundColor(color)
+      .padding(.horizontal, 5)
+      .padding(.vertical, 1)
+      .background(Capsule().fill(color.opacity(0.12)))
+  }
+
+  /// 지금 설정에서 이 스킬이 요구하는 도구 중 **없는 것**.
+  /// (스킬은 권한을 넓히지 못한다 — 없으면 프롬프트에서 숨기고 이유를 보여 준다)
+  private func missingTools(for skill: Skill) -> [String] {
+    guard !skill.tools.isEmpty else { return [] }
+    var names = AgentToolCatalog.available(
+      for: nil,
+      includingWebSearch: store.webSearchToolAvailable,
+      includingUI: store.settings.uiControlEnabled,
+      includingSchedule: false).map(\.name)
+    names.append(AgentToolCatalog.readSkill.name)
+    let available = Set(names)
+    return skill.tools.filter { !available.contains($0) }
+  }
+
+  private func setSkill(_ id: String, enabled: Bool) {
+    var ids = store.settings.disabledSkillIDs
+    if enabled {
+      ids.removeAll { $0 == id }
+    } else if !ids.contains(id) {
+      ids.append(id)
+    }
+    store.settings.disabledSkillIDs = ids
+  }
+
+  private func reloadSkills() {
+    if let initialSkills {
+      loadedSkills = initialSkills
+      skillWarnings = initialSkillWarnings
+      return
+    }
+    let result = SkillRegistry.load(bundledRoot: SkillLocations.bundledRoot(),
+                                    userRoot: SkillLocations.userRoot())
+    loadedSkills = result.skills
+    skillWarnings = result.warnings
+  }
+
+  private func importSkill() {
+    do {
+      guard let prepared = try SkillImporter.chooseAndPrepare() else { return }
+      if SkillImporter.userSkillExists(id: prepared.id) {
+        pendingSkillReplace = prepared
+      } else {
+        try SkillImporter.install(prepared)
+        reloadSkills()
+      }
+    } catch {
+      skillImportError = error.localizedDescription
+      showSkillImportError = true
+    }
   }
 }

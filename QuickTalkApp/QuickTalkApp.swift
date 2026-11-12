@@ -166,6 +166,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runQAExecuteRoutingIfRequested() { return }
     // QA: `--qa-plan-routing` — 실행 계획 카드의 표시·진행 상태
     if runQAPlanRoutingIfRequested() { return }
+    // QA: `--qa-skills-routing` — 스킬 목록 노출·차단 규칙(v0.37)
+    if runQASkillsRoutingIfRequested() { return }
     // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
     if runQAPasteRoutingIfRequested() { return }
     // QA: `--live-shot=<폴더>` — 실제 대화를 실제 크기로 그려 빈 화면 회귀를 재현

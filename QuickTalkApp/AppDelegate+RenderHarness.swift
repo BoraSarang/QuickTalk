@@ -336,8 +336,70 @@ extension AppDelegate {
           to: "\(dir)/schedule-card-\(variant)-\(suffix).png")
         self.store.pendingSchedule = nil
       }
+      // v0.37 — 스킬 설정 UI(`--demo-skills=empty|list|warn`). 실제 사용자 폴더는 건드리지 않는다.
+      var demoSkills: [Skill]?
+      var demoSkillWarnings: [SkillWarning] = []
+      var demoSkillWarningsExpanded = false
+      if let arg = CommandLine.arguments.first(where: { $0.hasPrefix("--demo-skills=") }) {
+        let variant = String(arg.dropFirst("--demo-skills=".count))
+        let webResearch = Skill(
+          id: "web-research", name: L("웹 조사"),
+          description: L("여러 사이트를 조사해 출처를 붙여 비교·요약한다"),
+          when: L("최신 정보를 비교하거나 근거가 필요할 때"),
+          tools: ["web_search", "web_fetch"], version: 1, risk: .read, source: .bundled,
+          directory: URL(fileURLWithPath: "/Applications/QuickTalk.app/Contents/Resources/Skills/web-research"),
+          body: "", scripts: [])
+        let weekly = Skill(
+          id: "weekly-report", name: L("주간 보고서"),
+          description: L("작업 폴더에 주간 요약을 파일로 만든다"),
+          when: L("매주 금요일 정리할 때"),
+          tools: ["shell", "read_file"], version: 2, risk: .write, source: .user,
+          directory: URL(fileURLWithPath: SkillLocations.userRoot().path)
+            .appendingPathComponent("weekly-report"),
+          body: "", scripts: ["scripts/collect.py"])
+        let screenSkill = Skill(
+          id: "screen-helper", name: L("화면 도우미"),
+          description: L("다른 앱의 화면 요소를 읽어 안내한다"),
+          when: "", tools: ["ui_snapshot"], version: 1, risk: .read, source: .user,
+          directory: URL(fileURLWithPath: SkillLocations.userRoot().path)
+            .appendingPathComponent("screen-helper"),
+          body: "", scripts: [])
+        switch variant {
+        case "list":
+          demoSkills = [webResearch, weekly]
+        case "warn":
+          demoSkills = [webResearch, weekly, screenSkill]
+          demoSkillWarnings = [
+            SkillWarning(id: "Bad_Name", reason: L("폴더 이름은 소문자·숫자·하이픈 1~40자여야 합니다.")),
+            SkillWarning(id: "broken", reason: L("frontmatter 의 닫는 --- 가 없습니다."))
+          ]
+          demoSkillWarningsExpanded = true
+          // 권한이 모자란 스킬이 어떻게 보이는지 재현한다 — 화면 제어를 끈 상태(저장하지 않음).
+          self.store.applyRenderOverride(uiControl: false)
+        default:
+          demoSkills = []
+        }
+      }
+      // v0.37 — 비서 편집의 도구·스킬 토글(`--demo-persona-skills`).
+      // 시트 전체 대신 **같은 뷰**(`PersonaToolsSection`)를 그려 토글이 잘리지 않게 한다.
+      if CommandLine.arguments.contains("--demo-persona-skills") {
+        self.renderPNG(AnyView(
+          ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            PersonaToolsSection(tools: .constant(PersonaTools()),
+                                skillsEnabled: .constant(true))
+              .padding(16)
+              .frame(width: 460)
+          }
+          .environmentObject(self.store)),
+          size: NSSize(width: 460, height: 330),
+          to: "\(dir)/persona-skills-\(suffix).png")
+      }
       self.renderPNG(AnyView(SettingsView(initialTab: tab,
-                                          initialAgentRuleProbe: ruleProbe)
+                                          initialAgentRuleProbe: ruleProbe,
+                                          initialSkills: demoSkills,
+                                          initialSkillWarnings: demoSkillWarnings,
+                                          initialSkillWarningsExpanded: demoSkillWarningsExpanded)
                               .environmentObject(self.store)),
                      size: NSSize(width: 780, height: settingsHeight),
                      to: "\(dir)/settings-\(tab.rawValue)-\(suffix).png")
@@ -1221,6 +1283,94 @@ extension AppDelegate {
     return true
   }
 
+  /// QA: `--qa-skills-routing` — 스킬 목록 노출 규칙을 헤드리스로 확인한다(v0.37).
+  ///
+  /// 실제 모델을 부르지 않는다. 번들 스킬·전역/비서 토글·비활성 목록·도구 부분집합·
+  /// 예약 실행 차단을 한 번에 본다. 결과는 `[QA-SKILLS]` 로그 한 줄.
+  @MainActor
+  func runQASkillsRoutingIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-skills-routing") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    let savedEnabled = store.settings.skillsEnabled
+    let savedDisabled = store.settings.disabledSkillIDs
+    let savedAgentTools = store.settings.agentToolsEnabled
+    var results: [String] = []
+    store.withSuppressedSettingsSave {
+      store.settings.agentToolsEnabled = true
+      store.settings.disabledSkillIDs = []
+
+      let loaded = SkillRegistry.load(bundledRoot: SkillLocations.bundledRoot(), userRoot: nil)
+      let bundled = loaded.skills.first { $0.id == "web-research" }
+      results.append("bundle=\(bundled?.source == .bundled ? "PASS" : "FAIL")")
+      results.append("risk-read=\(bundled?.risk == .read ? "PASS" : "FAIL")")
+      results.append("scripts-empty=\(bundled?.scripts.isEmpty == true ? "PASS" : "FAIL")")
+
+      var provider = LLMProviderConfig.newProvider(type: .openAICompatible, existing: [])
+      provider.model = "qa"
+      let baseTools = AgentToolCatalog.available(for: nil, includingWebSearch: true,
+                                                 includingUI: false, includingSchedule: true)
+      let noWebTools = AgentToolCatalog.available(for: nil, includingWebSearch: false,
+                                                  includingUI: false, includingSchedule: true)
+      results.append("read-skill-hidden=\(baseTools.contains { $0.name == "read_skill" } ? "FAIL" : "PASS")")
+      results.append("read-skill-schema=\(AgentToolCatalog.readSkill.name == "read_skill" ? "PASS" : "FAIL")")
+
+      store.settings.skillsEnabled = false
+      let off = store.skillsBlockForPrompt(persona: nil, provider: provider, tools: baseTools)
+      results.append("general-off=\(off == nil ? "PASS" : "FAIL")")
+
+      store.settings.skillsEnabled = true
+      let on = store.skillsBlockForPrompt(persona: nil, provider: provider, tools: baseTools)
+      results.append("general-on=\(on?.contains("web-research") == true ? "PASS" : "FAIL")")
+      results.append("list-only=\(on?.contains("웹 조사 절차") == false ? "PASS" : "FAIL")")
+
+      let persona = Persona(name: "QA 스킬")
+      store.settings.skillsEnabled = false
+      let personaOn = store.skillsBlockForPrompt(persona: persona, provider: provider, tools: baseTools)
+      results.append("persona-overrides=\(personaOn?.contains("web-research") == true ? "PASS" : "FAIL")")
+
+      var personaOff = persona
+      personaOff.skillsEnabled = false
+      store.settings.skillsEnabled = true
+      let hiddenByPersona = store.skillsBlockForPrompt(persona: personaOff, provider: provider,
+                                                       tools: baseTools)
+      results.append("persona-off=\(hiddenByPersona == nil ? "PASS" : "FAIL")")
+
+      store.settings.disabledSkillIDs = ["web-research"]
+      let disabled = store.skillsBlockForPrompt(persona: nil, provider: provider, tools: baseTools)
+      results.append("disabled=\(disabled == nil ? "PASS" : "FAIL")")
+      store.settings.disabledSkillIDs = []
+
+      let noWeb = store.skillsBlockForPrompt(persona: nil, provider: provider, tools: noWebTools)
+      results.append("needs-web-tool=\(noWeb == nil ? "PASS" : "FAIL")")
+
+      let scheduled = SkillPrompt.effectiveEnabled(settings: store.settings, persona: persona,
+                                                   scheduled: true)
+      results.append("scheduled=\(scheduled ? "FAIL" : "PASS")")
+
+      // 예약 실행 컨텍스트가 떠 있는 동안에는 프롬프트 블록도 비어야 한다(D2).
+      let savedRun = store.scheduledRun
+      store.scheduledRun = ScheduledRunContext(taskID: UUID(), session: ConversationStore(),
+                                               policy: AgentPolicy())
+      store.settings.skillsEnabled = true
+      let duringRun = store.skillsBlockForPrompt(persona: persona, provider: provider,
+                                                 tools: baseTools)
+      results.append("scheduled-context=\(duringRun == nil ? "PASS" : "FAIL")")
+      store.scheduledRun = savedRun
+
+      // 메모리 상태도 원래 값으로 돌려 둔다 — 뒤따르는 렌더가 사용자 설정처럼 그리지 않게.
+      store.settings.skillsEnabled = savedEnabled
+      store.settings.disabledSkillIDs = savedDisabled
+      store.settings.agentToolsEnabled = savedAgentTools
+    }
+
+    let failed = results.filter { $0.hasSuffix("FAIL") }
+    NSLog("[QA-SKILLS] %@ %@", failed.isEmpty ? "PASS" : "FAIL",
+          results.joined(separator: " "))
+    NSApp.terminate(nil)
+    return true
+  }
+
   /// QA: `--qa-plan-routing` — 실행 계획 카드의 표시·실행 상태를 헤드리스로 확인한다(v0.36.3).
   ///
   /// 실제 모델·도구를 부르지 않는다. 턴 기록만 만들어 네 경계를 본다:
@@ -1716,7 +1866,8 @@ extension AppDelegate {
     applyProviderOverrideForSelfTest()
     Task { @MainActor in
       let started = Date()
-      let result = await self.store.agentSelfTest(query: query)
+      let result = await self.store.agentSelfTest(
+        query: query, includeSkills: CommandLine.arguments.contains("--skills"))
       NSLog("[AGENT-TEST] %@ ms=%d", result, Int(Date().timeIntervalSince(started) * 1000))
       NSApp.terminate(nil)
     }
