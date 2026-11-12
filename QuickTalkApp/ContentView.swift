@@ -1056,6 +1056,11 @@ struct ContentView: View {
           .foregroundColor(.secondary)
         }
         if !t.attachments.isEmpty { sentAttachmentStrip(t.attachments) }
+        // v0.38 — 맡긴 작업(Job)의 상태 카드. jobID 로 연결되어 실시간으로 갱신된다.
+        if let jobID = t.jobID {
+          JobStatusCard(jobID: jobID)
+            .padding(.bottom, 2)
+        }
         // ★ 시간 순서 그대로 — (사고 과정 → 도구 실행)을 반복해 그리고, 마지막 사고 뒤에 답변.
         //   예전에는 사고를 전부 위에, 도구를 전부 아래에 고정해 진행 단계를 알 수 없었다
         //   (2026-11-06 사용자 지적: "질문 → 도구 → 추론 → 쉘 → 추론 → 응답" 순서로).
@@ -1087,7 +1092,8 @@ struct ContentView: View {
                    state: store.planRunState(for: t),
                    canRun: store.shouldOfferPlan(t),
                    onRun: { store.executePlan(t) },
-                   onEdit: { store.editPlan(t) })
+                   onEdit: { store.editPlan(t) },
+                   onDelegate: { store.delegatePlan(t) })
             .padding(.top, 2)
         }
         if let sources = t.sources, !sources.isEmpty { sourceCards(sources) }
@@ -2040,7 +2046,7 @@ struct ContentView: View {
   /// 입력은 1~5줄까지 늘어나고 그 이상은 상자 안에서 스크롤된다. Enter = 전송 / Shift+Enter = 줄바꿈.
   private var canSend: Bool {
     (!store.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !store.attached.isEmpty)
-      && !store.isReplying
+      && !store.isReplying && !store.isJobConversationBusy
   }
 
   /// 입력 영역 오른쪽 여백 — 도구(＋)·전송 두 버튼이 글자를 가리지 않게 비운다.
@@ -2114,9 +2120,11 @@ struct ContentView: View {
       // 입력 영역 — 좌우로 버튼 자리를 비워 둔다
       ZStack(alignment: .topLeading) {
         ChatInputField(text: Binding(get: { store.draft }, set: { store.draft = $0 }), height: $inputHeight,
-                       isBusy: store.isReplying,
+                       isBusy: store.isReplying || store.isJobConversationBusy,
                        focusToken: store.composerFocusToken,
-                       placeholder: L("무엇이든 물어보세요"),
+                       placeholder: store.isJobConversationBusy
+                         ? L("작업이 끝나면 대화할 수 있습니다")
+                         : L("무엇이든 물어보세요"),
                        onPasteAttachments: { store.pasteAttachmentFromPasteboard() }) { value in
           store.draft = value
           store.send()

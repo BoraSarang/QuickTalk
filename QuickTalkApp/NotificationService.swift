@@ -110,16 +110,36 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     Task { await deliverRun(notice) }
   }
 
+  /// 맡긴 작업(Job) 완료·실패·일시 중지 — v0.38.
+  func notifyJobFinished(_ job: Job) {
+    guard store.settings.notificationsEnabled else { return }
+    switch job.status {
+    case .completed, .failed, .paused, .interrupted:
+      break
+    case .running, .queued, .waitingApproval, .cancelled:
+      return
+    }
+    Task { await deliverJob(job) }
+  }
+
   private func deliverApproval(_ approval: ScheduledApproval) async {
     guard await requestAuthorizationIfNeeded() else { return }
-    let task = store.schedulerService?.task(approval.taskID)
-    let text = ScheduleNotificationText.approval(personaName: approval.personaName,
-                                                 taskTitle: task?.title,
-                                                 reason: approval.request.shortReason)
     let content = UNMutableNotificationContent()
-    content.title = text.title
-    content.subtitle = text.subtitle ?? L("예약 작업")
-    content.body = text.body
+    if approval.kind == .job {
+      let text = JobNotificationText.approval(title: approval.displayTitle ?? L("맡긴 작업"),
+                                              reason: approval.request.shortReason)
+      content.title = text.title
+      content.subtitle = text.subtitle
+      content.body = text.body
+    } else {
+      let task = store.schedulerService?.task(approval.taskID)
+      let text = ScheduleNotificationText.approval(personaName: approval.personaName,
+                                                   taskTitle: task?.title,
+                                                   reason: approval.request.shortReason)
+      content.title = text.title
+      content.subtitle = text.subtitle ?? L("예약 작업")
+      content.body = text.body
+    }
     content.sound = sound()
     content.categoryIdentifier = Category.approval
     content.userInfo = [InfoKey.conversationID: approval.conversationID.uuidString]
@@ -160,6 +180,35 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       NSLog("[QuickTalk] 예약 실행 알림 표시 — %@", notice.status.rawValue)
     } catch {
       NSLog("[WARN] 예약 실행 알림 실패: %@", String(describing: error))
+    }
+  }
+
+  /// 맡긴 작업 완료·실패·일시 중지 알림 — 클릭하면 그 Job 대화를 연다.
+  private func deliverJob(_ job: Job) async {
+    guard await requestAuthorizationIfNeeded() else { return }
+    let text: JobNotificationText.Text
+    switch job.status {
+    case .completed: text = JobNotificationText.completed(job)
+    case .failed: text = JobNotificationText.failed(job)
+    case .paused, .interrupted: text = JobNotificationText.paused(job)
+    default: return
+    }
+    let content = UNMutableNotificationContent()
+    content.title = text.title
+    content.subtitle = text.subtitle
+    content.body = text.body
+    content.sound = sound()
+    content.categoryIdentifier = Category.run
+    content.userInfo = [InfoKey.conversationID: job.conversationID.uuidString]
+
+    let request = UNNotificationRequest(
+      identifier: "qt-job-\(job.id.uuidString)-\(job.status.rawValue)-\(UUID().uuidString)",
+      content: content, trigger: nil)
+    do {
+      try await center.add(request)
+      NSLog("[QuickTalk] 맡긴 작업 알림 표시 — %@", job.status.rawValue)
+    } catch {
+      NSLog("[WARN] 맡긴 작업 알림 실패: %@", String(describing: error))
     }
   }
 

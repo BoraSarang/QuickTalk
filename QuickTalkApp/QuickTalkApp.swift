@@ -59,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func clearLaunchLanguageOverride() { languageOverride = nil }
   /// 예약 작업 스케줄러 (v0.26) — 앱이 실행 중일 때만 동작한다.
   private var scheduler: SchedulerService?
+  /// 맡긴 작업(Job) 실행기 (v0.38).
+  private var jobs: JobService?
   /// 예약 작업 알림 (v0.26 5단계).
   private var notifications: NotificationService?
 
@@ -103,6 +105,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     store.onScheduledRunFinished = { [weak notifications] notice in
       notifications?.notifyRunFinished(notice)
     }
+    // 맡긴 작업(Job) — 저장된 Job을 복구하고, [맡기기] 실행을 맡는다(v0.38).
+    let jobs = JobService(store: store)
+    self.jobs = jobs
+    store.jobService = jobs
+    jobs.onJobsChanged = { [weak self] in self?.refreshJobIndicator() }
+    jobs.start()
+    refreshJobIndicator()
     let scheduler = SchedulerService(store: store)
     self.scheduler = scheduler
     store.schedulerService = scheduler
@@ -166,6 +175,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runQAExecuteRoutingIfRequested() { return }
     // QA: `--qa-plan-routing` — 실행 계획 카드의 표시·진행 상태
     if runQAPlanRoutingIfRequested() { return }
+    // QA: `--qa-job-routing` — 맡긴 작업(Job) 카드·상태 전이·저장(v0.38)
+    if runQAJobRoutingIfRequested() { return }
     // QA: `--qa-skills-routing` — 스킬 목록 노출·차단 규칙(v0.37)
     if runQASkillsRoutingIfRequested() { return }
     // QA: `--qa-paste-routing` — 클립보드의 웹 주소가 첨부로 오인되지 않는지
@@ -369,6 +380,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       b.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
     statusItem = item
+    refreshJobIndicator()
+  }
+
+  /// 메뉴바 아이콘 툴팁 — 진행 중·멈춘 작업을 한눈에 알린다(v0.38).
+  private func refreshJobIndicator() {
+    guard let button = statusItem?.button else { return }
+    let active = store.jobs.filter {
+      $0.status == .running || $0.status == .queued || $0.status == .waitingApproval
+    }.count
+    let paused = store.jobs.filter {
+      $0.status == .paused || $0.status == .interrupted
+    }.count
+    if active > 0 {
+      button.toolTip = Lf("QuickTalk — 작업 %d개 진행 중", active)
+    } else if paused > 0 {
+      button.toolTip = Lf("QuickTalk — 멈춘 작업 %d개", paused)
+    } else {
+      button.toolTip = "QuickTalk"
+    }
   }
 
   /// 설정 변경 → 메뉴바 아이콘/Dock 정책, 포인터 추적, 전역 단축키 재등록.
@@ -600,6 +630,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func buildMenu() -> NSMenu {
     let menu = NSMenu()
+    // 맡긴 작업(v0.38) — 진행 중·멈춘 작업을 먼저 보여 주고 클릭하면 그 대화를 연다.
+    let activeJobs = store.jobs.filter { !$0.status.isTerminal }
+    let recentJobs = store.jobs.filter { $0.status.isTerminal }.prefix(2)
+    let jobItems = Array(activeJobs.prefix(4)) + Array(recentJobs)
+    if !jobItems.isEmpty {
+      let header = NSMenuItem(title: L("작업"), action: nil, keyEquivalent: "")
+      header.isEnabled = false
+      menu.addItem(header)
+      for job in jobItems {
+        let item = NSMenuItem(title: jobMenuTitle(job),
+                              action: #selector(openJobAction(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = job.id.uuidString
+        menu.addItem(item)
+      }
+      menu.addItem(.separator())
+    }
     let sc = ShortcutCombo.display(store.settings.globalShortcut)
     let items: [(String, Selector, String, AnyObject?)] = [
       (Lf("대화 열기 (%@)", sc), #selector(openPanelAction), "", self),
@@ -630,6 +677,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @objc private func toggleVoiceAction() { store.toggleVoice() }
   @objc private func openSettingsMenu() { openSettings() }
   @objc private func showAboutAction() { showAbout() }
+
+  /// 메뉴바 작업 항목 — 그 Job 대화를 연다. 상태 카드에서 [계속]할 수 있다.
+  @objc private func openJobAction(_ sender: NSMenuItem) {
+    guard let raw = sender.representedObject as? String,
+          let id = UUID(uuidString: raw) else { return }
+    guard let job = store.job(id: id) else { return }
+    if store.openConversation(id: job.conversationID) {
+      showPanel(tab: 0)
+    } else if let conversation = store.archive.first(where: { $0.id == job.conversationID }) {
+      store.openConversation(conversation)
+      showPanel(tab: 0)
+    } else {
+      NSLog("[QuickTalk] 작업 대화를 찾지 못했습니다 — job=%@", String(id.uuidString.prefix(8)))
+    }
+  }
+
+  private func jobMenuTitle(_ job: Job) -> String {
+    let emoji: String
+    switch job.status {
+    case .running: emoji = "⚙︎"
+    case .queued: emoji = "⏳"
+    case .waitingApproval: emoji = "✋"
+    case .paused, .interrupted: emoji = "⏸"
+    case .completed: emoji = "✓"
+    case .failed: emoji = "!"
+    case .cancelled: emoji = "■"
+    }
+    let title = job.title.count <= 32 ? job.title : String(job.title.prefix(31)) + "…"
+    return "\(emoji) \(title) — \(job.status.displayName)"
+  }
 
   private func showAbout() {
     activateApp()

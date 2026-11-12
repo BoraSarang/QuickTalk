@@ -96,11 +96,16 @@ public struct AgentRunResult {
   public let hadDenial: Bool
   /// `propose_plan` 이 제안한 계획 — 있으면 UI 가 계획 카드를 그리고 실행은 사용자 결정으로 미룬다.
   public let plan: ExecutionPlan?
+  /// 스텝 상한에 걸려 **일이 남은 채** 끝났는가(v0.38 Job 구간 이어가기).
+  /// `stopAtStepLimit` 을 켠 러너만 true 를 낸다 — 기존 실행은 영향 없다.
+  public let hitStepLimit: Bool
 
   public init(answer: String, events: [AgentEvent], steps: Int,
-              hadDenial: Bool, plan: ExecutionPlan? = nil) {
+              hadDenial: Bool, plan: ExecutionPlan? = nil,
+              hitStepLimit: Bool = false) {
     self.answer = answer; self.events = events; self.steps = steps
     self.hadDenial = hadDenial; self.plan = plan
+    self.hitStepLimit = hitStepLimit
   }
 }
 
@@ -109,9 +114,13 @@ public struct AgentRunner {
   public let executor: any AgentToolExecutor
   /// 최대 스텝 수 — 무한 루프·비용 방지(기본 8)
   public let maxSteps: Int
+  /// 상한에 닿으면 **최종 답변을 재촉하지 않고** 바로 멈춘다 — Job이 다음 구간을 이어 간다.
+  public let stopAtStepLimit: Bool
 
-  public init(client: any AgentClient, executor: any AgentToolExecutor, maxSteps: Int = 8) {
+  public init(client: any AgentClient, executor: any AgentToolExecutor, maxSteps: Int = 8,
+              stopAtStepLimit: Bool = false) {
     self.client = client; self.executor = executor; self.maxSteps = maxSteps
+    self.stopAtStepLimit = stopAtStepLimit
   }
 
   /// 에이전트 루프 실행.
@@ -308,6 +317,12 @@ public struct AgentRunner {
                                        content: L("(방금 찍은 스크린샷을 첨부했습니다. 다음 판단에 참고하세요.)")))
         }
       }
+    }
+    // 스텝 상한에 걸렸다 — Job은 여기서 **최종 답변을 재촉하지 않는다**.
+    // (재촉하면 "다 끝난 것처럼" 보이는 답이 나오고, 다음 구간과 중복된다)
+    if stopAtStepLimit {
+      return AgentRunResult(answer: "", events: events, steps: steps,
+                            hadDenial: hadDenial, hitStepLimit: true)
     }
     // 스텝 상한에 걸렸다 — 도구를 빼고 **최종 답변만** 한 번 더 요구한다.
     // (예전에는 여기서 만든 "작업이 길어 중단했습니다 + 결과" 문구가 UI 에서 무시됐다)

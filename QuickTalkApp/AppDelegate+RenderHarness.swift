@@ -1376,6 +1376,98 @@ extension AppDelegate {
   /// 실제 모델·도구를 부르지 않는다. 턴 기록만 만들어 네 경계를 본다:
   /// ① 계획 답변 = [실행] 보인다 · [▶ 실행]은 숨긴다 ② 실행 턴이 붙으면 [실행] 숨긴다
   /// ③ 실행이 끝나면 단계가 전부 완료로 보인다 ④ 계획 없는 턴 = 숨긴다.
+  /// QA: `--qa-job-routing` — 맡긴 작업(Job)의 카드 노출·상태 전이·저장·알림 문구(v0.38).
+  ///
+  /// 실제 모델은 부르지 않는다. JobService 의 상태 API 만 사용해
+  /// ① 계획 카드 [맡기기] 조건 ② 승인 대기/실행/중단 전이 ③ 재개 가능 상태
+  /// ④ 저장 왕복 ⑤ 완료 알림 문구를 확인한다.
+  func runQAJobRoutingIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-job-routing") else { return false }
+    return MainActor.assumeIsolated { runQAJobRoutingBody() }
+  }
+
+  @MainActor
+  private func runQAJobRoutingBody() -> Bool {
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+
+    let tmp = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qt-job-qa-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    let originalService = store.jobService
+    let qa = JobService(store: store, jobStore: JobStore(directory: tmp))
+    store.jobs = []
+    store.jobService = qa
+    qa.start()
+    defer {
+      store.jobService = originalService
+      try? FileManager.default.removeItem(at: tmp)
+    }
+
+    // ① 계획 카드 — [맡기기] 는 [실행]과 같은 조건에서 보인다.
+    let wasTools = store.settings.agentToolsEnabled
+    store.settings.agentToolsEnabled = true
+    let plan = ExecutionPlan(goal: "이사 준비 체크리스트",
+                             steps: ["조사", "정리", "파일 만들기"],
+                             permissions: [.read, .write])
+    let question = Turn(role: .user, text: "이사 준비 도와줘")
+    let answer = Turn(role: .assistant, text: "계획을 제안했습니다.", plan: plan)
+    store.conversation = Conversation(turns: [question, answer])
+    let offered = store.shouldOfferPlan(answer)
+
+    // ② 상태 카드 연결 + 전이
+    var job = Job.make(plan: plan, conversationID: UUID(), personaID: nil,
+                       workspacePath: tmp.appendingPathComponent("ws").path)
+    job.status = .running
+    store.jobs = [job]
+    let card = Turn(role: .assistant, text: "", jobID: job.id)
+    let cardLinked = card.jobID == job.id && store.job(id: job.id) != nil
+
+    qa.markWaiting(job.id)
+    let waiting = store.job(id: job.id)?.status == .waitingApproval
+    qa.markRunning(job.id)
+    let running = store.job(id: job.id)?.status == .running
+
+    qa.cancel(job.id)
+    let cancelled = store.job(id: job.id)?.status == .cancelled
+
+    // ③ 재개 가능 상태 — 일시 중지·중단 복구 모두 [계속] 대상이다.
+    var paused = job
+    paused.status = .paused
+    paused.segment = 2
+    paused.maxSegments = 6
+    let canResume = paused.status.canResume
+      && paused.segment < paused.maxSegments
+
+    // ④ 저장 왕복 — temp jobs.json 에 실제로 남는지.
+    var persisted = job
+    persisted.status = .running
+    store.jobs = [persisted]
+    qa.markWaiting(persisted.id)
+    let reloaded = JobStore(directory: tmp).load()
+    let stored = reloaded.first(where: { $0.id == persisted.id })?.status == .waitingApproval
+
+    // ⑤ 완료 알림 문구
+    var completed = job
+    completed.status = .completed
+    completed.artifactPaths = ["체크리스트.md", "서류.md"]
+    completed.resultSummary = "12항목 정리"
+    let notice = JobNotificationText.completed(completed)
+    let notification = notice.title.contains("작업 완료")
+      && notice.body.contains("파일 2개")
+      && notice.body.contains("체크리스트.md")
+
+    let ok = offered && cardLinked && waiting && running && cancelled
+      && canResume && stored && notification
+    NSLog("[QA-JOB] offered=%d cardLinked=%d waiting=%d running=%d cancelled=%d canResume=%d stored=%d notification=%d — 기대: 1/1/1/1/1/1/1/1",
+          offered ? 1 : 0, cardLinked ? 1 : 0, waiting ? 1 : 0, running ? 1 : 0,
+          cancelled ? 1 : 0, canResume ? 1 : 0, stored ? 1 : 0, notification ? 1 : 0)
+    NSLog("[QA-JOB] result=%@", ok ? "PASS" : "FAIL")
+    store.settings.agentToolsEnabled = wasTools
+    NSApp.terminate(nil)
+    return true
+  }
+
   func runQAPlanRoutingIfRequested() -> Bool {
     guard CommandLine.arguments.contains("--qa-plan-routing") else { return false }
     store.markRenderHarness()

@@ -61,6 +61,14 @@ public final class ConversationStore {
     conversation.turns.append(turn); conversation.updatedAt = now; return turn
   }
 
+  /// Job 상태 카드 턴 — `jobID` 로 연결해 뷰가 상태를 실시간으로 읽는다(v0.38).
+  public func appendJobStatus(jobID: UUID, text: String = "") -> Turn {
+    let now = Date()
+    let turn = Turn(role: .assistant, text: text, createdAt: now,
+                    personaID: conversation.personaID, jobID: jobID)
+    conversation.turns.append(turn); conversation.updatedAt = now; return turn
+  }
+
   /// 스트리밍 응답용 빈 어시스턴트 턴 — 델타가 도착할 때마다 `appendStreaming`으로 채운다.
   /// 이때의 비서를 턴에 박아 둔다 — 도중에 비서를 바꿔도 답변 귀속이 흔들리지 않는다.
   @discardableResult
