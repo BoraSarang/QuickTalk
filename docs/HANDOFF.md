@@ -11,13 +11,27 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.37.1**(2026-11-12 13:03, `~/Applications/QuickTalk.app`, PID 54394) — **v0.37 스킬 + 사용법 안내**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.38.0**(2026-11-12 14:03, `~/Applications/QuickTalk.app`, PID 63311) — **v0.38.0 맡긴 작업(Job)**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37 상태는 아래 인계 참조.
+> **v0.38.0 구현·검증·병합·설치 완료(2026-11-12)** — 계획 카드 **[맡기기]** → 전용 대화에서 12스텝 × 최대 6구간 · 30분, 작업 폴더만 자동 쓰기 승인, 완료/실패/일시 중지/승인 알림, 메뉴바 작업 섹션. **PR #162 → squash merge `06be56c`**. PLAN `docs/plans/PLAN_v0.38_delegation_macos.md`, 인계 (30).
 > **v0.37 구현·검증·병합·설치 완료(2026-11-12)** — `SKILL.md` 절차를 모델이 필요할 때 읽는 **스킬**. 전역 기본 Off · 비서 기본 On · 예약 미주입 · 번들 예시 1개 · 가져오기/교체/삭제. **PR #158 → squash merge `5278477`**. PLAN `docs/plans/PLAN_v0.37_skills_macos.md`, 인계 (28).
 > **v0.37.1 문구 개선(2026-11-12)** — "어떻게 하라는거지" 피드백으로 **사용법·현재 범위·예시 질문**을 추가. **PR #160 → squash merge `448f55e`**, 인계 (29).
 > **v0.36 P0 구현·검증 완료(2026-11-11)** — 답변 아래 **[▶ 실행]** + 실행 턴(`Turn.executesTurnID`). **Debug 1.36.0 설치 · 실측 대기**. PLAN `docs/plans/PLAN_v0.36_execution-agent_macos.md`, 인계 (19).
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-12 인계 (30) — v0.38.0 **맡긴 작업(Job)** — **PR #162 병합 · Debug 1.38.0 설치 · 실측 대기**
+
+- **기능**: 계획 카드에 **[맡기기]** — Job은 전용 대화(`🧰 <목표>`, 핀)에서 12스텝 × 최대 6구간(72콜) × 실제 30분을 스스로 이어 간다. 현재 대화를 오염시키지 않고, 완료·실패·일시 중지·승인 대기를 macOS 알림으로 알린다.
+- **엔진**: `ScheduledRunContext(kind: .job)`·`AgentExecutor`·`AgentRunner` 재사용 — 샌드박스·승인 카드·쓰기 범위·감사(`job:<id8>`)·[중단]·되돌리기가 그대로 적용된다. `AgentRunner.stopAtStepLimit` 로 스텝 상한에서 최종 답변을 재촉하지 않고 다음 구간으로 잇는다.
+- **안전**: 작업 폴더 `<작업 폴더>/Jobs/<날짜>-<id4>/` 만 7일 자동 쓰기 승인. 중요·치명·시스템·앱 데이터는 항상 기존 승인 카드. 승인 대기 10분 만료는 `.paused`(자동 거부로 반쯤 만들지 않음). 앱 재시작 시 실행·대기·승인 중 Job은 자동 재개하지 않고 `.interrupted`.
+- **동시성**: Job은 1개만. 두 번째 [맡기기]는 `.queued` 후 앞 작업이 끝나면 자동 시작. `SchedulerService` 는 Job 실행 중 예약 실행을 미룬다(`store.scheduledRun` 하나).
+- **UI**: Job 대화 첫 assistant 턴에 상태 카드(`Turn.jobID`) — 상태 칩·진행 줄·파일 목록·[중단]/[계속]/[다시 시도]/[폴더 열기]. 실행 중 그 대화 입력 잠금. 메뉴바 작업 섹션(최대 6개) 클릭 → 대화. 완료 Job 최근 3개는 시스템 지식에 한 줄씩.
+- **저장**: `~/Library/Application Support/QuickTalk/Jobs/jobs.json` — 원자적 쓰기·중복 제거·최근 50개·손상 복구. 산출물은 상대 경로(숨김·심볼릭 링크 제외, 30개).
+- **검증**: `swift test` **1060/1060**(6 skip, JobTests 20) · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-job-routing` **PASS 8/8** · `--qa-plan-routing`·`--qa-execute-routing` 회귀 PASS.
+- **PR/버전/설치**: **PR #162 → squash merge `06be56c`** · 1.38.0(build 3800) · **2026-11-12 14:03 Debug 1.38.0** 교체·재실행(PID 63311, 직전 1.37.1은 `~/Applications/.QuickTalk.old`, `codesign --verify --strict --deep` OK, `QuickTalk.debug.dylib` SHA-256 `d91b9765c7f66d51b73557af766d13ca58ec23017800318885ece872ac906f73`).
+- **실측 대기**: ① 계획 카드에 **[맡기기]** 가 보이고, 누르면 `🧰` 대화가 열리며 "시작" 카드가 뜨는지 ② 실행 중 메뉴바 툴팁·작업 섹션 ③ 완료 알림 클릭 → Job 대화·파일 목록 ④ 앱을 껐다 켜면 실행 중 Job이 `중단됨`으로 남고 [계속]으로 이어지는지 ⑤ 작업 폴더 밖 쓰기·중요 명령이 승인 카드를 띄우는지.
+- **다음**: **v0.38.1 격리 브라우저**(읽기 전용 기본·폼 승인·전용 프로필) → **v0.38.2 산출물 카드**(미리보기·diff·되돌리기·파일 생성 도구). 실제 모델 [맡기기] 1회는 사용자 실측으로 확정한다.
 
 ### 2026-11-12 인계 (29) — v0.37.1 **스킬 설정 사용법·범위 안내** — **PR #160 병합 · Debug 1.37.1 설치 · 실측 대기**
 
