@@ -11,7 +11,8 @@
 > **v0.35 구현·검증 완료** — 모델 카탈로그·캐시·상세 · 비서별 모델(대화+예약) · 퀵셀프 목차 아코디언(2동작) · 비서별 리포트 폴더 · 전환 성능 측정. PLAN `docs/plans/PLAN_v0.35_model-catalog-shelf_macos.md` §13, 인계 (13).
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
-> **현재 설치본은 Debug 1.38.0**(2026-11-12 14:03, `~/Applications/QuickTalk.app`, PID 63311) — **v0.38.0 맡긴 작업(Job)**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37 상태는 아래 인계 참조.
+> **현재 설치본은 Debug 1.38.1**(2026-11-12 18:00, `~/Applications/QuickTalk.app`, PID 86793) — **v0.38.1 격리 브라우저**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37·v0.38.0 상태는 아래 인계 참조.
+> **v0.38.1 구현·검증·병합·설치 완료(2026-11-12)** — 모델이 Safari와 분리된 전용 프로필로 페이지를 읽고, 입력·제출은 항상 승인. **PR #164 → squash merge `1984f53`**. PLAN `docs/plans/PLAN_v0.38.1_browser_macos.md`, 인계 (31).
 > **v0.38.0 구현·검증·병합·설치 완료(2026-11-12)** — 계획 카드 **[맡기기]** → 전용 대화에서 12스텝 × 최대 6구간 · 30분, 작업 폴더만 자동 쓰기 승인, 완료/실패/일시 중지/승인 알림, 메뉴바 작업 섹션. **PR #162 → squash merge `06be56c`**. PLAN `docs/plans/PLAN_v0.38_delegation_macos.md`, 인계 (30).
 > **v0.37 구현·검증·병합·설치 완료(2026-11-12)** — `SKILL.md` 절차를 모델이 필요할 때 읽는 **스킬**. 전역 기본 Off · 비서 기본 On · 예약 미주입 · 번들 예시 1개 · 가져오기/교체/삭제. **PR #158 → squash merge `5278477`**. PLAN `docs/plans/PLAN_v0.37_skills_macos.md`, 인계 (28).
 > **v0.37.1 문구 개선(2026-11-12)** — "어떻게 하라는거지" 피드백으로 **사용법·현재 범위·예시 질문**을 추가. **PR #160 → squash merge `448f55e`**, 인계 (29).
@@ -19,6 +20,20 @@
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-12 인계 (31) — v0.38.1 **격리 브라우저** — **PR #164 병합 · Debug 1.38.1 설치 · 실측 대기**
+
+- **기능**: 모델이 **Safari와 분리된 전용 프로필**로 웹 페이지를 열고 읽는다. 링크 이동은 읽기, 버튼·체크박스·탭 클릭과 입력·폼 제출은 **항상 승인**. 답변 아래 출처 카드에 실제로 읽은 페이지가 쌓인다.
+- **도구 6개**: `browser_open`·`browser_read`·`browser_back`(읽기) · `browser_click`(링크=읽기/그 외=승인) · `browser_type`·`browser_submit`(승인). `allowsAlwaysAllow: false` — 항상 허용 규칙을 만들지 않는다. 기본 카탈로그 6개는 그대로, `includingBrowser`일 때만 6개 추가.
+- **격리**: `WKWebsiteDataStore(forIdentifier:)` 고정 UUID(`settings.browserProfileID`). 쿠키·캐시·로컬 저장소를 Safari와 공유하지 않는다. `1280×900` 무키 창 `(-12000,-12000)` — 포커스 스틸 없음. 대화별 캐시 2개·15분, 앱 종료 시 정리.
+- **정책**: http/https만 · 자격 증명 거부 · 2,048자 · localhost/사설 IP/`.local`/숫자 호스트 거부 · 리다이렉트 최종 URL 재검사 · 위험 신호 링크는 승인. 다운로드·새 창·팝업·JS 다이얼로그·파일 선택·미디어·HTTP 인증·TLS 우회 차단.
+- **민감 정보**: 비밀번호·파일·숨김·결제·인증번호 필드는 스냅샷 제외·입력 거부. 모델에는 `valueLength`·`options`만. `browser_type` 감사에 입력값 미기록(필드 이름까지). 페이지 본문은 "신뢰할 수 없는 데이터"로 렌더.
+- **게이트**: `settings.browserEnabled`(기본 꺼짐) + `settings.agentToolsEnabled` + 비서 `tools.web`. Apple FM 미전달. `PersonaTools` 새 필드 없음(구버전 JSON 호환).
+- **검증**: `swift test` **1078/1078**(6 skip, `BrowserTests` 18) · `LocalizationCoverageTests` 5/5 · Debug/Release **BUILD SUCCEEDED · 경고 0** · `--qa-browser-routing` **PASS 23/23** · `--qa-browser-live` **PASS 14/14**(실제 WKWebView·로컬 HTML) · `--qa-job-routing`·`--qa-plan-routing`·`--qa-execute-routing`·`--qa-skills-routing` 회귀 PASS.
+- **PR/버전/설치**: **PR #164 → squash merge `1984f53`** · 1.38.1(build 3801) · **2026-11-12 18:00 Debug 1.38.1** 교체·재실행(PID 86793, `codesign --verify --strict --deep` OK, `QuickTalk.debug.dylib` SHA-256 `952b51df0e8600bb850f1d963bbc7d5aee77ca08e14d921b0e29b31164f1ed69`) · **백업 번들 없음** — 남아 있던 v0.37.1 `.QuickTalk.old` 는 [HARD] 규칙에 따라 삭제.
+- **실측 대기**: ① 설정 › 도구·권한 › **격리 브라우저** 토글을 켜고, 비서 대화에서 "이 페이지 읽어 줘" → `browser_open`/`browser_read` 카드·출처 ② 링크 클릭은 읽기로 지나가고 버튼 클릭·입력·제출은 승인 카드가 뜨는지 ③ Safari 로그인과 쿠키가 섞이지 않는지 ④ 데이터 지우기 ⑤ Job에서 브라우저 도구가 이어지는지.
+- **한계**: GET 링크의 서버 상태 변경·DNS 리바인딩은 완전히 막지 못한다. 로그인·2단계 인증·CAPTCHA 페이지는 읽기만. 다운로드·인쇄·PDF 저장·새 창 미지원. 실제 네트워크 페이지·실제 모델 호출은 아직 실측하지 않았다(QA는 로컬 HTML).
+- **다음**: **v0.38.2 산출물 카드**(미리보기·diff·되돌리기·파일 생성 도구). 그 뒤 브라우저 보이는 창·주소창 UI, 원격 승인(v0.39+).
 
 ### 2026-11-12 인계 (30) — v0.38.0 **맡긴 작업(Job)** — **PR #162 병합 · Debug 1.38.0 설치 · 실측 대기**
 
