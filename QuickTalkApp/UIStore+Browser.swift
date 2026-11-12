@@ -28,15 +28,29 @@ extension UIStore {
       ?? session?.conversation.id
       ?? activeSession.conversation.id
     sweepBrowserServices()
+    let service: BrowserService
     if let existing = browserServices[conversationID] {
-      browserLastUsed[conversationID] = Date()
-      return existing
+      service = existing
+    } else {
+      service = BrowserService(profileID: browserProfileUUID())
+      browserServices[conversationID] = service
+      evictIfNeeded()
     }
-    let service = BrowserService(profileID: browserProfileUUID())
-    browserServices[conversationID] = service
+    // v0.38.3 — 보이는 창 자동 표시는 설정을 매번 반영한다(켜고 끄면 다음 도구 호출부터).
+    service.autoShowWindowEnabled = settings.browserShowWindowAutomatically
     browserLastUsed[conversationID] = Date()
-    evictIfNeeded()
     return service
+  }
+
+  /// 설정 버튼·메뉴바 Hub — 현재 대화의 격리 브라우저 창을 연다.
+  /// 꺼져 있으면 false. 창은 앱을 활성화하고 키보드 포커스를 가져간다(사용자가 직접 연 경우).
+  @MainActor
+  @discardableResult
+  func openBrowserWindow() -> Bool {
+    guard settings.browserEnabled, settings.agentToolsEnabled else { return false }
+    guard let service = browserService() else { return false }
+    service.showWindow(activate: true)
+    return true
   }
 
   /// 저장된 프로필 ID — 없으면 만들어 **즉시 설정에 저장**한다.

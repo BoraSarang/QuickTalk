@@ -163,6 +163,8 @@ struct SettingsView: View {
   /// 격리 브라우저 — 데이터 지우기 결과 안내(v0.38.1)
   @State var browserDataMessage: String?
   @State var browserDataClearing = false
+  /// 격리 브라우저 — 창 열기 결과 안내(v0.38.3)
+  @State var browserWindowMessage: String?
   /// 도우미 도구 — 실행 기록 펼치기
   @State var showAgentAudit = false
   /// 규칙 테스터 — 판정을 미리 확인할 명령(v0.22). 실행하지는 않는다.

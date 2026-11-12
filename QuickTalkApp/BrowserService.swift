@@ -1,10 +1,12 @@
 import Foundation
 import WebKit
 
-// [FEATURE] 격리 브라우저 (v0.38.1, PLAN_v0.38.1 §5·§6)
+// [FEATURE] 격리 브라우저 (v0.38.1, PLAN_v0.38.1 §5·§6 · 보이는 창 v0.38.3)
 //
 // Safari 와 **쿠키·캐시를 공유하지 않는** 전용 프로필로 웹 페이지를 연다.
-// 창은 화면 밖(-12000, -12000)에 두고 키·메인이 될 수 없게 해서 **포커스 스틸이 없다**.
+// 기본 창은 화면 밖(-12000, -12000)에 두고 키·메인이 될 수 없게 해서 **포커스 스틸이 없다**.
+// 사용자가 창을 열면 같은 `WKWebView` 를 보이는 창에 옮겨 붙이고, 닫으면 다시 오프스크린으로
+// 되돌린다 — 창이 숨겨져도 모델의 읽기·클릭이 안정적으로 동작하게 하기 위해서다.
 //
 // 이 클래스는 "페이지를 어떻게 열고 읽고 누르는가"만 안다. 승인·감사·출처·게이트는
 // `AgentExecutor+Browser.swift` 가 맡는다 — 그래야 브라우저도 기존 신뢰 모델을 그대로 탄다.
@@ -68,14 +70,24 @@ final class BrowserService: NSObject {
   }
 
   let profileID: UUID
-  private let webView: WKWebView
+  /// 보이는 창이 같은 웹뷰를 옮겨 붙인다. 같은 모듈 안에서만 노출한다.
+  let webView: WKWebView
   private let window: OffscreenWindow
+  private var visibleController: BrowserWindowController?
   private var lastSnapshot: BrowserPageSnapshot?
   private var lastURL: URL?
   /// 다운로드·새 창처럼 **앱이 막은 동작** — 다음 스냅샷에 한 줄로 붙인다.
   private var notice: String?
+  /// 보이는 창의 안내 띠 — 스냅샷과 달리 사용자가 닫을 때까지 남는다.
+  private var userNotice: String?
   /// 마지막 내비게이션 실패 — 다음 스냅샷에서 오류로 올린다.
   private var lastNavigationError: String?
+  /// 모델 도구가 겹쳐 돌 때 활동 표시를 마지막 하나까지 유지한다.
+  private var activityDepth = 0
+  private var modelActivityLabel: String?
+  /// 모델이 도구를 쓸 때 창을 자동으로 띄울지 — `UIStore` 가 설정에서 채운다.
+  var autoShowWindowEnabled = false
+  private var stateObservers: [NSKeyValueObservation] = []
 
   init(profileID: UUID) {
     self.profileID = profileID
@@ -112,6 +124,202 @@ final class BrowserService: NSObject {
     if #available(macOS 13.3, *) {
       webView.isInspectable = false
     }
+    observeWebViewState()
+  }
+
+  // MARK: - 보이는 창 (v0.38.3)
+
+  /// 보이는 창이 지금 화면에 떠 있는가.
+  var isWindowVisible: Bool { visibleController?.window?.isVisible == true }
+
+  /// QA 전용 — 실제 창의 스타일·제목·닫기 동작을 검사한다.
+  var visibleWindow: NSWindow? { visibleController?.window }
+
+  /// 크롬(주소창·버튼·배지·활동)이 그릴 상태.
+  var chromeState: BrowserChromeState {
+    let rawURL = webView.url
+    let isBlank = rawURL == nil || rawURL?.absoluteString == "about:blank"
+    return BrowserChromeState(
+      address: isBlank ? "" : (rawURL?.absoluteString ?? ""),
+      pageTitle: lastSnapshot?.title.isEmpty == false ? (lastSnapshot?.title ?? "") : (webView.title ?? ""),
+      host: rawURL.map { BrowserURLPolicy.displayHost($0) } ?? "",
+      canGoBack: webView.canGoBack,
+      canGoForward: webView.canGoForward,
+      isLoading: webView.isLoading,
+      isBlank: isBlank,
+      notice: userNotice,
+      activityLabel: modelActivityLabel,
+      isModelActive: activityDepth > 0,
+      progress: webView.estimatedProgress)
+  }
+
+  /// 창을 연다. `activate=false` 면 앱을 활성화하지 않고 뒤에 띄운다(포커스 스틸 없음).
+  /// `qaOffscreen=true` 는 QA 전용 — 화면 밖으로 옮겨 사용자 방해 없이 실제 창을 검사한다.
+  @discardableResult
+  func showWindow(activate: Bool = true, qaOffscreen: Bool = false) -> Bool {
+    // 웹뷰가 오프스크린 창의 contentView 라면 먼저 떼어 낸다 — SwiftUI 호스트가 붙일 수 있게.
+    if window.contentView === webView {
+      window.contentView = nil
+    }
+    if visibleController == nil {
+      visibleController = BrowserWindowController(service: self)
+    }
+    guard let controller = visibleController else { return false }
+    if qaOffscreen {
+      controller.window?.setFrameOrigin(NSPoint(x: -12_000, y: -12_000))
+    }
+    controller.model.bumpHostGeneration()
+    controller.present(activate: activate)
+    publishChromeState()
+    NSLog("[QuickTalk] [INFO] [BROWSER-WINDOW] show activate=%@ offscreen=%@",
+          activate ? "Y" : "N", qaOffscreen ? "Y" : "N")
+    return true
+  }
+
+  /// 창을 숨긴다. 페이지는 그대로 두고, 모델이 계속 읽을 수 있게 웹뷰를 오프스크린으로 되돌린다.
+  func hideWindow() {
+    visibleController?.hide()
+    reattachWebViewToOffscreen()
+    publishChromeState()
+    NSLog("[QuickTalk] [INFO] [BROWSER-WINDOW] hide")
+  }
+
+  /// 빨간 닫기 버튼 — 컨트롤러가 부른다. 창은 숨기고 웹뷰는 오프스크린으로.
+  func browserWindowWillHide() {
+    reattachWebViewToOffscreen()
+    publishChromeState()
+  }
+
+  /// 사용자가 안내 띠를 닫았다.
+  func clearNotice() {
+    notice = nil
+    userNotice = nil
+    publishChromeState()
+  }
+
+  /// 모델 도구 활동 시작 — 창이 꺼져 있고 자동 표시가 켜져 있으면 연다.
+  func beginModelActivity(_ toolName: String) {
+    activityDepth += 1
+    modelActivityLabel = Self.activityLabel(for: toolName)
+    if autoShowWindowEnabled && !isWindowVisible {
+      _ = showWindow(activate: false)
+    }
+    publishChromeState()
+  }
+
+  /// 모델 도구 활동 끝 — 겹친 활동이 모두 끝나면 표시를 지운다.
+  func endModelActivity() {
+    activityDepth = max(0, activityDepth - 1)
+    if activityDepth == 0 { modelActivityLabel = nil }
+    publishChromeState()
+  }
+
+  /// 사용자가 주소창에 입력한 주소로 이동한다. 정책 위반이면 이유를 돌려준다.
+  func navigateUser(to raw: String) -> String? {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    do {
+      let url = try BrowserURLPolicy.validate(trimmed)
+      if let reason = BrowserURLPolicy.navigationBlockReason(url) {
+        return reason
+      }
+      clearNavigationNotice()
+      lastNavigationError = nil
+      webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy,
+                              timeoutInterval: 30))
+      publishChromeState()
+      return nil
+    } catch {
+      return (error as? BrowserURLPolicy.ValidationError)?.userText
+        ?? L("주소 형식이 올바르지 않습니다.")
+    }
+  }
+
+  func userGoBack() {
+    guard webView.canGoBack else { return }
+    lastNavigationError = nil
+    webView.goBack()
+    publishChromeState()
+  }
+
+  func userGoForward() {
+    guard webView.canGoForward else { return }
+    lastNavigationError = nil
+    webView.goForward()
+    publishChromeState()
+  }
+
+  func userReloadOrStop() {
+    if webView.isLoading {
+      webView.stopLoading()
+    } else if webView.url != nil, webView.url?.absoluteString != "about:blank" {
+      lastNavigationError = nil
+      webView.reload()
+    }
+    publishChromeState()
+  }
+
+  /// 상태를 창에 밀어 넣는다. 클로저가 없으면(창을 연 적이 없으면) 아무 일도 하지 않는다.
+  private func publishChromeState() {
+    visibleController?.model.apply(chromeState)
+  }
+
+  /// 다운로드·팝업처럼 앱이 막은 동작 — 다음 스냅샷과 창 안내 띠에 함께 남긴다.
+  private func note(_ text: String) {
+    notice = text
+    userNotice = text
+    publishChromeState()
+  }
+
+  /// 새 이동을 시작할 때 이전 안내를 지운다.
+  private func clearNavigationNotice() {
+    notice = nil
+    userNotice = nil
+  }
+
+  private func reattachWebViewToOffscreen() {
+    guard window.contentView !== webView else { return }
+    webView.removeFromSuperview()
+    webView.translatesAutoresizingMaskIntoConstraints = true
+    webView.frame = window.contentLayoutRect
+    webView.autoresizingMask = [.width, .height]
+    window.contentView = webView
+    window.orderFrontRegardless()
+  }
+
+  private func observeWebViewState() {
+    let keys: [NSKeyValueObservation] = [
+      webView.observe(\.url, options: [.new]) { [weak self] _, _ in
+        DispatchQueue.main.async { self?.publishChromeState() }
+      },
+      webView.observe(\.title, options: [.new]) { [weak self] _, _ in
+        DispatchQueue.main.async { self?.publishChromeState() }
+      },
+      webView.observe(\.canGoBack, options: [.new]) { [weak self] _, _ in
+        DispatchQueue.main.async { self?.publishChromeState() }
+      },
+      webView.observe(\.canGoForward, options: [.new]) { [weak self] _, _ in
+        DispatchQueue.main.async { self?.publishChromeState() }
+      },
+      webView.observe(\.isLoading, options: [.new]) { [weak self] _, _ in
+        DispatchQueue.main.async { self?.publishChromeState() }
+      },
+      webView.observe(\.estimatedProgress, options: [.new]) { [weak self] _, _ in
+        DispatchQueue.main.async { self?.publishChromeState() }
+      },
+    ]
+    stateObservers = keys
+  }
+
+  private static func activityLabel(for toolName: String) -> String {
+    switch toolName {
+    case "browser_open": return L("모델이 페이지를 여는 중")
+    case "browser_read": return L("모델이 페이지를 읽는 중")
+    case "browser_back": return L("모델이 뒤로 이동하는 중")
+    case "browser_click": return L("모델이 요소를 클릭하는 중")
+    case "browser_type": return L("모델이 입력하는 중")
+    case "browser_submit": return L("모델이 양식을 제출하는 중")
+    default: return L("모델이 브라우저를 사용하는 중")
+    }
   }
 
   /// 페이지를 열고 스냅샷을 돌려준다.
@@ -120,7 +328,7 @@ final class BrowserService: NSObject {
       throw ServiceError.blocked(BrowserURLPolicy.navigationBlockReason(url) ?? "")
     }
     lastNavigationError = nil
-    notice = nil
+    clearNavigationNotice()
     webView.load(URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30))
     await waitUntilSettled(timeout: 25)
     try throwNavigationErrorIfNeeded()
@@ -172,7 +380,7 @@ final class BrowserService: NSObject {
   /// 클릭 실행 — 링크는 같은 창에서 직접 이동한다(새 창·팝업을 만들지 않는다).
   func performClick(ref: String, maxCharacters: Int) async throws -> BrowserPageSnapshot {
     let plan = try clickPlan(ref: ref)
-    notice = nil
+    clearNavigationNotice()
     lastNavigationError = nil
     if let destination = plan.destination {
       // 같은 문서 안의 앵커(#section)는 스크롤만 한다 — JS 클릭이 맞다.
@@ -271,7 +479,7 @@ final class BrowserService: NSObject {
   /// 양식 제출 — 브라우저 검증을 통과한 뒤에만 실제로 보낸다.
   func performSubmit(ref: String, maxCharacters: Int) async throws -> BrowserPageSnapshot {
     _ = try formPlan(ref: ref)
-    notice = nil
+    clearNavigationNotice()
     lastNavigationError = nil
     let script = """
       (() => {
@@ -325,18 +533,27 @@ final class BrowserService: NSObject {
   func loadHTMLForQA(_ html: String,
                      baseURL: URL? = URL(string: "https://example.com/qa")) async throws -> BrowserPageSnapshot {
     lastNavigationError = nil
-    notice = nil
+    clearNavigationNotice()
     webView.loadHTMLString(html, baseURL: baseURL)
     await waitUntilSettled(timeout: 10)
     try throwNavigationErrorIfNeeded()
     return try await snapshot(maxCharacters: 20_000)
   }
 
-  /// 창·웹뷰를 정리한다. 15분 유휴 정리에서 부른다.
+  /// 창·웹뷰를 정리한다. 15분 유휴 정리·데이터 삭제·앱 종료에서 부른다.
   func teardown() {
+    stateObservers.forEach { $0.invalidate() }
+    stateObservers.removeAll()
     webView.stopLoading()
     webView.navigationDelegate = nil
     webView.uiDelegate = nil
+    if let controller = visibleController {
+      controller.window?.delegate = nil
+      controller.window?.contentView = nil
+      controller.close()
+      visibleController = nil
+    }
+    webView.removeFromSuperview()
     window.contentView = nil
     window.orderOut(nil)
     window.close()
@@ -391,6 +608,7 @@ final class BrowserService: NSObject {
     }
     lastSnapshot = page
     lastURL = webView.url
+    publishChromeState()
     return page
   }
 
@@ -645,7 +863,7 @@ extension BrowserService: WKNavigationDelegate {
                decidePolicyFor navigationAction: WKNavigationAction,
                decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     if navigationAction.shouldPerformDownload {
-      notice = L("다운로드는 지원하지 않습니다. 필요하면 사용자에게 주소를 알려 주세요.")
+      note(L("다운로드는 지원하지 않습니다. 필요하면 사용자에게 주소를 알려 주세요."))
       decisionHandler(.cancel)
       return
     }
@@ -660,7 +878,7 @@ extension BrowserService: WKNavigationDelegate {
     }
     if let reason = BrowserURLPolicy.navigationBlockReason(url) {
       if navigationAction.targetFrame?.isMainFrame == true {
-        notice = reason
+        note(reason)
         lastNavigationError = reason
       }
       decisionHandler(.cancel)
@@ -675,12 +893,12 @@ extension BrowserService: WKNavigationDelegate {
     if let http = navigationResponse.response as? HTTPURLResponse,
        let disposition = http.value(forHTTPHeaderField: "Content-Disposition")?.lowercased(),
        disposition.contains("attachment") {
-      notice = L("다운로드는 지원하지 않습니다.")
+      note(L("다운로드는 지원하지 않습니다."))
       decisionHandler(.cancel)
       return
     }
     guard navigationResponse.canShowMIMEType else {
-      notice = L("이 형식은 브라우저에서 열 수 없습니다(다운로드 차단).")
+      note(L("이 형식은 브라우저에서 열 수 없습니다(다운로드 차단)."))
       decisionHandler(.cancel)
       return
     }
@@ -689,10 +907,12 @@ extension BrowserService: WKNavigationDelegate {
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     lastNavigationError = nil
+    publishChromeState()
   }
 
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
     lastNavigationError = (error as NSError).localizedDescription
+    publishChromeState()
   }
 
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
@@ -701,6 +921,7 @@ extension BrowserService: WKNavigationDelegate {
     // 취소는 우리가 정책으로 막은 경우에도 온다 — 사용자에게는 정책 안내를 그대로 보여 준다.
     if nsError.code == NSURLErrorCancelled { return }
     lastNavigationError = nsError.localizedDescription
+    note(nsError.localizedDescription)
   }
 
   func webView(_ webView: WKWebView,
@@ -711,13 +932,14 @@ extension BrowserService: WKNavigationDelegate {
     if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
       completionHandler(.performDefaultHandling, nil)
     } else {
-      notice = L("이 페이지는 로그인(HTTP 인증)이 필요해 열 수 없습니다.")
+      note(L("이 페이지는 로그인(HTTP 인증)이 필요해 열 수 없습니다."))
       completionHandler(.cancelAuthenticationChallenge, nil)
     }
   }
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     lastNavigationError = L("페이지 프로세스가 예기치 않게 종료되었습니다. browser_open 으로 다시 여세요.")
+    note(lastNavigationError ?? "")
   }
 }
 
@@ -728,7 +950,7 @@ extension BrowserService: WKUIDelegate {
                createWebViewWith configuration: WKWebViewConfiguration,
                for navigationAction: WKNavigationAction,
                windowFeatures: WKWindowFeatures) -> WKWebView? {
-    notice = L("새 창·팝업은 열지 않습니다. 같은 창에서 열 수 있는 링크를 사용하세요.")
+    note(L("새 창·팝업은 열지 않습니다. 같은 창에서 열 수 있는 링크를 사용하세요."))
     return nil
   }
 
@@ -736,7 +958,7 @@ extension BrowserService: WKUIDelegate {
                runJavaScriptAlertPanelWithMessage message: String,
                initiatedByFrame frame: WKFrameInfo,
                completionHandler: @escaping () -> Void) {
-    notice = Lf("페이지 알림: %@", String(message.prefix(120)))
+    note(Lf("페이지 알림: %@", String(message.prefix(120))))
     completionHandler()
   }
 
@@ -744,7 +966,7 @@ extension BrowserService: WKUIDelegate {
                runJavaScriptConfirmPanelWithMessage message: String,
                initiatedByFrame frame: WKFrameInfo,
                completionHandler: @escaping (Bool) -> Void) {
-    notice = L("페이지가 확인 창을 띄웠지만 앱은 자동으로 취소합니다.")
+    note(L("페이지가 확인 창을 띄웠지만 앱은 자동으로 취소합니다."))
     completionHandler(false)
   }
 
@@ -753,7 +975,7 @@ extension BrowserService: WKUIDelegate {
                defaultText: String?,
                initiatedByFrame frame: WKFrameInfo,
                completionHandler: @escaping (String?) -> Void) {
-    notice = L("페이지가 입력 창을 띄웠지만 앱은 자동으로 취소합니다.")
+    note(L("페이지가 입력 창을 띄웠지만 앱은 자동으로 취소합니다."))
     completionHandler(nil)
   }
 
@@ -761,7 +983,7 @@ extension BrowserService: WKUIDelegate {
                runOpenPanelWith parameters: WKOpenPanelParameters,
                initiatedByFrame frame: WKFrameInfo,
                completionHandler: @escaping ([URL]?) -> Void) {
-    notice = L("파일 선택은 지원하지 않습니다.")
+    note(L("파일 선택은 지원하지 않습니다."))
     completionHandler(nil)
   }
 
@@ -771,7 +993,7 @@ extension BrowserService: WKUIDelegate {
                initiatedByFrame frame: WKFrameInfo,
                type: WKMediaCaptureType,
                decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-    notice = L("카메라·마이크·화면 접근은 허용하지 않습니다.")
+    note(L("카메라·마이크·화면 접근은 허용하지 않습니다."))
     decisionHandler(.deny)
   }
 }

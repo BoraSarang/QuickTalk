@@ -2949,3 +2949,94 @@ extension AppDelegate {
     return true
   }
 }
+
+// MARK: - QA: 격리 브라우저 보이는 창 (v0.38.3)
+
+extension AppDelegate {
+  /// `--qa-browser-window` — 실제 `BrowserService`·`BrowserWindowController` 로
+  /// 주소창 상태·자동 표시·숨김/복귀·정책 거부를 확인한다. 창은 화면 밖으로 옮긴다.
+  func runQABrowserWindowIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-browser-window") else { return false }
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+    let html = """
+      <!doctype html><html><head><meta charset="utf-8">
+      <title>QuickTalk Browser QA</title></head><body>
+      <h1>Hello</h1>
+      <p>보이는 창 확인 문장입니다.</p>
+      <a href="https://example.com/next">다음</a>
+      </body></html>
+      """
+    Task { @MainActor in
+      let service = BrowserService(profileID: UUID())
+      var checks: [(String, Bool)] = []
+
+      checks.append(("초기 창 없음", !service.isWindowVisible))
+      checks.append(("자동 표시 기본 켜짐", QuickTalkSettings().browserShowWindowAutomatically))
+
+      do {
+        let page = try await service.loadHTMLForQA(html)
+        checks.append(("제목", page.title == "QuickTalk Browser QA"))
+        let state = service.chromeState
+        checks.append(("주소", state.address.contains("example.com/qa")))
+        checks.append(("페이지 있음", !state.isBlank))
+        checks.append(("뒤로 없음", !state.canGoBack))
+        checks.append(("앞으로 없음", !state.canGoForward))
+      } catch {
+        NSLog("[QA-BROWSER-WINDOW] load error=%@", String(describing: error))
+        checks.append(("로컬 HTML 로드", false))
+      }
+
+      // 주소창 정책 — 로컬·비HTTP는 열지 않고 이유를 돌려준다.
+      checks.append(("file: 거부", service.navigateUser(to: "file:///etc/passwd") != nil))
+      checks.append(("localhost 거부", service.navigateUser(to: "http://127.0.0.1") != nil))
+
+      // 실제 창 — 화면 밖에서 표시해 사용자 방해 없이 검사한다.
+      _ = service.showWindow(activate: false, qaOffscreen: true)
+      checks.append(("창 표시", service.isWindowVisible))
+      checks.append(("창 타이틀", service.visibleWindow?.title.contains("QuickTalk Browser QA") == true))
+      if let window = service.visibleWindow {
+        checks.append(("표준 타이틀바", window.styleMask.contains(.titled)))
+        checks.append(("닫기 가능", window.styleMask.contains(.closable)))
+        checks.append(("크기 조절", window.styleMask.contains(.resizable)))
+        checks.append(("닫아도 해제 안 함", !window.isReleasedWhenClosed))
+        checks.append(("최소 크기", window.minSize.width >= 640 && window.minSize.height >= 420))
+      } else {
+        checks.append(("창 객체", false))
+      }
+
+      // 닫기 = 숨김, 페이지는 유지되고 웹뷰는 오프스크린으로 돌아간다.
+      service.hideWindow()
+      checks.append(("숨김", !service.isWindowVisible))
+      let hidden = service.chromeState
+      checks.append(("숨김 뒤 페이지 유지", !hidden.isBlank && hidden.pageTitle == "QuickTalk Browser QA"))
+      checks.append(("숨김 뒤 주소 유지", hidden.address.contains("example.com/qa")))
+
+      // 자동 표시 — 켜짐이면 활동 시작이 창을 열고, 꺼짐이면 열지 않는다.
+      service.autoShowWindowEnabled = true
+      service.beginModelActivity("browser_open")
+      checks.append(("자동 표시 켜짐", service.isWindowVisible))
+      checks.append(("활동 라벨", service.chromeState.activityLabel == L("모델이 페이지를 여는 중")))
+      service.endModelActivity()
+      checks.append(("활동 종료", !service.chromeState.isModelActive))
+      service.hideWindow()
+
+      service.autoShowWindowEnabled = false
+      service.beginModelActivity("browser_read")
+      checks.append(("자동 표시 꺼짐", !service.isWindowVisible))
+      service.endModelActivity()
+
+      service.teardown()
+      checks.append(("정리 뒤 창 닫힘", !service.isWindowVisible))
+
+      let failed = checks.filter { !$0.1 }
+      for (name, ok) in checks {
+        NSLog("[QA-BROWSER-WINDOW] %@=%@", name, ok ? "1" : "0")
+      }
+      NSLog("[QA-BROWSER-WINDOW] checks=%d failed=%d — 기대: 0", checks.count, failed.count)
+      NSLog("[QA-BROWSER-WINDOW] result=%@", failed.isEmpty ? "PASS" : "FAIL")
+      NSApp.terminate(nil)
+    }
+    return true
+  }
+}

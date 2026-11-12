@@ -159,16 +159,20 @@ final class BrowserTests: XCTestCase {
     let settings = QuickTalkSettings()
     XCTAssertFalse(settings.browserEnabled)
     XCTAssertEqual(settings.browserProfileID, "")
+    // v0.38.3 — 보이는 창은 기본으로 자동 표시한다(포커스는 빼앗지 않는다).
+    XCTAssertTrue(settings.browserShowWindowAutomatically)
   }
 
   func testBrowserSettingsRoundTrip() throws {
     var settings = QuickTalkSettings()
     settings.browserEnabled = true
     settings.browserProfileID = "11111111-2222-3333-4444-555555555555"
+    settings.browserShowWindowAutomatically = false
     let back = try JSONDecoder().decode(QuickTalkSettings.self,
                                         from: try JSONEncoder().encode(settings))
     XCTAssertTrue(back.browserEnabled)
     XCTAssertEqual(back.browserProfileID, "11111111-2222-3333-4444-555555555555")
+    XCTAssertFalse(back.browserShowWindowAutomatically)
   }
 
   func testLegacyJSONWithoutBrowserKeysUsesDefaults() throws {
@@ -176,9 +180,12 @@ final class BrowserTests: XCTestCase {
     var json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
     json.removeValue(forKey: "browserEnabled")
     json.removeValue(forKey: "browserProfileID")
+    json.removeValue(forKey: "browserShowWindowAutomatically")
     let legacy = try JSONSerialization.data(withJSONObject: json)
     let decoded = try JSONDecoder().decode(QuickTalkSettings.self, from: legacy)
     XCTAssertFalse(decoded.browserEnabled)
     XCTAssertEqual(decoded.browserProfileID, "")
+    // 구버전 JSON(v0.38.2 이전) — 키가 없으면 켜짐.
+    XCTAssertTrue(decoded.browserShowWindowAutomatically)
   }
 }
