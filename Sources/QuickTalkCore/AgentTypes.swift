@@ -144,6 +144,17 @@ public struct AgentToolCall: Equatable {
     }
     return (obj[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
   }
+
+  /// 인자에서 문자열 값을 **자르지 않고** 꺼낸다 — 파일 내용처럼 앞뒤 공백·개행이
+  /// 파일 자체의 일부인 값에 쓴다(v0.38.2 `write_file`). `stringArgument` 는 모델이 보낸
+  /// JSON 문자열의 끝 개행까지 지워 버리므로 내용에는 쓸 수 없다.
+  public func rawStringArgument(_ key: String) -> String? {
+    guard let data = arguments.data(using: .utf8),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      return nil
+    }
+    return obj[key] as? String
+  }
 }
 
 /// 모델 ↔ 앱 사이의 한 줄.

@@ -62,6 +62,34 @@ public enum AgentToolCatalog {
       "required": ["path"]
     ])
 
+  /// 파일 쓰기 (v0.38.2) — 텍스트 파일을 **한 번에** 만든다.
+  ///
+  /// 셸 리다이렉션보다 안전한 이유: 경로를 앱이 직접 검증하고, 승인 카드에 내용 앞부분을
+  /// 보여 주며, 쓰기 전 백업으로 [되돌리기]가 항상 가능하다. 바이너리·부분 수정은 지원하지 않는다.
+  public static let writeFile = AgentTool(
+    name: "write_file",
+    description: """
+      Create or fully replace one UTF-8 text file. Use this instead of shell redirection \
+      (`cat > file`, `echo >`) for reports, notes and code files: the app validates the path, \
+      shows the first lines to the user for approval, and keeps an undo snapshot. \
+      The path must be absolute (or start with ~). Parent folders are created. \
+      Content is limited to 300,000 characters. This does not append or patch: \
+      to change part of a large file, read it, then write the full new content. \
+      Binary files are not supported.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "path": ["type": "string",
+                 "description": "Absolute path of the file to create or replace (e.g. /Users/me/Documents/report.md)."],
+        "content": ["type": "string",
+                    "description": "Full UTF-8 text of the file. No placeholders — write the complete content."],
+        "purpose": ["type": "string",
+                    "description": "One short line in the user's language saying why this file is needed. Shown on the approval card."]
+      ],
+      "required": ["path", "content"]
+    ])
+
   /// 프로세스 사용량 — `ps`·`top` 은 setuid 라 샌드박스가 실행을 막는다. 앱이 직접 읽는다.
   public static let processes = AgentTool(
     name: "processes",
@@ -137,7 +165,7 @@ public enum AgentToolCatalog {
       "required": ["goal", "steps"]
     ])
 
-  public static let all: [AgentTool] = [shell, readFile, listDir, processes, screenshot, proposePlan]
+  public static let all: [AgentTool] = [shell, readFile, listDir, writeFile, processes, screenshot, proposePlan]
 
   /// 스킬 본문 읽기 (v0.37) — **읽기 전용, 승인 없음.**
   ///
@@ -520,6 +548,10 @@ public enum AgentInstructions {
     - 한 번에 하나의 명령을 실행하고, 결과를 보고 다음을 정한다.
 
     파일을 만들 때
+    - **텍스트 파일은 `write_file` 로 한 번에 쓴다.** 셸 리다이렉션(`cat >`, `echo >`)보다 우선한다.
+      앱이 경로를 검증하고, 승인 카드에 앞부분을 보여 주고, 쓰기 전 백업으로 [되돌리기]를 남긴다.
+      `content` 에는 **완성된 전체 내용**을 넣는다. `…` 같은 자리표시자를 남기지 않는다.
+      바이너리 파일은 이 도구로 쓰지 않는다.
     - 파일을 폴더 맨 위에 바로 만들지 않는다. **파일과 같은 뜻의 하위 폴더를 먼저 만들고 그 안에 쓴다.**
       예: `disk-report/disk-report.sh`, `photo-organizer/sort-photos.py`.
     - 폴더 이름은 소문자·숫자·하이픈만 쓴다. `tmp`·`test`·`output`·`files` 처럼 뜻이 없는 이름은 쓰지 않는다.

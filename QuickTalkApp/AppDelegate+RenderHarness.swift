@@ -1376,6 +1376,161 @@ extension AppDelegate {
   /// 실제 모델·도구를 부르지 않는다. 턴 기록만 만들어 네 경계를 본다:
   /// ① 계획 답변 = [실행] 보인다 · [▶ 실행]은 숨긴다 ② 실행 턴이 붙으면 [실행] 숨긴다
   /// ③ 실행이 끝나면 단계가 전부 완료로 보인다 ④ 계획 없는 턴 = 숨긴다.
+  // MARK: - QA: 산출물 카드·파일 쓰기 (v0.38.2)
+
+  /// QA: `--qa-artifact-routing` — `write_file`·산출물 기록·diff·되돌리기·미리보기(v0.38.2).
+  ///
+  /// 실제 모델은 부르지 않는다. 임시 폴더에서 실행기를 직접 돌려
+  /// ① 카탈로그 7개·쓰기 권한 ② 새 파일 생성 + 산출물 카드 ③ 교체 + +/− 줄 수·백업
+  /// ④ 되돌리기로 원래 내용 복원 ⑤ 앱 데이터·시스템·심볼릭 링크 거부
+  /// ⑥ 미리보기 종류(텍스트/이미지/바이너리/사라짐)를 확인한다.
+  func runQAArtifactRoutingIfRequested() -> Bool {
+    guard CommandLine.arguments.contains("--qa-artifact-routing") else { return false }
+    return MainActor.assumeIsolated {
+      runQAArtifactRoutingBody()
+      return true
+    }
+  }
+
+  @MainActor
+  private func runQAArtifactRoutingBody() {
+    store.markRenderHarness()
+    store.suppressArchiveSaveForSelfTest = true
+
+    let fm = FileManager.default
+    let tmp = fm.temporaryDirectory
+      .appendingPathComponent("qt-artifact-qa-\(UUID().uuidString)", isDirectory: true)
+    try? fm.createDirectory(at: tmp, withIntermediateDirectories: true)
+
+    // 대화·턴을 만들고 이 대화의 임시 폴더를 미리 승인한다(승인 카드 없이 실행).
+    store.conversation = Conversation(title: "QA 산출물")
+    let session = store.activeSession
+    let turnID = session.core.beginAssistantTurn()
+    session.agentTurnID = turnID
+    store.approveWriteScopes([tmp.path], session: session)
+    let executor = AgentExecutor(store: store, session: session)
+
+    func call(_ id: String, path: String, content: String) -> AgentToolCall {
+      let args: [String: Any] = ["path": path, "content": content, "purpose": "QA 파일 쓰기"]
+      let data = try? JSONSerialization.data(withJSONObject: args)
+      return AgentToolCall(id: id, name: "write_file",
+                           arguments: data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}")
+    }
+    func artifacts() -> [TurnArtifact] {
+      session.conversation.turns.first(where: { $0.id == turnID })?.artifacts ?? []
+    }
+
+    Task { @MainActor in
+      var checks: [(String, Bool)] = []
+
+      // ① 카탈로그·권한
+      checks.append(("카탈로그 7개",
+                     AgentToolCatalog.all.count == 7
+                     && AgentToolCatalog.all.contains { $0.name == "write_file" }))
+      checks.append(("쓰기 단계",
+                     AgentToolPermission.level(for: "write_file") == .write))
+
+      // ② 새 파일 생성
+      let note = tmp.appendingPathComponent("note/report.md").path
+      let first = await executor.execute(call("qa-w1", path: note,
+                                              content: "첫 줄\n둘째 줄\n셋째 줄\n"),
+                                         tools: AgentToolCatalog.all)
+      let exists = fm.fileExists(atPath: note)
+      let contentOK = (try? String(contentsOfFile: note, encoding: .utf8)) == "첫 줄\n둘째 줄\n셋째 줄\n"
+      let createdArtifacts = artifacts()
+      checks.append(("새 파일 생성", !first.denied && exists && contentOK))
+      checks.append(("생성 산출물 1개",
+                     createdArtifacts.count == 1
+                     && createdArtifacts.first?.change == .created
+                     && createdArtifacts.first?.path == note))
+      checks.append(("생성 줄 수", createdArtifacts.first?.addedLines == 3))
+
+      // ③ 같은 파일 교체 — 수정 배지·+/−·백업
+      let second = await executor.execute(call("qa-w2", path: note,
+                                               content: "첫 줄\n둘째 줄 바뀜\n셋째 줄\n넷째 줄\n"),
+                                          tools: AgentToolCatalog.all)
+      let updated = artifacts()
+      let modified = updated.first(where: { $0.path == note })
+      let undoID = modified?.undoID
+      // 백업 폴더 안에 쓰기 전 파일이 남아 있는지 확인한다.
+      let backupExists = undoID.map { id -> Bool in
+        let dir = UndoStack.shared.root.appendingPathComponent(id)
+        return (try? fm.contentsOfDirectory(atPath: dir.path))?.isEmpty == false
+      } ?? false
+      checks.append(("교체 성공", !second.denied
+                     && (try? String(contentsOfFile: note, encoding: .utf8))?.contains("둘째 줄 바뀜") == true))
+      checks.append(("수정 산출물 교체(중복 없음)", updated.count == 1))
+      checks.append(("수정 배지·줄 수",
+                     modified?.change == .modified
+                     && (modified?.addedLines ?? 0) > 0
+                     && (modified?.removedLines ?? 0) > 0))
+      checks.append(("되돌리기 백업 존재", backupExists))
+
+      // ④ 되돌리기 — 같은 실행의 쓰기 전체가 쓰기 전 상태로.
+      var undone = false
+      if let undoID {
+        let result = await UndoStack.shared.undo(id: undoID)
+        let restored = (try? String(contentsOfFile: note, encoding: .utf8)) == "첫 줄\n둘째 줄\n셋째 줄\n"
+        undone = result.succeeded && restored
+      }
+      checks.append(("되돌리기 복원", undone))
+
+      // ⑤ 거부 — 앱 데이터·시스템·심볼릭 링크.
+      let appData = URL(fileURLWithPath: AppDataGuard.appDataDirectory())
+        .appendingPathComponent("qa-blocked.md").path
+      let appDataOutcome = await executor.execute(call("qa-block-app", path: appData, content: "x"),
+                                                  tools: AgentToolCatalog.all)
+      checks.append(("앱 데이터 거부", appDataOutcome.denied && !fm.fileExists(atPath: appData)))
+
+      let system = "/Library/qa-artifact-blocked.md"
+      let systemOutcome = await executor.execute(call("qa-block-system", path: system, content: "x"),
+                                                 tools: AgentToolCatalog.all)
+      checks.append(("시스템 영역 거부", systemOutcome.denied && !fm.fileExists(atPath: system)))
+
+      let real = tmp.appendingPathComponent("real.md").path
+      let link = tmp.appendingPathComponent("link.md").path
+      try? "real\n".write(toFile: real, atomically: true, encoding: .utf8)
+      try? fm.removeItem(atPath: link)
+      try? fm.createSymbolicLink(atPath: link, withDestinationPath: real)
+      let linkOutcome = await executor.execute(call("qa-block-link", path: link, content: "x"),
+                                              tools: AgentToolCatalog.all)
+      let realIntact = (try? String(contentsOfFile: real, encoding: .utf8)) == "real\n"
+      checks.append(("심볼릭 링크 거부", linkOutcome.denied && realIntact))
+
+      // 끊어진 심볼릭 링크도 거부해야 한다 — .atomic 쓰기가 링크 자체를 바꿔 버릴 수 있다.
+      let broken = tmp.appendingPathComponent("broken-link.md").path
+      try? fm.removeItem(atPath: broken)
+      try? fm.createSymbolicLink(atPath: broken,
+                                 withDestinationPath: tmp.appendingPathComponent("nowhere.md").path)
+      let brokenOutcome = await executor.execute(call("qa-block-broken", path: broken, content: "x"),
+                                                 tools: AgentToolCatalog.all)
+      let stillLink = (try? fm.destinationOfSymbolicLink(atPath: broken)) != nil
+      checks.append(("끊어진 링크 거부", brokenOutcome.denied && stillLink))
+
+      // ⑥ 미리보기 — 텍스트·이미지·바이너리·사라짐.
+      let textPreview = FileArtifacts.preview(path: note)
+      checks.append(("미리보기 텍스트", textPreview.kind == .text && textPreview.content?.contains("첫 줄") == true))
+      let image = tmp.appendingPathComponent("pixel.png").path
+      try? Data([0x89, 0x50, 0x4E, 0x47]).write(to: URL(fileURLWithPath: image))
+      checks.append(("미리보기 이미지", FileArtifacts.preview(path: image).kind == .image))
+      let binary = tmp.appendingPathComponent("data.bin").path
+      try? Data([0, 1, 2, 3]).write(to: URL(fileURLWithPath: binary))
+      checks.append(("미리보기 바이너리", FileArtifacts.preview(path: binary).kind == .binary))
+      let gone = tmp.appendingPathComponent("gone.md").path
+      checks.append(("미리보기 사라짐", FileArtifacts.preview(path: gone).kind == .missing))
+
+      let passed = checks.filter(\.1).count
+      for (name, ok) in checks {
+        NSLog("[QA-ARTIFACT] %@=%@", name, ok ? "PASS" : "FAIL")
+      }
+      NSLog("[QA-ARTIFACT] result=%@ (%d/%d)",
+            passed == checks.count ? "PASS" : "FAIL", passed, checks.count)
+
+      try? fm.removeItem(at: tmp)
+      NSApp.terminate(nil)
+    }
+  }
+
   /// QA: `--qa-job-routing` — 맡긴 작업(Job)의 카드 노출·상태 전이·저장·알림 문구(v0.38).
   ///
   /// 실제 모델은 부르지 않는다. JobService 의 상태 API 만 사용해
@@ -2651,8 +2806,8 @@ extension AppDelegate {
 
     var checks: [(String, Bool)] = []
 
-    // ① 기본 카탈로그는 그대로 6개, 브라우저는 옵트인일 때만 6개 추가.
-    checks.append(("카탈로그 기본 6개", AgentToolCatalog.all.count == 6))
+    // ① 기본 카탈로그는 7개(v0.38.2 write_file 포함), 브라우저는 옵트인일 때만 6개 추가.
+    checks.append(("카탈로그 기본 7개", AgentToolCatalog.all.count == 7))
     let withBrowser = AgentToolCatalog.available(includingWebSearch: false, includingBrowser: true)
     checks.append(("브라우저 6개 추가", withBrowser.filter { $0.name.hasPrefix("browser_") }.count == 6))
     checks.append(("tool(named:) 검색", AgentToolCatalog.tool(named: "browser_open") != nil))

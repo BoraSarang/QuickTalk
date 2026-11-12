@@ -16,6 +16,8 @@ public enum AgentToolPermission {
   public static func level(for tool: String) -> AgentPermissionLevel {
     switch tool {
     case "read_file", "list_dir", "processes", "screenshot", "ui_snapshot": return .read
+    // v0.38.2 — 파일 생성·교체. 경로 범위 승인은 실행기가 PolicyEngine 으로 따로 판정한다.
+    case "write_file": return .write
     // 격리 브라우저(v0.38.1) — 열기·읽기·뒤로는 읽기다. `browser_click` 은 **호출 시점에**
     // 링크인지에 따라 읽기/실행이 갈리므로 실행기에서 다시 판정하고, 여기서는 링크 기본값인 읽기를 준다.
     // 입력·제출은 항상 실행(승인) 단계다.

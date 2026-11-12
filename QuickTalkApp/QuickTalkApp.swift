@@ -178,6 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if runQAPlanRoutingIfRequested() { return }
     // QA: `--qa-job-routing` — 맡긴 작업(Job) 카드·상태 전이·저장(v0.38)
     if runQAJobRoutingIfRequested() { return }
+    // QA: `--qa-artifact-routing` — write_file·산출물 카드·diff·되돌리기(v0.38.2)
+    if runQAArtifactRoutingIfRequested() { return }
     // QA: `--qa-browser-routing` — 격리 브라우저 게이트·URL 정책·렌더(v0.38.1)
     if runQABrowserRoutingIfRequested() { return }
     // QA: `--qa-browser-live` — 실제 WKWebView로 로컬 HTML 읽기·입력(v0.38.1)

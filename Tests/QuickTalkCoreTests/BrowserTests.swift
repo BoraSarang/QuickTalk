@@ -80,11 +80,11 @@ final class BrowserTests: XCTestCase {
   // MARK: - 도구 카탈로그
 
   func testBrowserToolsAreOptIn() {
-    XCTAssertEqual(AgentToolCatalog.all.count, 6, "기본 카탈로그는 그대로 6개여야 한다")
+    XCTAssertEqual(AgentToolCatalog.all.count, 7, "기본 카탈로그는 7개( write_file 포함)여야 한다")
     let base = AgentToolCatalog.available(includingWebSearch: false)
     XCTAssertFalse(base.contains { $0.name.hasPrefix("browser_") })
     let withBrowser = AgentToolCatalog.available(includingWebSearch: false, includingBrowser: true)
-    XCTAssertEqual(withBrowser.count, 12)
+    XCTAssertEqual(withBrowser.count, 13)
     for name in ["browser_open", "browser_read", "browser_back",
                  "browser_click", "browser_type", "browser_submit"] {
       XCTAssertNotNil(withBrowser.first { $0.name == name }, name)

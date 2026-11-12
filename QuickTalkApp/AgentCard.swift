@@ -234,6 +234,10 @@ struct AgentCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
           .fill(Color.primary.opacity(0.06)))
+      // v0.38.2 — 파일 쓰기 승인은 **내용 앞부분**을 함께 보여 준다(전체는 노출하지 않는다).
+      if let preview = request.filePreview {
+        fileWritePreview(preview)
+      }
       // 무엇을 어디에 할지 — 컴퓨터 제어는 대상·이유·되돌릴 수 없음을 함께 보여 준다.
       if let detail = request.detail, !detail.isEmpty {
         Text(detail)
@@ -284,8 +288,39 @@ struct AgentCard: View {
       .stroke(Color.orange.opacity(0.30), lineWidth: 1))
   }
 
-  private func approvalHeader(_ request: AgentApprovalRequest) -> some View {
-    HStack(spacing: 6) {
+  /// 파일 쓰기 승인 — 경로·새 파일 여부·크기·앞 20줄. 내용 전체를 카드에 펼치지 않는다.
+  private func fileWritePreview(_ preview: FileWritePreview) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 5) {
+        Image(systemName: preview.isNew ? "doc.badge.plus" : "doc.badge.arrow.up")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundColor(preview.isNew ? .green : .orange)
+        Text(preview.isNew ? L("새 파일") : L("기존 파일 덮어쓰기"))
+          .font(.system(size: 10.5, weight: .semibold))
+        Spacer(minLength: 4)
+        Text(Lf("%d줄 · %@", preview.lineCount, ByteCountFormatter.string(
+          fromByteCount: Int64(preview.byteCount), countStyle: .file)))
+          .font(.system(size: 9.5, design: .monospaced))
+          .foregroundColor(.secondary)
+      }
+      Text(preview.text)
+        .font(.system(size: 10, design: .monospaced))
+        .foregroundColor(.primary.opacity(0.85))
+        .textSelection(.enabled)
+        .lineLimit(FileWritePreview.maxLines)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(6)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill(Color.primary.opacity(0.05)))
+      if preview.truncated {
+        Text(Lf("앞 %d줄만 표시합니다. 허용하면 전체 내용을 씁니다.", FileWritePreview.maxLines))
+          .font(.system(size: 9.5))
+          .foregroundColor(.secondary)
+      }
+    }
+  }
+
+  private func approvalHeader(_ request: AgentApprovalRequest) -> some View {    HStack(spacing: 6) {
       Image(systemName: "exclamationmark.shield")
         .font(.system(size: 11))
         .foregroundColor(.orange)

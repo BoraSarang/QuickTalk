@@ -101,6 +101,28 @@ public final class ConversationStore {
     conversation.turns[i].agentEvents?.append(event)
   }
 
+  /// 산출물 1건을 턴에 붙인다(v0.38.2) — 같은 경로는 **마지막 기록으로 교체**한다.
+  /// 한 턴 최대 `TurnArtifact.maxPerTurn` 개를 넘으면 뒤쪽은 버린다(카드가 대화를 덮지 않게).
+  public func appendArtifact(_ artifact: TurnArtifact, to id: UUID) {
+    guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }
+    var list = conversation.turns[i].artifacts ?? []
+    if let existing = list.firstIndex(where: { $0.path == artifact.path }) {
+      list[existing] = artifact
+    } else {
+      list.append(artifact)
+    }
+    if list.count > TurnArtifact.maxPerTurn {
+      list = Array(list.prefix(TurnArtifact.maxPerTurn))
+    }
+    conversation.turns[i].artifacts = list
+    conversation.updatedAt = Date()
+  }
+
+  /// 여러 산출물을 한 번에 붙인다 — 셸 한 번이 파일 여러 개를 만들었을 때.
+  public func appendArtifacts(_ artifacts: [TurnArtifact], to id: UUID) {
+    for artifact in artifacts { appendArtifact(artifact, to: id) }
+  }
+
   /// 답변이 제안한 실행 계획을 턴에 붙인다(v0.36.3).
   public func setPlan(_ plan: ExecutionPlan, to id: UUID) {
     guard let i = conversation.turns.firstIndex(where: { $0.id == id }) else { return }
