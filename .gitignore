@@ -11,3 +11,6 @@ build-release/
 
 # QA 렌더용 디버그 빌드
 build-debug/
+
+# agent scratch — 커밋 금지 (_workspace/)
+_workspace/
