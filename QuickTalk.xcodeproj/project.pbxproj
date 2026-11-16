@@ -31,6 +31,8 @@
 		20B41BFB743D43FAC6406C08 /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65BDBEF0EEC3BD5742E2AF7 /* GlobalHotKey.swift */; };
 		26DE68043908C26F79D28EFD /* PiperSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41D2071204CB19E2C7E069F /* PiperSpeechService.swift */; };
 		27F58EA21C0F5824B8D811D7 /* AgentAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E06491B69C97E83E1540CA /* AgentAudit.swift */; };
+		29011592F83D3D5F3D75BDE9 /* TokenSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730D90B80F4ADC6D8E42108C /* TokenSpeed.swift */; };
+		29888C885FCF93E9A05582A4 /* RemoteApproval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D70ACBF3F256ECAA3041FA9 /* RemoteApproval.swift */; };
 		2A6FD199E9ED55383691BEA0 /* WindowLevelPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51CE7C204B4A2CBE4C190205 /* WindowLevelPolicy.swift */; };
 		2AAD503D79EECE18ED109CBF /* ScheduleProposalCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F0389B5A0B029DB0CB5DF4 /* ScheduleProposalCard.swift */; };
 		2AC52600A183ED00A6C8457F /* AppDelegate+RenderHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805003EED0F85E535E94DD1C /* AppDelegate+RenderHarness.swift */; };
@@ -90,6 +92,7 @@
 		7F28B9045857176BA1C4D784 /* SingleInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = D348CA81BEE4C4E1BACE4C11 /* SingleInstance.swift */; };
 		7FA0186E1F17C010D39E5A98 /* UiElementPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA38339E5924568D5FB8353D /* UiElementPath.swift */; };
 		83153F15B5E2F4D8BBBBC62B /* ProviderFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D71ACB493AA7E5B659FB8F /* ProviderFallback.swift */; };
+		85D3535FF877B027E0D4E759 /* RemoteApprovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FA406266EC4FCA9D5EDF5E /* RemoteApprovalService.swift */; };
 		873A88C07F54637C44F1193E /* BrowserPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2C4AFA1C437E8030FEE066 /* BrowserPolicy.swift */; };
 		88DF45B79D41EFF330B5F8EC /* AXAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8152F28D892DECF7BC0DC46 /* AXAccess.swift */; };
 		90850AA73183293D9A9A7DEA /* JobService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65649255AAB43E01850F11FD /* JobService.swift */; };
@@ -102,10 +105,6 @@
 		9D70FBFC2FE2D41B9045FD54 /* EdgeSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66A7E6105C22BA2D17D4186 /* EdgeSpeechService.swift */; };
 		9E37D52B4BB4467F48E1C8D8 /* UndoStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6269B30CB5BB47B58A08AF /* UndoStack.swift */; };
 		A3380C6156FE5D79FE4AB56D /* BrowserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A26EA450CA8E3DEA9E4D23B /* BrowserService.swift */; };
-		B8F3C2A14D5E6F708192A3B5 /* BrowserWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F3C2A14D5E6F708192A3B4 /* BrowserWindow.swift */; };
-		C4A1B2C34D5E6F708192A3B7 /* RemoteApproval.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A1B2C34D5E6F708192A3B6 /* RemoteApproval.swift */; };
-		C4A1B2C34D5E6F708192A3B9 /* TelegramClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A1B2C34D5E6F708192A3B8 /* TelegramClient.swift */; };
-		C4A1B2C34D5E6F708192A3BB /* RemoteApprovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A1B2C34D5E6F708192A3BA /* RemoteApprovalService.swift */; };
 		A4C52DEDF313B0B67FACAE78 /* SettingsView+WebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA84ABEFD1876BF8ED75C710 /* SettingsView+WebSearch.swift */; };
 		A51415A7E3C7087EA16BDF47 /* ExecutionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */; };
 		A5721A10696E22B23BCF71DE /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18DEAA4FE0ED16E63B741F1 /* WindowPlacement.swift */; };
@@ -123,6 +122,7 @@
 		B0ED415EF78C8366C26ACB98 /* DeleteConfirmSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A994DD19EB365550CB2B3E48 /* DeleteConfirmSheet.swift */; };
 		B1490EEAFEDB1CF74261F59B /* ServerFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = D365FF5FF18A22A715651BBC /* ServerFailure.swift */; };
 		B28D62906DD82AFC5FAC5F57 /* ShortcutEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB22DE1D96B2C98BECA63D0 /* ShortcutEntry.swift */; };
+		B380360EF1EFD35A178150FE /* TelegramClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BB34EBA7747197BFADEA2DB /* TelegramClient.swift */; };
 		B48481475211453118E44468 /* ProviderEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B4F0CFB680182126B97B67 /* ProviderEditorSheet.swift */; };
 		B4D9E00F00415ECCC399465D /* SettingsView+Assistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8536E683CF4220C938F66D3E /* SettingsView+Assistant.swift */; };
 		B798322EAACD7BD398502FE1 /* ProviderResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F0715989F821DC697284795 /* ProviderResolver.swift */; };
@@ -173,6 +173,7 @@
 		F65D50602C8C67E60D444886 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9C2E8044DF78F78332F411 /* LoginItem.swift */; };
 		F660BB9F67412ED01863EDD2 /* SettingsView+AI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D681E358377CD1E20730FA9 /* SettingsView+AI.swift */; };
 		F6E11DC1DE2D10AEB1CA359B /* PlanCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C0DE5B61AB082CBC4EA723 /* PlanCard.swift */; };
+		FB1AB0176ABA8537EAD1E1F2 /* BrowserWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D64910F2E3675EC17B2F47 /* BrowserWindow.swift */; };
 		FBEBE8C9180B562C91CDB6DE /* FollowScrollPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0635AD5162C492F686935FB /* FollowScrollPolicy.swift */; };
 		FC3D2CE8241F8519221D6F27 /* BrowserSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6828D25D410DA6B6125999 /* BrowserSnapshot.swift */; };
 		FC53A763BCFEA595A4803B87 /* ScheduleProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB3783C9443F18244C24E95F /* ScheduleProposal.swift */; };
@@ -186,10 +187,6 @@
 		02D71ACB493AA7E5B659FB8F /* ProviderFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderFallback.swift; sourceTree = "<group>"; };
 		0976E9528F4EF08DCFD398DB /* JobPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobPrompt.swift; sourceTree = "<group>"; };
 		0A26EA450CA8E3DEA9E4D23B /* BrowserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserService.swift; sourceTree = "<group>"; };
-		B8F3C2A14D5E6F708192A3B4 /* BrowserWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWindow.swift; sourceTree = "<group>"; };
-		C4A1B2C34D5E6F708192A3B6 /* RemoteApproval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteApproval.swift; sourceTree = "<group>"; };
-		C4A1B2C34D5E6F708192A3B8 /* TelegramClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelegramClient.swift; sourceTree = "<group>"; };
-		C4A1B2C34D5E6F708192A3BA /* RemoteApprovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteApprovalService.swift; sourceTree = "<group>"; };
 		0B3BA0ADF75FC7F4E2B4013D /* Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clipboard.swift; sourceTree = "<group>"; };
 		0B95A27F8FC443FF13FEC21C /* ScrollMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollMetrics.swift; sourceTree = "<group>"; };
 		0F91AE3B84BDE1E9B2CE0F90 /* ExaContents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExaContents.swift; sourceTree = "<group>"; };
@@ -255,6 +252,7 @@
 		6F2C4AFA1C437E8030FEE066 /* BrowserPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserPolicy.swift; sourceTree = "<group>"; };
 		727D6C34B22D436052197628 /* ShelfModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfModel.swift; sourceTree = "<group>"; };
 		72BCC68AF259264132DF4A74 /* SettingsView+Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+Voice.swift"; sourceTree = "<group>"; };
+		730D90B80F4ADC6D8E42108C /* TokenSpeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenSpeed.swift; sourceTree = "<group>"; };
 		734D17E0DBE48AD72F13554D /* PasteRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteRouting.swift; sourceTree = "<group>"; };
 		73C778963788C4A45B38690E /* ExecutionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionPlan.swift; sourceTree = "<group>"; };
 		757EA85E9BEB5869ADD077C6 /* ReportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWriter.swift; sourceTree = "<group>"; };
@@ -278,7 +276,9 @@
 		942396634BEDA311FC5E5E6E /* WindowContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContext.swift; sourceTree = "<group>"; };
 		9635760D97508C2A50A0618D /* RiskClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiskClassifier.swift; sourceTree = "<group>"; };
 		977B88D65083332C14B1B0E6 /* ToolSchemas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolSchemas.swift; sourceTree = "<group>"; };
+		9BB34EBA7747197BFADEA2DB /* TelegramClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelegramClient.swift; sourceTree = "<group>"; };
 		9D681E358377CD1E20730FA9 /* SettingsView+AI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView+AI.swift"; sourceTree = "<group>"; };
+		9D70ACBF3F256ECAA3041FA9 /* RemoteApproval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteApproval.swift; sourceTree = "<group>"; };
 		9F0715989F821DC697284795 /* ProviderResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderResolver.swift; sourceTree = "<group>"; };
 		9FB4BFBF6DBA8F39FF3FCBBA /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		A1B4F0CFB680182126B97B67 /* ProviderEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderEditorSheet.swift; sourceTree = "<group>"; };
@@ -301,6 +301,7 @@
 		B3A8209D18F20C5E0FF0C1C4 /* CaptureGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGeometry.swift; sourceTree = "<group>"; };
 		B84B6C711CC4B17306428FA2 /* WriteScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WriteScope.swift; sourceTree = "<group>"; };
 		B9B443636C48759C886EF337 /* PanelToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggle.swift; sourceTree = "<group>"; };
+		B9FA406266EC4FCA9D5EDF5E /* RemoteApprovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteApprovalService.swift; sourceTree = "<group>"; };
 		BA8E0941B442FB529124794B /* UiSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UiSnapshot.swift; sourceTree = "<group>"; };
 		BA9BCCA747D217A179117D3A /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
 		BC568EAC3718D131B8A164C7 /* EdgeTTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTTS.swift; sourceTree = "<group>"; };
@@ -325,6 +326,7 @@
 		D365FF5FF18A22A715651BBC /* ServerFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailure.swift; sourceTree = "<group>"; };
 		D36FB7D6B72920A828D78C84 /* PointerPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointerPill.swift; sourceTree = "<group>"; };
 		D67D79C17D6E9CC96F924F4E /* ExecutionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionPrompt.swift; sourceTree = "<group>"; };
+		D6D64910F2E3675EC17B2F47 /* BrowserWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWindow.swift; sourceTree = "<group>"; };
 		D7384EC161F1050F560476B8 /* PolicyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolicyEngine.swift; sourceTree = "<group>"; };
 		D8152F28D892DECF7BC0DC46 /* AXAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXAccess.swift; sourceTree = "<group>"; };
 		D95F7F96477810C260032BED /* WebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearch.swift; sourceTree = "<group>"; };
@@ -377,9 +379,7 @@
 				59BAB723416C088EFEEE3C3E /* AttachmentPreview.swift */,
 				D8152F28D892DECF7BC0DC46 /* AXAccess.swift */,
 				0A26EA450CA8E3DEA9E4D23B /* BrowserService.swift */,
-				B8F3C2A14D5E6F708192A3B4 /* BrowserWindow.swift */,
-				C4A1B2C34D5E6F708192A3BA /* RemoteApprovalService.swift */,
-				C4A1B2C34D5E6F708192A3B8 /* TelegramClient.swift */,
+				D6D64910F2E3675EC17B2F47 /* BrowserWindow.swift */,
 				77FD8D1869EDCE96703FD11E /* CaptureOverlay.swift */,
 				DF65943E24398BA1601E016F /* CaptureService.swift */,
 				7F68FFC1BB0BE6E9BDD9D620 /* ChatInputField.swift */,
@@ -409,6 +409,7 @@
 				4BDA30A073442043AE6BCCAE /* QuickTalk.entitlements */,
 				67ED173AA728EFEE5DAA6135 /* QuickTalkApp.swift */,
 				10A6A392C00B66229CE61970 /* QuickTalkIntents.swift */,
+				B9FA406266EC4FCA9D5EDF5E /* RemoteApprovalService.swift */,
 				6532A8671BE0B8C4AC6FB22C /* RenameSheet.swift */,
 				757EA85E9BEB5869ADD077C6 /* ReportWriter.swift */,
 				5AEC5852C2F446E6E7CD73B8 /* ScheduleConfirmation.swift */,
@@ -435,6 +436,7 @@
 				392ACEB28963F034017EB0B2 /* SkillImporter.swift */,
 				C765AE231078C7BE029074BD /* SpeechService.swift */,
 				A38DD5B5D86A1EAB3D909428 /* TaskListSheet.swift */,
+				9BB34EBA7747197BFADEA2DB /* TelegramClient.swift */,
 				DAE367EE55830F812D29A8B5 /* TerminalHandoffService.swift */,
 				50E048253A4C817E28F6FA8A /* UiControlService.swift */,
 				EF08B4A7902C3727A3EFE83B /* UIStore.swift */,
@@ -514,8 +516,8 @@
 				BA9BCCA747D217A179117D3A /* ProcessSampler.swift */,
 				02D71ACB493AA7E5B659FB8F /* ProviderFallback.swift */,
 				9F0715989F821DC697284795 /* ProviderResolver.swift */,
+				9D70ACBF3F256ECAA3041FA9 /* RemoteApproval.swift */,
 				EAC5CFD3D31AC29CE111FEDB /* ReportDocument.swift */,
-				C4A1B2C34D5E6F708192A3B6 /* RemoteApproval.swift */,
 				9635760D97508C2A50A0618D /* RiskClassifier.swift */,
 				CF440F448282A93D1CFE776C /* SandboxRunner.swift */,
 				F8DA628BB654E3E67B9506CF /* ScheduleChangeProposal.swift */,
@@ -539,6 +541,7 @@
 				E5AEE95E9756FB6329F5C014 /* Store.swift */,
 				EAF33EC241CC70976B39F3D3 /* SystemKnowledge.swift */,
 				8C2D9F670B0B7A6243A4118C /* TerminalHandoff.swift */,
+				730D90B80F4ADC6D8E42108C /* TokenSpeed.swift */,
 				977B88D65083332C14B1B0E6 /* ToolSchemas.swift */,
 				C7677F9ECC5E6A8A9402228C /* TrashRewrite.swift */,
 				7DC587988647CE6F5108E9E8 /* UiAction.swift */,
@@ -563,7 +566,7 @@
 			path = Sources/QuickTalkCore;
 			sourceTree = "<group>";
 		};
-		"TEMP_7191F600-4D3C-49F5-8425-7A142ECFC6E6" /* Resources */ = {
+		"TEMP_49C0A183-89E6-42F4-8175-F788A7C29405" /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -666,12 +669,9 @@
 				C04B283E2EFE8FC662954C71 /* AttachmentRetry.swift in Sources */,
 				873A88C07F54637C44F1193E /* BrowserPolicy.swift in Sources */,
 				A3380C6156FE5D79FE4AB56D /* BrowserService.swift in Sources */,
-				B8F3C2A14D5E6F708192A3B5 /* BrowserWindow.swift in Sources */,
-				C4A1B2C34D5E6F708192A3B7 /* RemoteApproval.swift in Sources */,
-				C4A1B2C34D5E6F708192A3B9 /* TelegramClient.swift in Sources */,
-				C4A1B2C34D5E6F708192A3BB /* RemoteApprovalService.swift in Sources */,
 				FC3D2CE8241F8519221D6F27 /* BrowserSnapshot.swift in Sources */,
 				AAC06A1C79D4F60FBEE76A2F /* BrowserTools.swift in Sources */,
+				FB1AB0176ABA8537EAD1E1F2 /* BrowserWindow.swift in Sources */,
 				DE125E6E50255538D9BAB7F3 /* CaptureGeometry.swift in Sources */,
 				679A668473E1358257C9314D /* CaptureOverlay.swift in Sources */,
 				989D731C586EC0079F02E54E /* CaptureService.swift in Sources */,
@@ -734,6 +734,8 @@
 				B798322EAACD7BD398502FE1 /* ProviderResolver.swift in Sources */,
 				1906DF1B64DED0A2ADFC0D53 /* QuickTalkApp.swift in Sources */,
 				E71649897B9BB3152A8ED661 /* QuickTalkIntents.swift in Sources */,
+				29888C885FCF93E9A05582A4 /* RemoteApproval.swift in Sources */,
+				85D3535FF877B027E0D4E759 /* RemoteApprovalService.swift in Sources */,
 				651BB6859CA5373685BC3982 /* RenameSheet.swift in Sources */,
 				075A89C4E7401850AB05D89C /* ReportDocument.swift in Sources */,
 				C6C60B0D8DFCC1728F45FB9E /* ReportWriter.swift in Sources */,
@@ -783,8 +785,10 @@
 				F4BBBDC9664636EF6E07F955 /* Store.swift in Sources */,
 				CAE236DFCFEBB144D15F94E2 /* SystemKnowledge.swift in Sources */,
 				7DB0E035EC516F20E2121C08 /* TaskListSheet.swift in Sources */,
+				B380360EF1EFD35A178150FE /* TelegramClient.swift in Sources */,
 				FF2DB7B2997AF188A9DADB82 /* TerminalHandoff.swift in Sources */,
 				2C40976979979190C3A2D288 /* TerminalHandoffService.swift in Sources */,
+				29011592F83D3D5F3D75BDE9 /* TokenSpeed.swift in Sources */,
 				E1805977843A5A15DE92CFFC /* ToolSchemas.swift in Sources */,
 				1F1B264C40FA2159529C9E83 /* TrashRewrite.swift in Sources */,
 				CE054468F120FDBFBBC39623 /* UIStore+Agent.swift in Sources */,

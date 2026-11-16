@@ -91,6 +91,11 @@ final class UIStore: ObservableObject {
     get { activeSession.isSearching }
     set { activeSession.isSearching = newValue }
   }
+  /// 지금 답변의 초당 토큰(추정) — 화면은 활성 세션 값만 본다(v0.39.1).
+  var liveTokensPerSecond: Double? {
+    get { activeSession.liveTokensPerSecond }
+    set { activeSession.liveTokensPerSecond = newValue }
+  }
   // MARK: - 도우미 도구 (PLAN_v0.18)
   /// 실행 카드 — 지금 답변에 붙는 도구 실행 기록
   var agentEvents: [AgentEvent] {
@@ -2459,6 +2464,7 @@ final class UIStore: ObservableObject {
         // 스텝(모델 호출)마다 새 구간으로 쌓는다 — 도구 카드 앞에 그 구간을 붙이고 비운다.
         // 완료되면 **마지막 구간**(최종 답변 직전의 사고)을 턴에 저장한다.
         session.liveReasoning = ""
+        session.liveTokensPerSecond = nil
         let appendReasoning: @MainActor (String) -> Void = { piece in
           guard session.conversation.id == convID else { return }
           var text = session.liveReasoning + piece
@@ -2494,6 +2500,23 @@ final class UIStore: ObservableObject {
           buffer = ""
           lastFlush = Date()
           session.conversation = session.core.conversation
+        }
+        // v0.39.1 — 실시간 초당 토큰(추정). 델타마다 전체 토큰을 다시 세면 낭비이므로
+        // 0.25초에 한 번만 센다. 첫 글자 **이전** 대기 시간은 생성 속도가 아니라 뺀다.
+        var firstDeltaAt: Date?
+        var lastRateUpdate = Date.distantPast
+        let ingestDelta: @MainActor (String) -> Void = { delta in
+          modelText += delta
+          buffer += delta
+          if firstDeltaAt == nil, !delta.isEmpty { firstDeltaAt = Date() }
+          let now = Date()
+          if now.timeIntervalSince(lastRateUpdate) >= 0.25 {
+            lastRateUpdate = now
+            session.liveTokensPerSecond = TokenSpeed.liveTokensPerSecond(
+              tokens: ConversationMemory.estimateTokens(modelText),
+              since: firstDeltaAt, now: now)
+          }
+          flush(false)
         }
         /// 재시도·이어쓰기 후 말풍선을 **중복 없는 답변**으로 다시 맞춘다.
         let replaceAnswer: (String) -> Void = { text in
@@ -2543,11 +2566,7 @@ final class UIStore: ObservableObject {
                 tools: agentTools,
                 attachments: outgoing,
                 retry: retryPolicy,
-                onDelta: { delta in
-                  modelText += delta
-                  buffer += delta
-                  flush(false)
-                },
+                onDelta: ingestDelta,
                 // 스텝 시작 시점을 기억했다가, 도구 호출 예고·재시도 실패분을 지운다.
                 // 사고 과정도 스텝마다 새 구간 — 재시도한 실패 시도의 사고는 버린다.
                 onReasoning: appendReasoning,
@@ -2577,11 +2596,7 @@ final class UIStore: ObservableObject {
                 reply = try await Self.streamReplyResuming(
                   settings: self.settings, provider: p, prompt: fallbackPrompt,
                   history: finalHistory, attachments: outgoing, policy: retryPolicy,
-                  onDelta: { delta in
-                    modelText += delta
-                    buffer += delta
-                    flush(false)
-                  },
+                  onDelta: ingestDelta,
                   onReplace: { replaceAnswer($0) },
                   onRetry: { showRetry($0) },
                   onReasoning: appendReasoning)
@@ -2595,11 +2610,7 @@ final class UIStore: ObservableObject {
               history: finalHistory,
               attachments: outgoing,
               policy: retryPolicy,
-              onDelta: { delta in
-                modelText += delta
-                buffer += delta
-                flush(false)
-              },
+              onDelta: ingestDelta,
               onReplace: { replaceAnswer($0) },
               onRetry: { showRetry($0) },
               onReasoning: appendReasoning)
@@ -2626,6 +2637,7 @@ final class UIStore: ObservableObject {
                                         reasoning: session.liveReasoning.isEmpty ? nil : session.liveReasoning)
           session.conversation = session.core.conversation
           session.liveReasoning = ""
+          session.liveTokensPerSecond = nil
           self.syncArchive(session)
           // 답변을 마친 뒤 **백그라운드로** 정리한다 — 현재 답변 지연을 만들지 않는다.
           if !isError {
@@ -2654,6 +2666,7 @@ final class UIStore: ObservableObject {
                                           elapsedMs: Int(Date().timeIntervalSince(callStarted) * 1000),
                                           sources: sources.isEmpty ? nil : sources)
             session.conversation = session.core.conversation
+            session.liveTokensPerSecond = nil
             self.syncArchive(session)
             NSLog("[QuickTalk] 사용자 중지 — 응답 취소(부분 %d자)", current.count)
             return
@@ -2673,6 +2686,7 @@ final class UIStore: ObservableObject {
           self.lastAICall = .failed(code)
           self.lastAIErrorDetail = AIErrorText.shortDetail(for: error)
           session.liveReasoning = ""
+          session.liveTokensPerSecond = nil
         }
       }
     } catch {
@@ -2706,6 +2720,7 @@ final class UIStore: ObservableObject {
     isSearching = false
     networkRetryStatus = nil
     liveReasoning = ""
+    liveTokensPerSecond = nil
   }
 
   // MARK: - 대화 기억 정리 (T-71)
@@ -3614,6 +3629,9 @@ final class ChatSession: ObservableObject, Identifiable {
   @Published var streamingTurnID: UUID?
   /// 지금 도착 중인 사고 과정 — 완료 시 턴에 저장하고 비운다.
   @Published var liveReasoning = ""
+  /// 지금 답변의 **초당 토큰(추정)** — 첫 글자가 온 뒤부터 계산한다(v0.39.1).
+  /// 완료되면 nil 로 비우고, 화면은 그 턴의 `elapsedMs`·글자 수로 평균 속도를 다시 계산한다.
+  @Published var liveTokensPerSecond: Double?
   @Published var networkRetryStatus: String?
   var replyStartedAt: Date?
   var replyTask: Task<Void, Never>?

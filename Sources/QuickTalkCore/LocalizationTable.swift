@@ -869,6 +869,8 @@ extension L10n {
     "Esc로 닫기": "Press Esc to close",
     "현재 약 %d토큰 · 자동 정리 기준 %d토큰": "About %d tokens now · auto-compact at %d tokens",
     "기준을 넘으면 다음 답변을 마친 뒤 백그라운드에서 정리합니다.": "Once the threshold is crossed, compaction runs in the background after the next answer.",
+    "답변 속도 약 %@ — 글자 수로 추정한 토큰을 걸린 시간으로 나눈 값입니다.": "Answer speed about %@ — estimated tokens (by character count) divided by elapsed time.",
+    "답변 속도 약 %@ (추정)": "Answer speed about %@ (estimated)",
     "모델 예산을 넘어 이전 메시지 %d개를 이번 요청에서 제외했습니다. 원문은 그대로 남아 있습니다.": "The request exceeded the model budget, so %d older messages were excluded from this request. The originals remain.",
     "로컬 모델은 첫 응답이 느려 검색 결과를 %d건·%d자로 줄여 보냅니다.": "Local models respond slowly at first, so search results are trimmed to %d items of %d characters each.",
     "Local Ollama는 응답 속도 때문에 이번 요청의 문맥을 기본 3,072토큰으로 줄입니다. 프로바이더에 컨텍스트 토큰을 직접 넣으면 그 값을 씁니다.": "Local Ollama caps each request at 3,072 context tokens by default because generating is slow. Set a context token value on the provider to override it.",

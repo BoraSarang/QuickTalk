@@ -503,15 +503,38 @@ struct ContentView: View {
     !store.conversation.turns.isEmpty && memoryStatus != nil
   }
 
+  /// 지금 답변 중이면 **실시간**, 아니면 **마지막 답변의 평균** 속도(v0.39.1).
+  /// 완료된 값은 턴의 글자 수·걸린 시간으로 매번 다시 계산한다 — 기록에 따로 저장하지 않는다.
+  private var responseTokensPerSecond: Double? {
+    if let live = store.liveTokensPerSecond { return live }
+    guard let last = store.conversation.turns.last(where: {
+      $0.role == .assistant && !$0.text.isEmpty && $0.jobID == nil
+        && !$0.text.hasPrefix("(오류") && !$0.text.hasPrefix("(Error")
+    }) else { return nil }
+    return TokenSpeed.tokensPerSecond(text: last.text, elapsedMs: last.elapsedMs)
+  }
+
+  /// 토큰 칩 툴팁 — 기억 사용량과, 있으면 답변 속도(추정 기준까지)를 함께 설명한다.
+  private func memoryChipHelp(status: (current: Int, trigger: Int, ratio: Double),
+                              rate: Double?) -> String {
+    let base = Lf("현재 약 %d토큰 · 자동 정리 기준 %d토큰", status.current, status.trigger)
+      + " " + L("기준을 넘으면 다음 답변을 마친 뒤 백그라운드에서 정리합니다.")
+    guard let rate else { return base }
+    return base + "\n" + Lf("답변 속도 약 %@ — 글자 수로 추정한 토큰을 걸린 시간으로 나눈 값입니다.",
+                            TokenSpeed.label(rate))
+  }
+
   /// 기억 사용량 칩 — **헤더가 아니라 대화 영역 위에 띄운다**(2026-10-22).
   /// 헤더에 두 번째 줄로 넣으면 탭마다 헤더 높이가 달라져 보관함·설정으로 옮길 때 화면이 울렁인다.
   @ViewBuilder private var memoryChip: some View {
     if let status = memoryStatus, !store.conversation.turns.isEmpty {
       let percent = Int((status.ratio * 100).rounded())
+      let rate = responseTokensPerSecond
       HStack(spacing: 3) {
         Image(systemName: "brain.head.profile").font(.system(size: 9))
         // 좁은 창(기본 460pt)에서 줄바꿈되지 않게 축약 표기 — 정확한 값은 툴팁에 있다.
-        Text("\(Self.compactTokens(status.current)) / \(Self.compactTokens(status.trigger)) · \(percent)%")
+        Text("\(Self.compactTokens(status.current)) / \(Self.compactTokens(status.trigger)) · \(percent)%"
+             + (rate.map { " · \(TokenSpeed.label($0))" } ?? ""))
           .font(.system(size: 10, weight: .medium, design: .monospaced))
           .lineLimit(1)
       }
@@ -519,8 +542,7 @@ struct ContentView: View {
       .padding(.horizontal, 7).padding(.vertical, 3)
       .background(Capsule().fill(.ultraThinMaterial))
       .overlay(Capsule().stroke(Color.primary.opacity(0.10), lineWidth: 1))
-      .help(Lf("현재 약 %d토큰 · 자동 정리 기준 %d토큰", status.current, status.trigger)
-            + " " + L("기준을 넘으면 다음 답변을 마친 뒤 백그라운드에서 정리합니다."))
+      .help(memoryChipHelp(status: status, rate: rate))
       .padding(.top, 6).padding(.trailing, 10)
     }
   }
@@ -564,6 +586,8 @@ struct ContentView: View {
           // 호버하면 밑줄 — 두 번 클릭해서 이름을 바꿀 수 있다는 표시
           .underline(titleHover, color: .secondary)
           .layoutPriority(0)
+          // 세로 목표를 넓힌다 — 글자 높이(≈16pt)만이면 32pt 타이틀바 띠에서 자주 빗나갔다(v0.39.1).
+          .padding(.vertical, 5)
           // 글자는 표시만 — 클릭·드래그는 뒤의 AppKit 뷰가 받는다.
           .allowsHitTesting(false)
           .background {
@@ -604,6 +628,12 @@ struct ContentView: View {
     // 나머지 8pt 는 호버 감지·구분선을 위한 여백으로 남긴다(행 전체는 여전히 40pt).
     .frame(height: max(28, titlebarCenter * 2))
     .frame(height: 40, alignment: .top)
+    // v0.39.1 — 헤더 40pt 전체를 **창 이동 표면**으로. 예전에는 제목 글자만 드래그됐고,
+    // 측정 뷰(TitlebarCenterReader)·`.contentShape` 가 여백의 mouseDown 을 먹어
+    // `isMovableByWindowBackground` 도 닿지 않았다(2026-11-16 사용자 보고).
+    // 배경 중 **가장 위**에 두어 빈 곳 클릭을 받는다 — 버튼·제목은 SwiftUI 가 먼저 받는다.
+    .background { HeaderDragArea() }
+    .background { HeaderHoverArea(onHover: setToolbarHover) }
     .background {
       // 실제 창의 신호등 위치를 읽어 온다 — OS·타이틀바 높이가 달라도 어긋나지 않게.
       TitlebarCenterReader { center in
@@ -614,12 +644,11 @@ struct ContentView: View {
       LinearGradient(colors: [Color.primary.opacity(showsToolbar ? 0.055 : 0.02),
                               Color.primary.opacity(0.008)],
                      startPoint: .top, endPoint: .bottom)
+        .allowsHitTesting(false)
     }
     .overlay(alignment: .bottom) {
       Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
     }
-    .contentShape(Rectangle())
-    .onHover(perform: setToolbarHover)
     .animation(.easeInOut(duration: 0.16), value: showsToolbar)
   }
 
@@ -1164,13 +1193,17 @@ struct ContentView: View {
     HStack(spacing: 6) {
       if let ms = t.elapsedMs {
         let when = t.createdAt.map { RelativeTime.text(for: $0, now: nowTick) }
-        Text(([when, Self.elapsedLabel(ms)].compactMap { $0 }).joined(separator: " · "))
+        // v0.39.1 — 이 답변의 평균 생성 속도(추정). 기록에 저장하지 않고 글자 수·시간으로 계산한다.
+        let rate = TokenSpeed.tokensPerSecond(text: t.text, elapsedMs: ms)
+        Text(([when, Self.elapsedLabel(ms), rate.map(TokenSpeed.label)]
+              .compactMap { $0 }).joined(separator: " · "))
           .font(.system(size: 10.5))
           .foregroundColor(.secondary)
           .lineLimit(1)
-          .help(t.createdAt.map {
+          .help((t.createdAt.map {
             Lf("응답 도착: %@ · 걸린 시간 %@", RelativeTime.absolute($0), Self.elapsedLabel(ms))
           } ?? L("응답까지 걸린 시간"))
+            + (rate.map { "\n" + Lf("답변 속도 약 %@ (추정)", TokenSpeed.label($0)) } ?? ""))
       }
       Spacer(minLength: 4)
       // v0.36 — [실행]은 **호버와 무관하게** 보인다. 숨겨 두면 v0.36의 핵심 기능을
@@ -2690,6 +2723,63 @@ private struct ChatSizeKey: PreferenceKey {
 /// `fullSizeContentView` 창에서는 SwiftUI 콘텐츠가 타이틀바까지 올라오므로, 헤더의 글자·도구를
 /// 시스템 버튼과 같은 높이에 맞추려면 **실제 버튼 위치**를 알아야 한다. 타이틀바 높이는
 /// OS 버전에 따라 다르므로(28/32pt) 상수로 두지 않고 표준 버튼 프레임에서 계산한다.
+/// 타이틀바 **전체** 창 이동 표면 (v0.39.1).
+///
+/// SwiftUI 는 빈 곳의 mouseDown 을 받지 않지만, 그 위에 깔린 AppKit 뷰(측정용·`.contentShape`)가
+/// 이벤트를 먹으면 `isMovableByWindowBackground` 도 동작하지 않는다. 헤더 40pt 전체에 이 뷰를
+/// 깔아 제목·여백 어디를 잡아도 **같은 `performDrag` 경로**로 움직이게 한다.
+/// 버튼·제목 드래그 영역은 SwiftUI 콘텐츠로 이 뷰보다 위에 있어 먼저 이벤트를 받는다.
+private struct HeaderDragArea: NSViewRepresentable {
+  func makeNSView(context: Context) -> DragSurfaceView { DragSurfaceView() }
+  func updateNSView(_ v: DragSurfaceView, context: Context) {}
+
+  final class DragSurfaceView: NSView {
+    /// 다른 앱을 보다 돌아와 **첫 클릭**으로 제목을 잡아도 바로 끌 수 있게 한다.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+      window?.performDrag(with: event)
+    }
+  }
+}
+
+/// 헤더 호버 감지 — 클릭은 **아래 드래그 표면**으로 통과시키고(hitTest nil) enter/exit 만 받는다.
+/// 예전 `headerRow` 의 `.contentShape(Rectangle()).onHover` 를 대신한다.
+private struct HeaderHoverArea: NSViewRepresentable {
+  var onHover: (Bool) -> Void
+
+  func makeNSView(context: Context) -> HoverView {
+    let v = HoverView()
+    v.onHover = onHover
+    return v
+  }
+
+  func updateNSView(_ v: HoverView, context: Context) {
+    v.onHover = onHover
+  }
+
+  final class HoverView: NSView {
+    var onHover: (Bool) -> Void = { _ in }
+    private var tracking: NSTrackingArea?
+
+    /// 호버만 담당한다 — 클릭·드래그를 가로채지 않는다.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func updateTrackingAreas() {
+      super.updateTrackingAreas()
+      if let tracking { removeTrackingArea(tracking) }
+      let area = NSTrackingArea(rect: .zero,
+                                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                owner: self, userInfo: nil)
+      addTrackingArea(area)
+      tracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { onHover(false) }
+  }
+}
+
 /// 제목 영역 드래그 — 한 번 누르고 끌면 **창 이동**, 두 번 누르면 이름 변경.
 ///
 /// 제목을 SwiftUI `Button` 으로 두면 mouseDown 을 삼켜 창을 끌 수 없다
@@ -2717,6 +2807,9 @@ private struct TitleDragArea: NSViewRepresentable {
     var onHover: (Bool) -> Void = { _ in }
     private var tracking: NSTrackingArea?
 
+    /// 비활성 창의 첫 클릭도 드래그로 쓴다(v0.39.1) — 활성화만 되고 끌리지 않던 문제.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func updateTrackingAreas() {
       super.updateTrackingAreas()
       if let tracking { removeTrackingArea(tracking) }
@@ -2731,7 +2824,9 @@ private struct TitleDragArea: NSViewRepresentable {
     override func mouseExited(with event: NSEvent) { onHover(false) }
 
     override func mouseDown(with event: NSEvent) {
-      if event.clickCount >= 2 {
+      // 비활성 창에서 첫 클릭이 곧바로 이름 변경 시트를 열지 않게 — 그때는 드래그에 쓴다.
+      let wasKey = window?.isKeyWindow ?? false
+      if event.clickCount >= 2, wasKey {
         onDoubleClick()
         return
       }
@@ -2756,6 +2851,9 @@ private struct TitlebarCenterReader: NSViewRepresentable {
   final class ReporterView: NSView {
     var onChange: ((CGFloat) -> Void)?
     private var last: CGFloat = 0
+
+    /// 측정만 한다 — 헤더의 mouseDown 을 먹어 창 드래그를 막지 않게 통과시킨다(v0.39.1).
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
