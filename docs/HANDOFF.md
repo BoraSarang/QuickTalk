@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-13 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-16 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
@@ -12,6 +12,7 @@
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
 > **현재 설치본은 Debug 1.39.0**(2026-11-13 00:58, `~/Applications/QuickTalk.app`, PID 97021) — **v0.39 Telegram 원격 승인**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37·v0.38.0~v0.38.3 상태는 아래 인계 참조.
+> **v0.39.1 구현·검증 완료(2026-11-16)** — **① 제목·헤더 어디를 잡아도 창이 끌린다**(40pt `HeaderDragArea`·26pt 제목 표면·`hitTest nil` 측정/호버 뷰) · **② 토큰 칩과 답변 하단에 초당 토큰(tok/s, 추정)**. **PR/설치 대기**, PLAN `docs/plans/PLAN_v0.39.1_drag-speed_macos.md`, 인계 (35).
 > **v0.39 구현·검증·설치 완료(2026-11-13)** — 예약 작업·맡긴 작업(Job)이 승인 때문에 멈췄을 때 **Telegram 메시지의 [✅ 허용]/[❌ 거부]** 버튼으로 한 번만 응답한다. Bot API **long polling**(아웃바운드 HTTPS)만 쓰고 인바운드 포트·웹훅은 열지 않는다. 기본 꺼짐 · 봇 토큰 `SecretStore` 0600 · 설정한 chat 하나만 · nonce 128비트 1회용 · 기존 10분 만료·Job 상태 전이·감사 로그·Mac 알림 그대로. PLAN `docs/plans/PLAN_v0.39_remote-approval_macos.md`, 인계 (34). **실측 대기** — 실제 봇 토큰·chat ID·Telegram 카드.
 > **v0.38.3 구현·검증·병합·설치 완료(2026-11-13)** — 모델이 읽는 격리 브라우저 페이지를 **보이는 창**에 띄우고 주소창·뒤로·앞으로·새로고침·격리 배지·모델 활동을 보여 준다. 같은 `WKWebView` 를 옮겨 붙이고, 닫으면 오프스크린으로 복귀해 페이지·모델 읽기를 유지한다. 자동 표시 기본 켜짐·포커스 스틸 없음. **PR #169 → squash merge `41c056f`**. PLAN `docs/plans/PLAN_v0.38.3_browser-window_macos.md`, 인계 (33).
 > **v0.38.2 구현·검증·병합·설치 완료(2026-11-12)** — 도우미가 만든 파일을 답변 아래 **산출물 카드**로 보여 주고, 미리보기·diff·[되돌리기]를 제공. 텍스트 파일은 셸 대신 `write_file` 로 쓴다(승인 카드에 앞 20줄·백업 실패 시 덮어쓰지 않음). **PR #166 → squash merge `bba1d44`**. PLAN `docs/plans/PLAN_v0.38.2_artifacts_macos.md`, 인계 (32).
@@ -23,6 +24,19 @@
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-16 인계 (35) — v0.39.1 **창 드래그 복구 · 응답 속도(tok/s)** — **PR/설치 대기**
+
+- **계기(사용자)**: ① *"제목에 마우스 호버 하고 드래그 하려는데 안 될 때가 더 많아"* — 최근 체감 악화. ② *"토큰은 나오는데 초당 몇 토큰 쓰는지 같이 표시해줘"*.
+- **드래그 원인(코드 실측)**: ㉠ 제목 드래그 영역(`TitleDragArea`)이 **글자 프레임 높이(≈16pt)** 뿐이라 40pt 헤더 띠에서 세로로 조준이 어긋났다. ㉡ 배경 `TitlebarCenterReader`(NSViewRepresentable)가 기본 hitTest 로 **헤더 전체 mouseDown 을 먹었다** — 여백은 `isMovableByWindowBackground` 로도 움직이지 않았다. ㉢ `headerRow` 의 `.contentShape(Rectangle()).onHover` 가 빈 곳 클릭을 SwiftUI 쪽에서 소비했다.
+- **수정**: 헤더 40pt 전체에 `HeaderDragArea`(AppKit `performDrag`) — 제목·여백 어디를 잡아도 같은 경로로 이동. 버튼·제목은 SwiftUI 가 위에서 먼저 받는다. 제목 표면은 세로 패딩으로 **26pt**, `acceptsFirstMouse` 로 **비활성 창 첫 클릭**도 드래그. `TitlebarCenterReader`·`HeaderHoverArea` 는 `hitTest → nil`(측정·호버 전용, 클릭 통과). 두 번 클릭 이름 변경은 **이미 키인 창에서만** — 비활성 창 첫 클릭이 이름 시트를 열지 않게.
+- **속도 정의**: `TokenSpeed`(Core) — `ConversationMemory.estimateTokens(답변)` ÷ 걸린 시간(초). 앱에 실제 토크나이저가 없어 기존 예산 계산과 같은 **보수적 추정**(한국어 1자≈1토큰, ASCII 4자≈1토큰)을 쓴다. 12토큰 미만·1초 미만은 숨긴다(숫자가 의미 없음). 도구 호출·첫 토큰 대기까지 포함하므로 **에이전트 답변은 낮게** 나온다(의도).
+- **표시**: ① 토큰 칩 `68 / 21k · 0% · 18 tok/s` — 응답 중 **실시간**(첫 글자 이후·0.25초 스로틀), 끝나면 **마지막 답변 평균**(칩은 마지막 assistant 턴 기준). ② 답변 하단 `1분 전 · 2.4초 · 18 tok/s` — `Turn.elapsedMs`·글자 수로 매번 계산해 **과거 답변도** 표시(기록 스키마 변경 없음). 툴팁에 추정 기준 명시.
+- **검증**: `swift test` **1123/1123**(6 skip, `TokenSpeedTests` 신규 4 — 짧은 답변/1초 미만 숨김·실시간 최소 표본·표기 반올림) · `LocalizationCoverageTests` 통과(신규 2키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · 렌더 `docs/qa/v0.39.1-speed/` — 한/영 모두 칩과 하단에 속도가 함께 그려짐(예: `164 / 21k · 1% · 113 tok/s`).
+- **버전/PR**: 1.39.1(build 3901) · 브랜치 `fix/v0.39.1-drag-speed` · PR/설치 후 이 줄 갱신.
+- **실측 대기(드래그)**: ① 제목을 잡고 드래그 ② 헤더 **빈 곳**을 잡고 드래그 ③ 다른 앱을 보다 **첫 클릭**으로 바로 드래그 ④ 제목 두 번 클릭 → 이름 변경 ⑤ 도구 버튼·비서 칩 클릭이 드래그로 새지 않는지.
+- **실측 대기(속도)**: ⑥ 응답 중 칩의 실시간 tok/s 가 올라가는지 ⑦ 완료 후 칩·답변 하단 평균이 같은 값인지 ⑧ 짧은 답변에는 안 보이는지.
+- **한계**: tok/s 는 **추정치**이며 청구 토큰과 다르다. 드래그는 합성 이벤트로 OS 라우팅을 재현할 수 없어 **사용자 실측**으로 확정한다.
 
 ### 2026-11-13 인계 (34) — v0.39 **Telegram 원격 승인** — **Debug 1.39.0 설치 · 실측 대기**
 
