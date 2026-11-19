@@ -13,6 +13,7 @@
 - **오타 노트**: 검사 수·힌트 수(발생률)·교정 수(교정률)·다시 고침, 주별 발생률 차트(8주), 카테고리 칩(전체/띄어쓰기/맞춤법), 표현 목록(횟수·교정·마지막·[무시]), [모두 해제]·[모두 지우기]. **문장 전체 저장 금지**(구간만), 90일 보존, 로컬 파일 `~/Library/Application Support/QuickTalk/proofread.json` 원자적 쓰기.
 - **fail-open**: 엔진 오류·긴 글·한글 2음절 미만·기능 끔이면 조용히 그대로 전송한다. 전송을 막지 않는다.
 - **검증(오프스크린)**: `swift test` **1155/1155**(6 skip, 신규 29 — `ProofreadTests` 15 · `ProofreadHistoryTests` 14) · `LocalizationCoverageTests` 통과(신규 65키) · Debug/Release **BUILD SUCCEEDED · 경고 0** · 버전 **1.41.0(build 4100)** · 렌더 **13장** `docs/qa/v0.41-proofread-app/`(한/영 · 라이트/다크 · 카드/pill/설정/오타 노트·빈 상태, `--demo-proofread`가 예시 대화로 교체 후 복원).
+- **설치(2026-11-19)**: Debug 1.41.0 교체 · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `c77cdb23…` · PID 87512 · 백업 번들 없음.
 - **실측 대기**: ① 대화창 Enter=교정·⌥Enter=그대로·Esc=유지 ② pill 카드 높이·전송·두 번째 Esc ③ 설정 범위 "대화창만"에서 pill 무검사 ④ 오타 노트 무시/모두 지우기 ⑤ 기록 끄면 카드만 뜨고 통계 0 ⑥ 90일 정리(시간 경과 필요).
 
 ## 구현·검증·설치 완료 (2026-11-19) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** (v0.40.1 핫픽스) [**PR #175 → `88d355b`** · PLAN `docs/plans/PLAN_v0.40_iconless-entrypoint_macos.md` · Debug 1.40.1 설치 · 사용자 실측 대기]

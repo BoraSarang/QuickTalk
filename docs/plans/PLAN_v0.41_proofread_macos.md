@@ -331,4 +331,5 @@ QuickTalkApp/ProofreadGate.swift            // 전송 게이트 (UIStore 연결)
 - Debug/Release **BUILD SUCCEEDED · 경고 0** · 버전 **1.41.0(build 4100)**
 - 오프스크린 렌더 **13장** — `docs/qa/v0.41-proofread-app/` (한/영 · 라이트/다크 · 카드/pill/설정/오타 노트·빈 상태)
 - 렌더에서 고친 것 — pill compact `+N` 이 표시 개수가 아니라 **전체 이슈 수** 기준, 표현 표 열 정렬, 주별 차트 데모 수치(누적 잔차 배분), 실제 대화 대신 예시 대화.
+- **설치(2026-11-19)** — Debug 1.41.0 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `c77cdb23…` · PID 87512 · 백업 번들 없음.
 - **실측 대기** — 카드 키 3종, pill 카드 높이/전송, 설정 토글·범위, 오타 노트 무시/모두 지우기, 90일 뒤 정리.
