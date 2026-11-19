@@ -280,27 +280,27 @@ public struct QuickTalkSettings: Codable, Equatable {
 
   public init() {}
 
-  // MARK: - 표시 정책 (진입점 최소 1개 보장)
+  // MARK: - 표시 정책 (아이콘 0개 허용 · 재실행으로 복구, v0.40)
 
-  /// 메뉴바 상주 앱이라 메뉴바·Dock을 모두 숨기면 다시 열 방법이 없다.
-  /// 메뉴바를 숨기면 Dock을 자동으로 켜서 진입점을 남긴다.
+  /// 메뉴바 아이콘 표시 여부. Dock과 **독립**이다 — 둘 다 꺼도 된다.
+  /// 아이콘이 하나도 없으면 앱을 다시 열 때 메뉴바 아이콘(이번 실행 한정)과 설정 창이 열린다.
   public mutating func setMenuBarIcon(_ visible: Bool) {
     showMenuBarIcon = visible
-    if !visible { showDockIcon = true }
   }
 
-  /// Dock을 숨기면 메뉴바를 자동으로 켠다(같은 이유).
+  /// Dock 아이콘 표시 여부. 메뉴바와 **독립**이다.
   public mutating func setDockIcon(_ visible: Bool) {
     showDockIcon = visible
-    if !visible { showMenuBarIcon = true }
   }
 
-  /// 저장된 설정이 둘 다 숨김이면 Dock을 켜서 진입점을 만든다. 변경 여부를 반환.
-  @discardableResult
-  public mutating func normalizeVisibility() -> Bool {
-    guard !showMenuBarIcon, !showDockIcon else { return false }
-    showDockIcon = true
-    return true
+  /// 메뉴바·Dock 아이콘이 모두 꺼져 있는가(= 재실행 복구가 필요한 상태).
+  public var hasNoEntryPoint: Bool { !showMenuBarIcon && !showDockIcon }
+
+  /// 앱 시작 시 진입점(메뉴바 아이콘·설정 창)을 복구해야 하는가.
+  /// 아이콘이 0개여도 **로그인 자동 시작**과 **QA 하네스**는 조용히 시작한다(v0.40).
+  public func shouldRecoverEntryPointOnLaunch(launchedAsLoginItem: Bool,
+                                              isHeadlessHarness: Bool) -> Bool {
+    hasNoEntryPoint && !launchedAsLoginItem && !isHeadlessHarness
   }
 
   // MARK: - 단축키 세션 규칙
