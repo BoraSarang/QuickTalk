@@ -983,7 +983,26 @@ struct ContentView: View {
       attachmentRow
       attachNoticeRow
       slashPalette
+      // v0.41 — 입력독 **바로 위** 카드. 첨부 행·도구 팔레트를 가리지 않는다.
+      proofreadHintCard
       dockRow
+    }
+  }
+
+  /// 보내기 전 교정 카드 — 문제가 있을 때만 나타난다.
+  @ViewBuilder private var proofreadHintCard: some View {
+    if let hint = store.proofreadHint {
+      ProofreadHintCard(
+        hint: hint,
+        style: .composer,
+        onAccept: { store.acceptProofreadHint() },
+        onSendAsIs: { store.sendProofreadOriginal() },
+        onDismiss: { store.dismissProofreadHint() },
+        onDisableForConversation: { store.disableProofreadForConversation() }
+      )
+      .padding(.horizontal, 10)
+      .padding(.bottom, 6)
+      .transition(.opacity)
     }
   }
 
@@ -2158,15 +2177,16 @@ struct ContentView: View {
     ZStack(alignment: .bottomTrailing) {
       // 입력 영역 — 좌우로 버튼 자리를 비워 둔다
       ZStack(alignment: .topLeading) {
-        ChatInputField(text: Binding(get: { store.draft }, set: { store.draft = $0 }), height: $inputHeight,
+        ChatInputField(text: Binding(get: { store.draft }, set: { store.composerDraftChanged($0) }), height: $inputHeight,
                        isBusy: store.isReplying || store.isJobConversationBusy,
                        focusToken: store.composerFocusToken,
                        placeholder: store.isJobConversationBusy
                          ? L("작업이 끝나면 대화할 수 있습니다")
                          : L("무엇이든 물어보세요"),
+                       onOptionReturn: store.proofreadHint == nil ? nil : { store.sendProofreadOriginal() },
+                       onCancel: store.proofreadHint == nil ? nil : { store.dismissProofreadHint() },
                        onPasteAttachments: { store.pasteAttachmentFromPasteboard() }) { value in
-          store.draft = value
-          store.send()
+          store.requestSend(value)
         }
         .frame(height: inputHeight)
       }
@@ -2192,7 +2212,7 @@ struct ContentView: View {
         // 유지형이 켜져 있으면 버튼 아이콘이 그 기능으로 바뀌고 작은 점이 붙는다.
         composerToolMenu
 
-        Button { store.isReplying ? store.cancelReply() : store.send() } label: {
+        Button { store.isReplying ? store.cancelReply() : store.requestSend(store.draft) } label: {
           // 응답 대기 중에는 전송 대신 **중지**(⏹) — 로컬 모델은 첫 토큰까지 수 분 걸릴 수 있다
           Image(systemName: store.isReplying ? "stop.fill" : "arrow.up")
             .font(.system(size: 12, weight: .bold))

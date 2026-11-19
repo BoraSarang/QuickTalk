@@ -1,6 +1,6 @@
 # PLAN v0.41 — 입력 교정 힌트 · 오타 노트 (macOS)
 
-> 상태: **설계 제안 · 사용자 승인 대기** (2026-11-19)
+> 상태: **구현·검증 완료** (2026-11-19) — P1~P4 · 사용자 승인 확정(Enter=교정 · pill 포함 · AI 검사 숨김) · 구현 기록 §14
 > 크기: **L(입력 경로 2곳 + 새 엔진 + 새 화면 1개)** — 사용자 요청 2026-11-19
 > "대화 입력 시 사용자가 쓴 맞춤법·띄어쓰기를 보내기 전에 가볍게 알려 주면 좋겠다"
 > 지원 언어: **ko + en** (`L10n.table`) · 목업: `docs/mockups/proofread/index.html`
@@ -297,3 +297,38 @@ QuickTalkApp/ProofreadGate.swift            // 전송 게이트 (UIStore 연결)
 - 관련 코드: `QuickTalkApp/ChatInputField.swift`, `QuickTalkApp/ContentView.swift`, `QuickTalkApp/PointerPill.swift`, `QuickTalkApp/UIStore.swift`, `QuickTalkApp/SettingsView+General.swift`, `Sources/QuickTalkCore/Settings.swift`, `Sources/QuickTalkCore/LocalizationTable.swift`
 - 실측 스파이크: `_workspace/proofread-spike/` (로컬 전용, 커밋하지 않음)
 - 디자인 기준: `docs/DESIGN.md` §2(토큰) · §7(설정) · §8.1(입력독) · §8.0.7(카드 톤)
+
+## 14. 구현 기록 (2026-11-19)
+
+> **승인 확정** — ① Enter = [교정해서 보내기], ⌥Enter = [그대로 보내기], Esc = 카드만 닫기 ② 기본 범위 "대화창과 pill" ③ AI 자세히 검사는 설정에 노출하지 않음(Apple FM 전송 경로 제외).
+
+### 14.1 파일
+
+| 파일 | 역할 |
+|---|---|
+| `Sources/QuickTalkCore/Proofread.swift` | 규칙 엔진 — 사전(맞춤법·띄어쓰기·문장부호)·보호 구간·겹침 해소·최대 4개 표시/40개 적용 |
+| `Sources/QuickTalkCore/ProofreadHistory.swift` | 오타 노트 저장 — 구간만, 일별 카운터, 90일 정리, 무시 목록, `unignoreAll()` |
+| `QuickTalkApp/ProofreadGate.swift` | 공통 게이트(`shouldCheck`·`evaluate`·`record`)와 `ProofreadHintState` |
+| `QuickTalkApp/ProofreadHintCard.swift` | 공용 카드(composer 전체 · pill compact) + `ProofreadPalette` |
+| `QuickTalkApp/ProofreadNotesSheet.swift` | 오타 노트 시트 — 요약 4개 · 주별 Canvas 차트 · 카테고리 칩 · 표현 목록 · 무시/모두 해제/모두 지우기 |
+| `Tests/QuickTalkCoreTests/ProofreadTests.swift` | 15 — 규칙별 긍정/부정·경계·보호 구간·겹침·무시·멱등성·성능 |
+| `Tests/QuickTalkCoreTests/ProofreadHistoryTests.swift` | 14 — 발생률/교정률 정의·90일 정리·주별 버킷·저장 왕복·누락 키 디코딩 |
+
+### 14.2 구현에서 확정한 것 (계획 대비)
+
+- **게이트는 `UIStore.requestSend` 하나** — Enter·↑ 버튼·⌘Return 이 모두 지난다. `send(executionOf:)`·예약·재응답·슬래시 명령·첨부 전용은 검사하지 않는다.
+- **pill 은 `PillModel` 안에서 먼저 확정** — 카드가 떠 있으면 Enter=교정, ⌥Enter=그대로, Esc=카드 닫기, 두 번째 Esc=pill 닫기, `⌘Return`=대화 창 열기(기존 유지).
+- **대화창 카드는 입력독 위 VStack 요소** — 오버레이 대신 본문 높이를 86pt 양보한다(스크롤 위치·레이아웃 단순화). 카드가 뜨면 입력은 그대로 두고 포커스만 유지.
+- **입력이 바뀌면 카드를 닫고 다음 전송에서 다시 검사** — 조합 중 재검사 없음.
+- **문장부호 규칙의 원문에는 앞 공백이 붙는다**(`" ,"`) — 오타 노트·카드에는 다듬어 보여 주고, 무시 목록 비교는 `isIgnoring`이 공백을 무시한다.
+- **설정 기본값** — `proofreadHintsEnabled=true`, `proofreadScope=.composerAndPill`, `proofreadRecordEnabled=true`. 기존 `settings.json`은 `decodeIfPresent`로 조용히 마이그레이션.
+- **기록이 꺼져 있으면 토큰 nil** — 카드는 그대로 뜨고 통계만 남기지 않는다.
+- **`--demo-proofread` 렌더 하네스** — 예시 대화/드래프트를 백업·복원하고 실제 기록을 저장하지 않는다. 예시 문장은 번역하지 않고 한국어 원문 그대로 둔다(검사 대상이 한국어이므로).
+
+### 14.3 검증
+
+- `swift test` **1155/1155**(6 skip, 신규 29) · `LocalizationCoverageTests` 통과(신규 65키)
+- Debug/Release **BUILD SUCCEEDED · 경고 0** · 버전 **1.41.0(build 4100)**
+- 오프스크린 렌더 **13장** — `docs/qa/v0.41-proofread-app/` (한/영 · 라이트/다크 · 카드/pill/설정/오타 노트·빈 상태)
+- 렌더에서 고친 것 — pill compact `+N` 이 표시 개수가 아니라 **전체 이슈 수** 기준, 표현 표 열 정렬, 주별 차트 데모 수치(누적 잔차 배분), 실제 대화 대신 예시 대화.
+- **실측 대기** — 카드 키 3종, pill 카드 높이/전송, 설정 토글·범위, 오타 노트 무시/모두 지우기, 90일 뒤 정리.
