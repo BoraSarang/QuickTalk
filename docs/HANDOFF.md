@@ -13,6 +13,7 @@
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
 > **현재 설치본은 Debug 1.41.0**(2026-11-19, `~/Applications/QuickTalk.app`, PID 87512) — **v0.41 입력 교정 힌트 · 오타 노트**. 이전 1.40.1 기록은 CHANGELOG·v0.40.1 인계, 1.39.1은 아래 인계 (35). v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37·v0.38.0~v0.38.3·v0.39 상태는 아래 인계 참조.
 > **v0.41 구현·검증 완료 — 실측 대기(2026-11-19)** — **보내기 전에 맞춤법·띄어쓰기를 한 번만 확인**한다. 대화창·⌘Space pill 공통 `UIStore.requestSend` 게이트 → 문제가 있으면 카드(**[교정해서 보내기] / [그대로 보내기]**, Enter/⌥Enter, Esc=카드만 닫기) → 결정 후 전송. 규칙 엔진은 결정론 사전(맞춤법·띄어쓰기·문장부호)으로 동기 5ms 이하, Apple FM은 전송 경로에서 제외. 설정 › 대화 › **입력 교정**(기본 켜짐·범위·기록·[오타 노트 열기…]) + **오타 노트**(발생률·교정률·다시 고침·주별 차트·표현 목록·무시, 구간만 90일 보존). `swift test` **1155/1155** · Debug/Release **BUILD SUCCEEDED · 경고 0** · **1.41.0(build 4100)** · 렌더 13장 `docs/qa/v0.41-proofread-app/` · **PR #176 → squash merge `e30e3f7`** · PLAN `docs/plans/PLAN_v0.41_proofread_macos.md` §14, 인계 (37).
+> **v0.41.1 핫픽스(2026-11-19) — 대화 간 작업 기억 누출 수정** — 새 대화에 다른 대화의 Job(볼륨 스크립트)이 새던 문제. `JobMemory`를 **과거 작업을 물을 때만** 주입하도록 게이트. `swift test` **1158/1158** · Debug 빌드 · **1.41.1(build 4101)** · 설치 후 새 대화 "ㄴㄴㄴ" 실측 대기, 인계 (38).
 > **v0.40.1 구현·검증·설치 완료 — 실측 대기(2026-11-19)** — **메뉴바·Dock 아이콘을 둘 다 꺼도 되고**, 아이콘이 0개일 때 `.app`을 다시 열면 **이번 실행 한정 메뉴바 아이콘 + 설정 창**이 열린다(PopClip 방식). v0.40.1에서 **복구용 임시 아이콘과 설정 토글의 표시 불일치**를 고쳤다(토글 = 저장값 OR 세션 표시, 끄면 임시 아이콘도 즉시 내림). 로그인 자동 시작은 조용히. `swift test` **1126/1126** · Debug/Release **BUILD SUCCEEDED · 경고 0** · 1.40.1(build 4001). **PR #175 → squash merge `88d355b`** · PLAN `docs/plans/PLAN_v0.40_iconless-entrypoint_macos.md`, 인계 (36).
 > **v0.39.1 구현·검증·설치·실측 완료(2026-11-16)** — **① 제목·헤더 어디를 잡아도 창이 끌린다**(40pt `HeaderDragArea`·26pt 제목 표면·`hitTest nil` 측정/호버 뷰) · **② 토큰 칩과 답변 하단에 초당 토큰(tok/s, 추정)**. **PR #173 → squash merge `35e4fae`** · **사용자 실측 "모두 정상"**, PLAN `docs/plans/PLAN_v0.39.1_drag-speed_macos.md`, 인계 (35).
 > **v0.39 구현·검증·설치 완료(2026-11-13)** — 예약 작업·맡긴 작업(Job)이 승인 때문에 멈췄을 때 **Telegram 메시지의 [✅ 허용]/[❌ 거부]** 버튼으로 한 번만 응답한다. Bot API **long polling**(아웃바운드 HTTPS)만 쓰고 인바운드 포트·웹훅은 열지 않는다. 기본 꺼짐 · 봇 토큰 `SecretStore` 0600 · 설정한 chat 하나만 · nonce 128비트 1회용 · 기존 10분 만료·Job 상태 전이·감사 로그·Mac 알림 그대로. PLAN `docs/plans/PLAN_v0.39_remote-approval_macos.md`, 인계 (34). **실측 대기** — 실제 봇 토큰·chat ID·Telegram 카드.
@@ -26,6 +27,16 @@
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-19 인계 (38) — v0.41.1 **대화 간 작업 기억 누출 수정** — Debug 1.41.1 설치 · 실측 대기
+
+- **계기(사용자)**: 새 대화에서 "ㄴㄴㄴ"만 보냈는데 답변이 *"볼륨 스크립트 계획을 원하지 않으신 건지…"*. *"여긴 그런 대화 한 대화방이 아닌데?"*
+- **원인**: v0.38 `JobMemory`가 완료 Job 최근 3개를 **모든 대화**의 에이전트 시스템 프롬프트에 넣었다(`UIStore+Agent.makeAgentClient`). 볼륨 스크립트 Job(11/15, `resultSummary` = "계획을 제안했습니다…")이 새 대화의 첫 요청에도 들어가 모델이 계획이 떠 있는 것으로 착각했다.
+- **수정**: `JobMemory.prompt(_:limit:matching:)` — 요청에 과거 작업을 묻는 표현이 있을 때만 블록 생성(`지난 작업`·`지난주`·`어디까지 했`·`작업 진행 상황`·`last week`·`what did i` 등). `makeAgentClient(request:)`로 대화창 요청만 넘기고 **Job·예약·자동 실행·자기 점검은 nil** → 넣지 않는다.
+- **검증**: `swift test` **1158/1158**(6 skip, JobTests +2) · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.1(build 4101)**.
+- **설치**: (진행 예정 — 사용자 종료 확인 후 `~/Applications/QuickTalk.app` 교체, 백업 번들 없음).
+- **실측 대기**: ① 새 대화에서 "ㄴㄴㄴ" → 볼륨 스크립트가 나오지 않는다 ② "지난주에 어디까지 했지?" → 완료 Job 요약이 나온다.
+- **한계**: 과거 작업 표현이 없으면 다른 대화의 Job을 모른다(의도). Job `resultSummary`가 계획 제안 문구로 끝나는 문제는 후속.
 
 ### 2026-11-19 인계 (36) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** — **PR #175 → `88d355b` · Debug 1.40.1 설치 · 실측 대기**
 

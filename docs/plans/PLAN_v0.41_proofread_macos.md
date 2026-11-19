@@ -333,3 +333,10 @@ QuickTalkApp/ProofreadGate.swift            // 전송 게이트 (UIStore 연결)
 - 렌더에서 고친 것 — pill compact `+N` 이 표시 개수가 아니라 **전체 이슈 수** 기준, 표현 표 열 정렬, 주별 차트 데모 수치(누적 잔차 배분), 실제 대화 대신 예시 대화.
 - **설치(2026-11-19)** — Debug 1.41.0 `~/Applications/QuickTalk.app` 교체 · `codesign --verify --strict --deep` OK · SHA-256 `c77cdb23…` · PID 87512 · 백업 번들 없음.
 - **실측 대기** — 카드 키 3종, pill 카드 높이/전송, 설정 토글·범위, 오타 노트 무시/모두 지우기, 90일 뒤 정리.
+
+### 14.4 핫픽스 (2026-11-19) — v0.41.1 대화 간 작업 기억 누출
+
+- **증상(사용자)**: 새 대화에서 `ㄴㄴㄴ`만 보냈는데 답변이 *"볼륨 스크립트 계획을 원하지 않으신 건지…"*. *"여긴 그런 대화 한 대화방이 아닌데?"*
+- **원인**: v0.38 `JobMemory`가 완료 Job 최근 3개를 **모든 대화**의 에이전트 시스템 프롬프트에 주입했다. 볼륨 Job의 `resultSummary`("계획을 제안했습니다…")가 새 대화의 첫 요청에 들어가 모델이 계획이 떠 있는 것으로 착각했다.
+- **수정**: `JobMemory.prompt(_:limit:matching:)` — 요청에 과거 작업을 묻는 표현이 있을 때만 블록 생성. `makeAgentClient(request:)`로 대화창 요청만 전달하고 Job·예약·자동 실행·자기 점검은 `nil`.
+- **검증**: `JobTests` +2 · `swift test` **1158/1158**(6 skip) · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.1(build 4101)**.
