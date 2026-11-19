@@ -158,7 +158,8 @@ public enum JobMemory {
     formatter.dateFormat = "yyyy-MM-dd"
     let lines = completed.map { job -> String in
       let date = formatter.string(from: job.finishedAt ?? job.updatedAt)
-      let summary = job.resultSummary ?? ""
+      // 계획 제안 문구는 결과가 아니다 — 기억에 넣으면 "아직 계획이 떠 있다"로 오해된다.
+      let summary = PastWork.resultLine(job.resultSummary) ?? ""
       let short = summary.count <= 100 ? summary : String(summary.prefix(99)) + "…"
       return "- \(date) · \(job.title)\(short.isEmpty ? "" : " — \(short)")"
     }
@@ -177,7 +178,7 @@ public enum JobMemory {
   /// 과거 작업을 묻는 표현 — 한국어·영어. **명시적인 것만** 넣는다.
   /// 넓게 잡으면 새 대화에 또 새므로 "작업" 한 단어만으로는 걸리지 않게 한다.
   static let pastWorkPhrases = [
-    "지난 작업", "지난 대화", "지난주", "지난달", "지난번", "저번", "이전 작업",
+    "지난 작업", "지난 대화", "지난주", "지난 주", "지난달", "지난 달", "지난번", "저번", "이전 작업",
     "예전에", "최근 작업", "전에 했", "했던 작업", "완료한 작업",
     "작업 어디까지", "어디까지 했", "작업 진행 상황", "작업 기억",
     "last week", "last month", "last time", "recent job", "recent work",
@@ -185,7 +186,8 @@ public enum JobMemory {
     "remind me what"
   ]
 
-  static func requestsPastWork(_ request: String) -> Bool {
+  /// 과거 작업을 묻는 요청인가 — `past_work` 도구를 붙일지 결정하는 데도 쓴다(v0.41.2).
+  public static func requestsPastWork(_ request: String) -> Bool {
     let text = request.lowercased()
     return pastWorkPhrases.contains { text.contains($0) }
   }

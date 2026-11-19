@@ -90,6 +90,34 @@ public enum AgentToolCatalog {
       "required": ["path", "content"]
     ])
 
+  /// 지난 작업 조회 (v0.41.2) — **읽기 전용, 승인 없음.**
+  ///
+  /// "지난주에 어디까지 했지?"에 답하려고 모델이 `history.json` 을 셸로 여러 번 읽던 문제를
+  /// 없앤다. 앱이 대화 제목·마지막 질문·Job 결과만 모아 **한 번에** 돌려준다.
+  /// 현재 대화는 빠지고, 원문 전체도 넘기지 않는다.
+  /// 요청에 과거 작업을 묻는 표현이 있을 때만 도구 목록에 붙는다(`UIStore.send`).
+  public static let pastWork = AgentTool(
+    name: "past_work",
+    description: """
+      Read a compact digest of the user's **own past conversations and delegated jobs** over the \
+      last N days: dates, titles, the user's last question and the first line of the answer, plus \
+      job status and result summary. Never full transcripts. \
+      Use this **only** when the user explicitly asks what they did before ("지난주에 뭐 했지?", \
+      "where did we leave off?"). Do not use it for unrelated questions. \
+      Call it once and answer from the result — do not read history.json or the audit log through \
+      the shell.
+      """,
+    parameters: [
+      "type": "object",
+      "properties": [
+        "days": ["type": "integer",
+                 "description": "How many days back to look (default 7, max 60)."],
+        "query": ["type": "string",
+                  "description": "Optional keyword to narrow by title, question or result (e.g. '볼륨')."]
+      ],
+      "required": []
+    ])
+
   /// 프로세스 사용량 — `ps`·`top` 은 setuid 라 샌드박스가 실행을 막는다. 앱이 직접 읽는다.
   public static let processes = AgentTool(
     name: "processes",
@@ -484,7 +512,9 @@ public enum AgentToolCatalog {
 
   /// 이름으로 도구를 찾는다.
   public static func tool(named name: String) -> AgentTool? {
-    all.first { $0.name == name } ?? browserTools.first { $0.name == name }
+    all.first { $0.name == name }
+      ?? browserTools.first { $0.name == name }
+      ?? (name == pastWork.name ? pastWork : nil)
   }
 }
 
@@ -505,6 +535,8 @@ public enum AgentInstructions {
       최신 소식은 이 컴퓨터를 뒤져도 답이 달라지지 않는다. `web_search` 도구가 있으면 그것으로
       확인하고, 없으면 아는 범위에서 답한 뒤
       "설정 › 웹 검색을 켜면 최신 정보를 볼 수 있다"고 한 줄 안내한다.
+    - 사용자가 **지난 작업·지난 대화**를 물으면 `past_work` 도구가 있을 때 **한 번** 호출해
+      요약을 받고, 그 요약만으로 답한다. 같은 내용을 확인하려고 셸을 반복하지 않는다.
     - 도구를 실행하기 전에 **"이 결과가 답을 바꾸는가?"** 를 자문한다. 바꾸지 않으면 실행하지 않는다.
       `purpose` 에는 그 이유를 적는다(사용자에게 보이는 실행 카드에 그대로 나온다).
     - 확실하지 않다고 해서 홈·/Applications·설치 목록을 넓게 훑지 않는다. 답에 필요한 범위만 읽고,
@@ -524,7 +556,8 @@ public enum AgentInstructions {
       비밀번호·파일·숨김 필드는 앱이 거부하므로 시도하지 않는다. 다운로드·새 창·팝업은 열리지 않는다.
     - 사용자가 "메모리"라고만 하면 **이 컴퓨터의 RAM**을 뜻한다. 다른 기기의 사양에 적힌 메모리는
       그 기기의 이야기이므로 이 컴퓨터에서 확인하지 않는다.
-      앱의 대화 기억(저장된 기록)을 물어본다고 **명확히** 말한 경우에만 그쪽을 본다.
+      앱의 대화 기억(저장된 기록)을 물어본다고 **명확히** 말한 경우에만 `past_work` 도구(있을 때)로
+      요약을 한 번에 받는다. `history.json`·`agent-audit.log` 같은 앱 저장 파일을 셸로 직접 읽지 않는다.
     - 사용자가 직접 명령을 주고 싶어 하면(예: "이 명령 실행해줘") 그대로 실행한다.
 
     계획을 세울 때
@@ -574,6 +607,7 @@ public enum AgentInstructions {
     너는 macOS 도우미다.
     - 질문이 **지금 이 컴퓨터의 상태**를 가리킬 때만 shell 로 확인한다. 추측하지 않는다.
     - 도구 결과가 답을 바꾸지 않으면 실행하지 않는다. 다른 기기·제품·일반 지식은 이 컴퓨터를 뒤지지 않는다.
+    - 지난 작업·대화 질문은 저장된 기억으로만 답하고, 앱 저장 파일(history.json)을 셸로 읽지 않는다.
     - 프로세스별 CPU·메모리는 processes 도구를 쓴다(ps·top 은 샌드박스가 실행을 막는다).
     - 답에는 실행 결과의 숫자와 사실을 쓴다.
     """

@@ -357,6 +357,9 @@ public struct AgentRunner {
       let cmd = call.stringArgument("command") ?? ""
       let purpose = call.stringArgument("purpose") ?? ""
       return purpose.isEmpty ? cmd : "\(purpose) — \(cmd)"
+    case "past_work":
+      let days = call.intArgument("days") ?? PastWork.defaultDays
+      return Lf("지난 작업 기록 — 최근 %d일", days)
     case "read_file":
       return Lf("파일 읽기 — %@", call.stringArgument("path") ?? "")
     case "list_dir":

@@ -2669,6 +2669,14 @@ final class UIStore: ObservableObject {
                                                       provider: p, tools: baseAgentTools)
           var agentTools = baseAgentTools
           if skillsBlock != nil { agentTools.append(AgentToolCatalog.readSkill) }
+          // v0.41.2 — 과거 작업 질문에는 전용 조회 도구를 준다. 셸로 history.json을
+          // 조각조각 읽다가 승인 카드가 반복되던 문제(2026-11-19)를 없앤다.
+          // 읽기·셸 도구가 꺼진 비서에게는 주지 않는다 — 도구 묶음 계약을 지킨다.
+          if !automatic, p.type != .appleFM,
+             JobMemory.requestsPastWork(prompt),
+             agentTools.contains(where: { $0.name == "read_file" || $0.name == "shell" }) {
+            agentTools.append(AgentToolCatalog.pastWork)
+          }
           if let precomputedAnswer {
             // 툴 콜링이 검색 없이 답한 경우 — 그대로 표시한다(스트리밍 없음).
             reply = precomputedAnswer

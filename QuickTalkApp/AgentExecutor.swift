@@ -32,6 +32,10 @@ final class AgentExecutor: AgentToolExecutor {
   private var continuation: CheckedContinuation<AgentApprovalChoice, Never>?
   /// 이번 턴에 `web_search` 로 모은 출처 — 답변 아래 출처 카드에 쓴다.
   private(set) var turnSources: [TurnSource] = []
+  /// 이번 턴에 QuickTalk 저장 데이터 **읽기**를 한 번 승인받았는가 (v0.41.2).
+  /// 같은 턴에서 `history.json` 을 여러 번 읽을 때 카드가 반복되지 않게 한다.
+  /// 쓰기·실행은 해당되지 않는다 — 그대로 매번 확인한다.
+  private var approvedAppDataReadThisTurn = false
 
   /// 이번 턴 출처에 한 건 추가 — `web_search`·`web_fetch` 가 같은 목록을 쓴다.
   func addTurnSource(_ source: TurnSource) {
@@ -102,6 +106,7 @@ final class AgentExecutor: AgentToolExecutor {
     }
     switch call.name {
     case "shell": return await runShell(call)
+    case "past_work": return await readPastWork(call)
     case "read_file": return await readFile(call)
     case "list_dir": return await listDir(call)
     case "write_file": return await runWriteFile(call)
@@ -151,7 +156,12 @@ final class AgentExecutor: AgentToolExecutor {
     //   모델이 셸로 지난 대화를 전부 읽어 다른 대화 내용을 답변에 끌어온 사례가 있었다
     //   (2026-11-08 AppDataGuard). 정책이 허용한 명령도 여기서 승인 카드로 승격한다.
     let touchesAppData = AppDataGuard.commandTouchesProtectedData(command)
-    let guardedPlan = AppDataGuard.guardedPlan(plan, command: command)
+    // v0.41.2 — 이번 턴에 저장 데이터 읽기를 이미 승인했으면, **정책이 자동 허용한
+    // 읽기 전용 명령**은 다시 묻지 않는다. 쓰기·실행·정책이 묻는 경우는 그대로 간다.
+    let guardedPlan = AppDataGuard.canReuseReadApproval(
+      plan, command: command, readApproved: approvedAppDataReadThisTurn)
+      ? plan
+      : AppDataGuard.guardedPlan(plan, command: command)
     switch guardedPlan {
     case .deny(let reason):
       // 상승 권한(sudo)은 앱이 실행하지 않는다 — 대신 **터미널로 넘길 수 있게** 한다.
@@ -177,6 +187,11 @@ final class AgentExecutor: AgentToolExecutor {
         recordAudit(command: command, level: request.level, risk: risk,
               decision: "deny", exitCode: nil, elapsedMs: 0)
         return AgentToolOutcome(output: text, denied: true, level: request.level, risk: risk)
+      }
+      // 이번 턴의 저장 데이터 읽기 승인 — 다음 읽기부터 카드를 건너뛴다(읽기 전용·history.json만).
+      if touchesAppData, case .allow(let capability) = plan, capability.level == .read,
+         AppDataGuard.armsBatchedRead(command) {
+        approvedAppDataReadThisTurn = true
       }
       if choice == .alwaysAllow {
         // 앱 데이터 접근은 "항상 허용"을 저장하지 않는다 — 다음에도 반드시 확인한다.
@@ -699,8 +714,12 @@ final class AgentExecutor: AgentToolExecutor {
     // 읽기는 기본 자동 허용 — 정책이 "매번 확인"이면 확인 카드(판정은 스크린샷과 같은 곳).
     // 앱 자기 데이터(대화 기록·공통 메모리)는 정책과 무관하게 **항상** 확인한다(2026-11-08).
     let protected = AppDataGuard.isProtected(path: path)
-    if protected || AgentToolPermission.needsApproval(tool: call.name,
-                                                      policy: store.effectiveAgentPolicy(for: session)) {
+    let policyAsk = AgentToolPermission.needsApproval(tool: call.name,
+                                                      policy: store.effectiveAgentPolicy(for: session))
+    // v0.41.2 — 이번 턴에 history.json 읽기를 이미 승인했으면 그 읽기는 건너뛴다.
+    let reuse = approvedAppDataReadThisTurn && AppDataGuard.allowsBatchedRead(path)
+    let appDataAsk = protected && !reuse
+    if appDataAsk || policyAsk {
       let request = AgentApprovalRequest(command: path, level: level, risk: risk,
                                          capability: .read, writablePaths: [],
                                          reason: protected
@@ -714,6 +733,9 @@ final class AgentExecutor: AgentToolExecutor {
         let text = L("사용자가 파일 읽기를 거부했습니다.")
         updateEvent(call.id) { $0.state = .denied; $0.output = text }
         return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+      }
+      if appDataAsk && !policyAsk && AppDataGuard.armsBatchedRead(path) {
+        approvedAppDataReadThisTurn = true
       }
     }
     upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name, title: path,
@@ -733,6 +755,25 @@ final class AgentExecutor: AgentToolExecutor {
                                 command: path, level: level, risk: risk,
                                 state: .done, output: Lf("(파일 %d자)", text.count)))
     return AgentToolOutcome(output: text, level: level, risk: risk)
+  }
+
+  /// 지난 작업 요약 (v0.41.2) — 앱이 직접 만든 **읽기 전용** 요약이라 승인 카드가 없다.
+  /// 원문 전체가 아니라 제목·마지막 질문·Job 결과만 돌려준다(현재 대화는 뺀다).
+  private func readPastWork(_ call: AgentToolCall) async -> AgentToolOutcome {
+    let days = min(max(call.intArgument("days") ?? PastWork.defaultDays, 1),
+                   PastWork.maximumDays)
+    let query = call.stringArgument("query") ?? ""
+    let text = PastWork.digest(conversations: store.archive,
+                               jobs: store.jobs,
+                               days: days,
+                               query: query,
+                               excluding: session.conversation.id)
+    upsertAgentEvent(AgentEvent(id: call.id, toolName: call.name,
+                                title: Lf("지난 작업 기록 — 최근 %d일", days),
+                                command: query.isEmpty ? "\(days)d" : "\(days)d · \(query)",
+                                level: .read, risk: .normal, state: .done,
+                                output: Lf("%d자", text.count)))
+    return AgentToolOutcome(output: text, level: .read, risk: .normal)
   }
 
   /// 프로세스 사용량 — `ps`·`top` 은 setuid 라 샌드박스가 실행을 막는다. 앱이 libproc 으로 직접 읽는다.
@@ -767,8 +808,12 @@ final class AgentExecutor: AgentToolExecutor {
     let fm = FileManager.default
     // 폴더 목록도 읽기다 — 정책("매번 확인")과 앱 자기 데이터 보호를 read_file 과 똑같이 적용한다.
     let protected = AppDataGuard.isProtected(path: path)
-    if protected || AgentToolPermission.needsApproval(tool: call.name,
-                                                      policy: store.effectiveAgentPolicy(for: session)) {
+    let policyAsk = AgentToolPermission.needsApproval(tool: call.name,
+                                                      policy: store.effectiveAgentPolicy(for: session))
+    // v0.41.2 — 이번 턴에 history.json 읽기를 이미 승인했으면 그 읽기는 건너뛴다.
+    let reuse = approvedAppDataReadThisTurn && AppDataGuard.allowsBatchedRead(path)
+    let appDataAsk = protected && !reuse
+    if appDataAsk || policyAsk {
       let request = AgentApprovalRequest(command: path, level: level, risk: risk,
                                          capability: .read, writablePaths: [],
                                          reason: protected
@@ -782,6 +827,9 @@ final class AgentExecutor: AgentToolExecutor {
         let text = L("사용자가 폴더 읽기를 거부했습니다.")
         updateEvent(call.id) { $0.state = .denied; $0.output = text }
         return AgentToolOutcome(output: text, denied: true, level: level, risk: risk)
+      }
+      if appDataAsk && !policyAsk && AppDataGuard.armsBatchedRead(path) {
+        approvedAppDataReadThisTurn = true
       }
     }
     updateEvent(call.id) { $0.state = .running }
