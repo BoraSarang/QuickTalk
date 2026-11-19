@@ -20,7 +20,7 @@ extension SettingsView {
       toggleRow(L("메뉴바에 표시"), isOn: menuBarIconBinding,
                 description: L("끄면 메뉴바에서 사라집니다. Dock까지 끄면 아이콘 없이 실행되며, 앱을 다시 열면 이 설정 창이 열립니다."))
       toggleRow(L("Dock에 표시"), isOn: dockIconBinding,
-                description: L("끄면 Dock에서 사라집니다. 개발 중 확인용으로만 켜세요."))
+                description: L("끄면 Dock에서 사라집니다. 메뉴바 대신 Dock으로 열 때 켜세요."))
       if store.settings.hasNoEntryPoint {
         HStack(alignment: .top, spacing: 8) {
           Image(systemName: "exclamationmark.triangle.fill")
@@ -49,7 +49,7 @@ extension SettingsView {
     }
     groupBox(L("시작 및 동작")) {
       toggleRow(L("로그인 시 자동 시작"), isOn: launchAtLoginBinding,
-                description: L("Mac 에 로그인하면 QuickTalk 가 메뉴바에서 자동으로 시작됩니다. 시스템 설정 › 일반 › 로그인 항목과 같은 값을 씁니다."))
+                description: L("Mac에 로그인하면 QuickTalk가 자동으로 시작됩니다. 아이콘을 모두 꺼 두면 창 없이 조용히 시작합니다. 시스템 설정 › 일반 › 로그인 항목과 같은 값을 씁니다."))
       if LoginItem.requiresApproval {
         HStack(spacing: 8) {
           Text(L("시스템 설정 › 일반 › 로그인 항목에서 QuickTalk를 허용해 주세요."))
