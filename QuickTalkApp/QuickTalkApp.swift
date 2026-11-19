@@ -606,6 +606,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func applyVisibility(_ s: QuickTalkSettings) {
+    // 저장값이 켜지면 임시 아이콘은 역할이 끝난다 — 영구 아이콘으로 대체한다(v0.40.1).
+    if s.showMenuBarIcon {
+      sessionMenuBarIcon = false
+    }
     // 사용자가 설정에서 메뉴바 아이콘을 **직접** 껐다면 이번 실행 한정 아이콘도 내린다.
     if let last = lastSavedMenuBarIcon, last, !s.showMenuBarIcon {
       sessionMenuBarIcon = false

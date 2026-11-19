@@ -34,8 +34,12 @@ extension SettingsView {
               .foregroundColor(.secondary)
               .fixedSize(horizontal: false, vertical: true)
             if store.sessionMenuBarIconVisible {
-              Button(L("메뉴바 아이콘 숨기기")) { store.hideSessionMenuBarIcon() }
-                .controlSize(.small)
+              HStack(spacing: 8) {
+                Button(L("메뉴바에 항상 표시")) { store.setMenuBarIcon(true) }
+                  .controlSize(.small)
+                Button(L("메뉴바 아이콘 숨기기")) { store.hideSessionMenuBarIcon() }
+                  .controlSize(.small)
+              }
             } else {
               Button(L("지금 메뉴바 아이콘 표시")) { store.showMenuBarIconForSession() }
                 .controlSize(.small)

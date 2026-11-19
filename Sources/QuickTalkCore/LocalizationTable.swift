@@ -178,6 +178,7 @@ extension L10n {
     "메뉴바 아이콘으로 열 수 있습니다. 단축키로도 호출됩니다.": "You can open it from the menu bar icon or the shortcut.",
     "메뉴바 아이콘을 숨겼습니다. Dock 아이콘과 단축키로 열 수 있습니다.": "Menu bar icon is hidden. Open it from the Dock icon or the shortcut.",
     "메뉴바 아이콘 숨기기": "Hide menu bar icon",
+    "메뉴바에 항상 표시": "Always show in menu bar",
     "메뉴바 우클릭": "Right-click menu bar",
     "메뉴바 좌클릭": "Left-click menu bar",
     "메뉴바·Dock 노출이나 새 창 동작이 마음에 안 들 때.": "For changing menu bar/Dock visibility or new window behavior.",

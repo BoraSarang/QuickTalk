@@ -356,9 +356,11 @@ struct SettingsView: View {
     .padding(.vertical, 2)
   }
 
-  /// 표시 토글 바인딩 — 메뉴바·Dock은 독립이고 둘 다 꺼도 된다(v0.40). 저장만 한다.
+  /// 표시 토글 바인딩 — 메뉴바·Dock은 독립이고 둘 다 꺼도 된다(v0.40).
+  /// 복구용 임시 아이콘이 떠 있으면 **표시 중**으로 보여 주고, 끄면 임시 아이콘도 내린다(v0.40.1).
   var menuBarIconBinding: Binding<Bool> {
-    Binding(get: { store.settings.showMenuBarIcon }, set: { store.setMenuBarIcon($0) })
+    Binding(get: { store.settings.showMenuBarIcon || store.sessionMenuBarIconVisible },
+            set: { store.setMenuBarIcon($0) })
   }
   var dockIconBinding: Binding<Bool> {
     Binding(get: { store.settings.showDockIcon }, set: { store.setDockIcon($0) })

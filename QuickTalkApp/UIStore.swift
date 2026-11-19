@@ -1194,6 +1194,9 @@ final class UIStore: ObservableObject {
     var s = settings
     s.setMenuBarIcon(visible)
     settings = s
+    // 저장값이 꺼짐이어도 복구용 임시 아이콘이 떠 있을 수 있다.
+    // 토글을 끄면 **이번 실행의 임시 아이콘도** 즉시 내린다(v0.40.1).
+    if !visible { hideSessionMenuBarIcon() }
   }
 
   func setDockIcon(_ visible: Bool) {
