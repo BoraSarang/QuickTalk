@@ -69,12 +69,80 @@ public enum AppDataGuard {
         irreversible: request.irreversible, detail: request.detail,
         allowsAlwaysAllow: false))
     case .allow:
+      let base = L("QuickTalk의 저장 데이터(대화 기록·공통 메모리)에 접근하려면 확인이 필요합니다.")
+      let hint = armsBatchedRead(command)
+        ? "\n" + L("이 답변을 만드는 동안 같은 읽기 요청은 다시 묻지 않습니다(쓰기는 매번 확인).")
+        : ""
       return .ask(AgentApprovalRequest(
         command: command, level: .read, risk: .normal,
         capability: .unprobed, writablePaths: [],
-        reason: L("QuickTalk의 저장 데이터(대화 기록·공통 메모리)에 접근하려면 확인이 필요합니다."),
+        reason: base + hint,
         allowsAlwaysAllow: false))
     }
+  }
+
+  /// 같은 턴의 읽기 승인을 **재사용해도 되는** 명령인가 — 대화 기록(`history.json`)만 해당한다.
+  ///
+  /// 비밀 키(`secrets.json`)·클립보드·미리보기·일정은 매번 확인한다. 한 번의 승인이
+  /// 앱 데이터 폴더 전체로 번지지 않게 하는 경계다. 셸 명령 문자열에 파일 이름이
+  /// **드러난 경우만** 잡는다(기존 가드와 같은 한계).
+  public static func allowsBatchedRead(_ command: String) -> Bool {
+    let text = command.lowercased()
+    guard !referencesSensitiveFile(text) else { return false }
+    return text.contains("history.json")
+  }
+
+  /// 이번 턴의 읽기 승인을 **무장**하는(다음 읽기부터 재사용하게 하는) 명령인가 (v0.41.2).
+  ///
+  /// - `history.json` 을 읽는 명령.
+  /// - 앱 데이터 폴더의 **목록**만 보는 명령(`ls`·`find` 등) — 2026-11-19 실제 흐름이
+  ///   `ls -lh …/QuickTalk/` → `history.json` 여러 번 읽기였다. 목록을 승인한 뒤에는
+  ///   같은 턴의 기록 읽기를 다시 묻지 않는다.
+  /// - 파일 내용을 읽는 다른 명령(`cat secrets.json`, `grep … *`)은 무장하지 않는다.
+  public static func armsBatchedRead(_ command: String, home: String = NSHomeDirectory()) -> Bool {
+    let text = command.lowercased()
+    guard !referencesSensitiveFile(text) else { return false }
+    if text.contains("history.json") { return true }
+
+    let folder = appDataDirectory(home: home).lowercased()
+    let tilde = "~/library/application support/quicktalk"
+    guard text.contains(folder) || text.contains(tilde) else { return false }
+
+    // 앱 데이터 폴더를 건드리는 **조각**이 모두 목록·이동 명령이어야 한다.
+    let listing: Set<String> = ["ls", "find", "du", "stat", "cd", "pushd"]
+    for raw in text.split(whereSeparator: { ";|&\n".contains($0) }) {
+      let segment = raw.trimmingCharacters(in: .whitespaces)
+      guard segment.contains(folder) || segment.contains(tilde) else { continue }
+      let head = segment.split(separator: " ").first.map(String.init) ?? ""
+      guard listing.contains(head) else { return false }
+    }
+    return true
+  }
+
+  /// 한 번의 승인으로 넘기면 안 되는 내용(비밀 키·클립보드·미리보기·일정)을 가리키는가.
+  private static func referencesSensitiveFile(_ text: String) -> Bool {
+    let names = ["secrets.json", "proofread.json", "schedules.json",
+                 "com.borasarang.quicktalk.plist", "clip/", "window/", "undo/"]
+    return names.contains { text.contains($0) }
+  }
+
+  /// 같은 턴에서 이미 저장 데이터 **읽기**를 승인했으면 다시 묻지 않아도 되는가 (v0.41.2).
+  ///
+  /// "지난주에 뭐 했지?"에 답하려고 모델이 `history.json` 을 여러 번 읽으면, 예전에는
+  /// 읽을 때마다 승인 카드가 떴다(2026-11-19 사용자 보고 — 8번). 첫 승인 뒤에는
+  /// **정책이 이미 자동 허용한 읽기 전용 명령**만 카드 없이 지나간다.
+  /// - 대상은 `history.json` 뿐이다(`allowsBatchedRead`).
+  /// - 쓰기·네트워크·실행은 해당되지 않는다(각각 그대로 확인).
+  /// - 정책이 "읽기: 매번 확인"인 경우(`.ask`)도 해당되지 않는다 — 사용자의 설정을 덮지 않는다.
+  public static func canReuseReadApproval(_ plan: AgentPlan,
+                                          command: String,
+                                          readApproved: Bool,
+                                          home: String = NSHomeDirectory()) -> Bool {
+    guard readApproved,
+          commandTouchesProtectedData(command, home: home),
+          allowsBatchedRead(command) else { return false }
+    guard case .allow(let capability) = plan, capability.level == .read else { return false }
+    return true
   }
 
   // MARK: - 내부

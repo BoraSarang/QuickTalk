@@ -124,6 +124,70 @@ final class AppDataGuardTests: XCTestCase {
     XCTAssertEqual(plan, .allow(.read))
   }
 
+  // MARK: - 같은 턴의 읽기 승인 재사용 (v0.41.2)
+
+  func testReadApprovalIsReusedOnlyForReadOnlyProtectedCommands() {
+    let command = "cat \(home)/Library/Application Support/QuickTalk/history.json"
+
+    XCTAssertTrue(AppDataGuard.canReuseReadApproval(
+      .allow(.read), command: command, readApproved: true, home: home),
+      "이번 턴에 저장 데이터 읽기를 승인했으면 같은 읽기는 다시 묻지 않는다")
+
+    XCTAssertFalse(AppDataGuard.canReuseReadApproval(
+      .allow(.read), command: command, readApproved: false, home: home),
+      "처음 읽기는 승인 카드를 띄운다")
+
+    XCTAssertFalse(AppDataGuard.canReuseReadApproval(
+      .allow(.write(path: "/tmp")), command: command, readApproved: true, home: home),
+      "쓰기는 승인을 재사용하지 않는다")
+
+    XCTAssertFalse(AppDataGuard.canReuseReadApproval(
+      .allow(.read), command: "ls -la", readApproved: true, home: home),
+      "보호 데이터가 아닌 명령은 이 경로와 무관하다")
+
+    let ask = AgentApprovalRequest(command: command, level: .read, risk: .normal,
+                                   capability: .read, writablePaths: [],
+                                   reason: "정책이 매번 확인")
+    XCTAssertFalse(AppDataGuard.canReuseReadApproval(
+      .ask(ask), command: command, readApproved: true, home: home),
+      "사용자의 '읽기: 매번 확인' 설정을 덮지 않는다")
+  }
+
+  func testReadApprovalDoesNotExtendToSecretsOrSettings() {
+    // 한 번의 승인이 앱 데이터 폴더 전체로 번지면 안 된다 — 비밀 키·설정은 매번 묻는다.
+    for name in ["secrets.json", "settings.json", "jobs.json", "memory.json"] {
+      let command = "cat \(home)/Library/Application Support/QuickTalk/\(name)"
+      XCTAssertFalse(AppDataGuard.canReuseReadApproval(
+        .allow(.read), command: command, readApproved: true, home: home),
+        "\(name) 은 승인 1회를 재사용하지 않는다")
+      XCTAssertFalse(AppDataGuard.allowsBatchedRead(command))
+    }
+    XCTAssertTrue(AppDataGuard.allowsBatchedRead(
+      "cat \(home)/Library/Application Support/QuickTalk/history.json"))
+  }
+
+  func testListingTheAppDataFolderArmsBatchedReads() {
+    // 2026-11-19 실제 흐름: 첫 명령이 `date; ls -lh …/QuickTalk/` 였고,
+    // 그 뒤 history.json 읽기 7건이 각각 카드를 띄웠다. 목록 승인 1회로 묶는다.
+    let listing = "date \"+%Y-%m-%d %H:%M\"; ls -lh \"\(home)/Library/Application Support/QuickTalk/\" 2>/dev/null | head -30"
+    XCTAssertTrue(AppDataGuard.armsBatchedRead(listing, home: home))
+
+    let cdThenRead = "cd \"\(home)/Library/Application Support/QuickTalk\"; python3 -c \"import json; json.load(open('history.json'))\""
+    XCTAssertTrue(AppDataGuard.armsBatchedRead(cdThenRead, home: home))
+  }
+
+  func testContentReadsOtherThanHistoryDoNotArmBatchedReads() {
+    // `grep -r … *` 는 secrets.json 까지 읽을 수 있다 — 무장하지 않는다.
+    let grep = "grep -r token \"\(home)/Library/Application Support/QuickTalk/\""
+    XCTAssertFalse(AppDataGuard.armsBatchedRead(grep, home: home))
+
+    let secrets = "cat \"\(home)/Library/Application Support/QuickTalk/secrets.json\""
+    XCTAssertFalse(AppDataGuard.armsBatchedRead(secrets, home: home))
+
+    let clipboard = "ls \"\(home)/Library/Application Support/QuickTalk/clip/\""
+    XCTAssertFalse(AppDataGuard.armsBatchedRead(clipboard, home: home))
+  }
+
   /// 정책이 "항상 허용 + 전역 자동 수락"이어도 앱 데이터는 승인 카드로 승격된다.
   func testAutoAcceptPolicyStillAsksForAppData() {
     var policy = AgentPolicy()

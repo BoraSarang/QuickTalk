@@ -60,6 +60,8 @@ extension L10n {
     "QuickTalk의 표시 방식과 실행 동작을 정합니다.": "Control how QuickTalk appears and behaves.",
     "QuickTalk의 대화 기록·공통 메모리·설정은 자동 허용에서 제외됩니다 — 접근할 때마다 확인합니다.": "QuickTalk's conversation history, shared memory, and settings are excluded from auto-approval — every access asks first.",
     "QuickTalk의 저장 데이터(대화 기록·공통 메모리)에 접근하려면 확인이 필요합니다.": "Approval is required to access QuickTalk's stored data (conversation history and shared memory).",
+    "이 답변을 만드는 동안 같은 읽기 요청은 다시 묻지 않습니다(쓰기는 매번 확인).": "Further reads while this answer is being prepared won't ask again (writes still ask every time).",
+    "지난 작업 기록 — 최근 %d일": "Past work — last %d days",
     "Whisper (로컬)": "Whisper (local)",
     "Whisper 미지정": "Whisper not set",
     "Whisper 준비됨": "Whisper ready",

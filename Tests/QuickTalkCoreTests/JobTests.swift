@@ -246,10 +246,21 @@ final class JobTests: XCTestCase {
 
   func testMemoryInjectedWhenPastWorkIsAsked() {
     let jobs = [job("볼륨 스크립트", status: .completed, finished: Date())]
-    for request in ["지난주에 어디까지 했지?", "지난 작업 뭐였지?", "작업 진행 상황 알려줘",
-                    "what did I do last week?"] {
+    for request in ["지난주에 어디까지 했지?", "지난 주에 뭐 했지?", "지난 작업 뭐였지?",
+                    "작업 진행 상황 알려줘", "what did I do last week?"] {
       XCTAssertTrue(JobMemory.prompt(jobs, matching: request).contains("볼륨 스크립트"), request)
     }
+  }
+
+  func testMemoryDoesNotRepeatPlanProposalAsAResult() {
+    // 2026-11-15 볼륨 Job — resultSummary 가 "계획을 제안했습니다…" 였다.
+    var j = job("볼륨 스크립트", status: .completed, finished: Date())
+    j.resultSummary = "계획을 제안했습니다. 아래 [실행]을 누르면 이 순서로 진행합니다."
+
+    let text = JobMemory.prompt([j], matching: "지난 작업 뭐였지?")
+
+    XCTAssertTrue(text.contains("볼륨 스크립트"))
+    XCTAssertFalse(text.contains("계획을 제안했습니다"))
   }
 
   func testCompletedNotificationText() {

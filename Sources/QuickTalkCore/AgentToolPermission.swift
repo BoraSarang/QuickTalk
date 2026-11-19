@@ -15,7 +15,9 @@ public enum AgentToolPermission {
   /// - `shell` 은 **실행** 단계다. 실제로 필요한 권한은 샌드박스 실측이 좁힌다.
   public static func level(for tool: String) -> AgentPermissionLevel {
     switch tool {
-    case "read_file", "list_dir", "processes", "screenshot", "ui_snapshot": return .read
+    case "read_file", "list_dir", "processes", "screenshot", "ui_snapshot",
+         // v0.41.2 — 지난 작업 요약. 앱이 직접 만든 읽기 전용 요약이라 승인 카드가 없다.
+         "past_work": return .read
     // v0.38.2 — 파일 생성·교체. 경로 범위 승인은 실행기가 PolicyEngine 으로 따로 판정한다.
     case "write_file": return .write
     // 격리 브라우저(v0.38.1) — 열기·읽기·뒤로는 읽기다. `browser_click` 은 **호출 시점에**
