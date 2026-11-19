@@ -298,7 +298,7 @@ QuickTalkApp/ProofreadGate.swift            // 전송 게이트 (UIStore 연결)
 - 실측 스파이크: `_workspace/proofread-spike/` (로컬 전용, 커밋하지 않음)
 - 디자인 기준: `docs/DESIGN.md` §2(토큰) · §7(설정) · §8.1(입력독) · §8.0.7(카드 톤)
 
-## 14. 구현 기록 (2026-11-19)
+## 14. 구현 기록 (2026-11-19) — **PR #176 → squash merge `e30e3f7`**
 
 > **승인 확정** — ① Enter = [교정해서 보내기], ⌥Enter = [그대로 보내기], Esc = 카드만 닫기 ② 기본 범위 "대화창과 pill" ③ AI 자세히 검사는 설정에 노출하지 않음(Apple FM 전송 경로 제외).
 
