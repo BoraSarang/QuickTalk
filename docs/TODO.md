@@ -1,7 +1,20 @@
 # TODO.md — QuickTalk
 
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
-> 마지막 갱신: 2026-11-16 KST
+> 마지막 갱신: 2026-11-19 KST
+
+## 구현·검증·설치 완료 (2026-11-19) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** (v0.40.1 핫픽스) [**PR #175** · PLAN `docs/plans/PLAN_v0.40_iconless-entrypoint_macos.md` · Debug 1.40.1 설치 · 사용자 실측 대기]
+
+- **계기(사용자)**: "메뉴바에 아이콘이 너무 많아서 줄여 볼라고" — 메뉴바 아이콘을 끄고도 쓰고 싶다.
+- **v0.40.1 핫픽스(사용자 실측)**: "설정을 꺼도 메뉴바에는 아이콘이 남아 있네.. 설정에는 메뉴바에 표시가 꺼져 있고" — 복구용 임시 아이콘은 저장값과 별개라 토글이 꺼짐으로 보였고, 토글을 꺼도 저장값이 이미 false라 아무 일도 없었다. 토글이 **저장값 OR 세션 표시**를 반영하고, 끄면 임시 아이콘도 즉시 내려가게 고쳤다. 경고 카드에 [메뉴바에 항상 표시] 추가.
+- **정책**: `setMenuBarIcon`/`setDockIcon`의 상호 자동 보정과 `normalizeVisibility()`를 제거 — 두 토글은 독립이고 **둘 다 꺼도 저장·복원**된다(`hasNoEntryPoint`).
+- **복구**: 아이콘 0개일 때 `.app`을 다시 열면 **이번 실행 한정 메뉴바 아이콘 + 설정 창**이 열린다(PopClip 방식). 실행 중 재실행은 `applicationShouldHandleReopen`·`SingleInstance` 분산 알림 두 경로를 `handleUserReopen()`으로 통합했고, 콜드 런치도 `shouldRecoverEntryPointOnLaunch`로 같은 복구를 한다. 아이콘이 하나라도 있으면 기존처럼 대화 창을 연다.
+- **로그인**: `kAEOpenApplication` + `keyAELaunchedAsLogInItem`으로 로그인 자동 시작을 판별해 아이콘·창 없이 조용히 시작한다(판별 불가 시 보수적으로 조용히 시작).
+- **UI**: 설정 › 일반에 둘 다 꺼짐 경고 카드 + [지금 메뉴바 아이콘 표시]/[메뉴바 아이콘 숨기기], 임시 아이콘 우클릭 [메뉴바 아이콘 숨기기]. 시작 시 상태 아이템을 조건부 생성해 숨김 설정의 깜빡임을 없앴다.
+- **검증(오프스크린)**: `swift test` **1126/1126**(6 skip, `VisibilityPolicyTests` 7 — 독립 토글·둘 다 끔·저장/복원·시작 복구 조건) · `LocalizationCoverageTests` 통과(신규 9키 + v0.40.1 1키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · 버전 1.40.0(build 4000) → **1.40.1(build 4001)**.
+- **설치(2026-11-19)**: Debug **1.40.1**(build 4001)을 `~/Applications/QuickTalk.app`에 교체(백업 번들 없음) · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `9767d0eb693f950b2450f1873ad76a28613ba3e52f92f9e151e8c505cb376b78` · 재실행 PID 33543.
+- **실측 대기(사용자)**: ① 둘 다 끔 → 메뉴바·Dock 사라짐 ② 전역 단축키 동작 ③ `.app` 재실행 → 임시 메뉴바 아이콘 + 설정 창 ④ 토글을 끄거나 [메뉴바 아이콘 숨기기] → 즉시 사라짐 ⑤ 로그인 자동 시작 → 후순위(사용자 요청).
+- **한계**: 로그인 실행 판별이 실패하면 콜드 런치 복구가 생략된다(앱을 한 번 더 열면 복구). 메뉴바 관리 앱(Bartender·Ice)이 아이콘을 화면 밖으로 옮기면 아이콘은 있어도 안 보인다.
 
 ## 구현·검증 완료 (2026-11-16) — v0.39.1 **창 드래그 복구 · 응답 속도(tok/s)** [PR #173 → `35e4fae` · Debug 1.39.1 설치 · 실측 확인]
 

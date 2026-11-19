@@ -65,6 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var notifications: NotificationService?
   /// 원격 승인 — Telegram long polling (v0.39).
   private var remoteApproval: RemoteApprovalService?
+  /// v0.40 — 아이콘이 0개일 때 재실행으로 복구한 **이번 실행 한정** 메뉴바 아이콘.
+  private var sessionMenuBarIcon = false
+  /// 설정 sink 에서 사용자가 메뉴바 아이콘을 **직접** 껐는지 판별하기 위한 직전 저장값.
+  private var lastSavedMenuBarIcon: Bool?
+  /// 로그인 항목(SMAppService)으로 실행됐는가 — 콜드 런치 복구를 하지 않는다.
+  private var launchedAsLoginItem = true
 
   /// 앱 종료 — 잠금을 명시적으로 푼다(OS 가 어차피 풀지만, 즉시 재실행이 막히지 않게).
   func applicationWillTerminate(_ notification: Notification) {
@@ -76,17 +82,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   /// Dock/Launchpad 에서 다시 열었을 때 — 새 인스턴스 대신 기존 창을 보여 준다.
+  /// 아이콘이 하나도 없으면(v0.40) 메뉴바 아이콘(이번 실행 한정)과 설정 창을 복구한다.
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    openPanel(tab: 0)
+    handleUserReopen()
     return false
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     applyLaunchOverrides()
+    launchedAsLoginItem = Self.detectedLoginItemLaunch()
+    // 아이콘이 0개인데 **사용자가 직접** 실행했다면 이번 실행 동안 메뉴바 아이콘을 복구한다.
+    // 로그인 자동 시작·QA 하네스는 조용히 시작한다.
+    let needsEntryPointRecovery = store.settings.shouldRecoverEntryPointOnLaunch(
+      launchedAsLoginItem: launchedAsLoginItem,
+      isHeadlessHarness: SingleInstance.isHeadlessHarness)
+    sessionMenuBarIcon = needsEntryPointRecovery
     applyLanguage(store.settings)
     applyAppearance(store.settings)
     buildPanel()
-    setupStatusItem()
+    // 설정이 숨김이면 상태 아이템을 아예 만들지 않는다 — 시작 시 아이콘 깜빡임 방지(v0.40).
+    if store.settings.showMenuBarIcon || sessionMenuBarIcon { setupStatusItem() }
     setupSystemMenu()
     installEditShortcuts()
     installEditShortcutMonitor()
@@ -131,12 +146,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     self.scheduler = scheduler
     store.schedulerService = scheduler
     scheduler.start()
-    NSLog("[QuickTalk] launched, LSUIElement=%@, shortcut=%@",
+    NSLog("[QuickTalk] launched, LSUIElement=%@, shortcut=%@, loginItem=%@, noEntryPoint=%@",
           Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? String ?? "?",
-          store.settings.globalShortcut)
+          store.settings.globalShortcut,
+          launchedAsLoginItem ? "Y" : "N",
+          store.settings.hasNoEntryPoint ? "Y" : "N")
+    // 아이콘 0개 + 사용자 실행 → 메뉴바 아이콘(세션 한정)과 설정 창으로 복구(v0.40).
+    if needsEntryPointRecovery {
+      NSLog("[QuickTalk] 아이콘 0개 — 시작 시 메뉴바 아이콘·설정 창을 복구합니다")
+      openSettings()
+    }
     // 대화 패널의 "설정 열기" 버튼 → 설정 창
     NotificationCenter.default.addObserver(forName: .quickTalkOpenSettings, object: nil, queue: .main) { [weak self] _ in
       self?.openSettings()
+    }
+    // 설정 › 일반 [지금 메뉴바 아이콘 표시] → 이번 실행 동안만 아이콘 표시(v0.40)
+    NotificationCenter.default.addObserver(forName: .quickTalkShowMenuBarIcon, object: nil, queue: .main) { [weak self] _ in
+      self?.showMenuBarIconForSession()
+    }
+    NotificationCenter.default.addObserver(forName: .quickTalkHideMenuBarIcon, object: nil, queue: .main) { [weak self] _ in
+      self?.hideSessionMenuBarIcon()
     }
     // QuickShelf(플로팅)의 "보관함 전체 열기" → 대화 창의 보관함 탭(검색·삭제·비서별 정리)
     NotificationCenter.default.addObserver(forName: .quickTalkOpenArchive, object: nil, queue: .main) { [weak self] _ in
@@ -152,8 +181,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     DistributedNotificationCenter.default().addObserver(
       forName: SingleInstance.activateNotification, object: nil, queue: .main) { [weak self] _ in
         guard let self else { return }
-        NSLog("[QuickTalk] 중복 실행 요청 — 기존 창을 앞으로 가져옵니다")
-        self.openPanel(tab: 0)
+        NSLog("[QuickTalk] 중복 실행 요청 — 진입점 상태를 확인합니다")
+        self.handleUserReopen()
       }
     // 시스템 권한 안내(화면 기록·마이크·받아쓰기)가 대화 창에 가리지 않게 잠시 창을 내린다
     NotificationCenter.default.addObserver(forName: .quickTalkSystemPromptBegin, object: nil, queue: .main) { [weak self] _ in
@@ -577,20 +606,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func applyVisibility(_ s: QuickTalkSettings) {
-    if !s.showMenuBarIcon && !s.showDockIcon {
-      NSLog("[WARN] E-MAC-RENDER-0001 메뉴바·Dock 동시 숨김 요청 — 메뉴바 유지")
+    // 저장값이 켜지면 임시 아이콘은 역할이 끝난다 — 영구 아이콘으로 대체한다(v0.40.1).
+    if s.showMenuBarIcon {
+      sessionMenuBarIcon = false
+    }
+    // 사용자가 설정에서 메뉴바 아이콘을 **직접** 껐다면 이번 실행 한정 아이콘도 내린다.
+    if let last = lastSavedMenuBarIcon, last, !s.showMenuBarIcon {
+      sessionMenuBarIcon = false
+    }
+    lastSavedMenuBarIcon = s.showMenuBarIcon
+
+    if s.showMenuBarIcon || sessionMenuBarIcon {
       if statusItem == nil { setupStatusItem() }
-    } else if s.showMenuBarIcon {
-      if statusItem == nil { setupStatusItem() }
-    } else {
+    } else if let item = statusItem {
       dismissHub()
-      if let item = statusItem {
-        NSStatusBar.system.removeStatusItem(item)
-        statusItem = nil
-        NSLog("[QuickTalk] 메뉴바 아이콘 숨김 (단축키 전용)")
-      }
+      NSStatusBar.system.removeStatusItem(item)
+      statusItem = nil
+      NSLog("[QuickTalk] 메뉴바 아이콘 숨김 (단축키 전용)")
     }
     NSApp.setActivationPolicy(s.showDockIcon ? .regular : .accessory)
+    if store.sessionMenuBarIconVisible != sessionMenuBarIcon {
+      store.sessionMenuBarIconVisible = sessionMenuBarIcon
+    }
+  }
+
+  /// 사용자가 앱을 다시 열었을 때(재실행·Finder·Launchpad) — 아이콘이 0개면 진입점을 복구한다.
+  /// 아이콘이 하나라도 있으면 지금처럼 대화 창을 연다.
+  private func handleUserReopen() {
+    let s = store.settings
+    guard s.hasNoEntryPoint else {
+      openPanel(tab: 0)
+      return
+    }
+    NSLog("[QuickTalk] 아이콘 0개 — 재실행으로 메뉴바 아이콘·설정 창을 복구합니다")
+    sessionMenuBarIcon = true
+    applyVisibility(s)
+    openSettings()
+  }
+
+  /// 설정 › 일반 [지금 메뉴바 아이콘 표시] — 저장값은 그대로 두고 이번 실행만 표시한다.
+  @objc private func showMenuBarIconForSession() {
+    guard !store.settings.showMenuBarIcon else { return }
+    sessionMenuBarIcon = true
+    applyVisibility(store.settings)
+    NSLog("[QuickTalk] 메뉴바 아이콘 임시 표시 (이번 실행 한정)")
+  }
+
+  /// 임시 메뉴바 아이콘을 바로 내린다(우클릭 메뉴).
+  @objc private func hideSessionMenuBarIcon() {
+    guard sessionMenuBarIcon else { return }
+    sessionMenuBarIcon = false
+    applyVisibility(store.settings)
+    NSLog("[QuickTalk] 메뉴바 아이콘 임시 표시 해제")
+  }
+
+  /// 로그인 항목(SMAppService)으로 실행됐는가.
+  /// `currentAppleEvent`를 읽을 수 없으면 **로그인 실행으로 간주**해 조용히 시작한다(창이 함부로 뜨지 않게).
+  /// 이 경우 콜드 런치 복구는 되지 않지만, 앱을 한 번 더 열면(재실행) 복구된다.
+  private static func detectedLoginItemLaunch() -> Bool {
+    guard let event = NSAppleEventManager.shared().currentAppleEvent else { return true }
+    return event.eventID == AEEventID(kAEOpenApplication)
+      && event.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == AEEventID(keyAELaunchedAsLogInItem)
   }
 
   // MARK: - 좌/우 클릭 분기 (ApexKey 형식)
@@ -705,6 +781,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let about = NSMenuItem(title: L("정보"), action: #selector(showAboutAction), keyEquivalent: "")
     about.target = self
     menu.addItem(about)
+    // 아이콘 0개에서 재실행으로 복구한 임시 아이콘은 여기서 바로 되돌릴 수 있다(v0.40).
+    if sessionMenuBarIcon && !store.settings.showMenuBarIcon {
+      let hide = NSMenuItem(title: L("메뉴바 아이콘 숨기기"),
+                            action: #selector(hideSessionMenuBarIcon), keyEquivalent: "")
+      hide.target = self
+      menu.addItem(hide)
+    }
     menu.addItem(.separator())
     let quit = NSMenuItem(title: L("QuickTalk 종료"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     quit.target = NSApp
@@ -1184,6 +1267,10 @@ extension Notification.Name {
   /// 시스템 권한 안내(대화상자·시스템 설정)가 대화 창 뒤로 숨지 않게 잠시 내리라는 요청
   static let quickTalkSystemPromptBegin = Notification.Name("quickTalkSystemPromptBegin")
   static let quickTalkSystemPromptEnd = Notification.Name("quickTalkSystemPromptEnd")
+  /// 설정 › 일반 [지금 메뉴바 아이콘 표시] — 이번 실행 동안만 아이콘을 보여 달라는 요청(v0.40)
+  static let quickTalkShowMenuBarIcon = Notification.Name("quickTalkShowMenuBarIcon")
+  /// 이번 실행 동안만 표시 중인 메뉴바 아이콘을 내려 달라는 요청(v0.40)
+  static let quickTalkHideMenuBarIcon = Notification.Name("quickTalkHideMenuBarIcon")
   /// 단축키 녹화 시작/끝 — 그동안 전역 핫키를 풀어 새 조합을 받을 수 있게 한다
   static let quickTalkSuspendShortcuts = Notification.Name("quickTalkSuspendShortcuts")
   static let quickTalkResumeShortcuts = Notification.Name("quickTalkResumeShortcuts")

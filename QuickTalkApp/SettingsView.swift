@@ -49,7 +49,7 @@ enum QuickTalkSettingsTab: String, CaseIterable, Identifiable {
     case .general:
       return (L("언어·테마와 메뉴바/Dock 노출, 로그인 시 시작을 정합니다."),
               L("앱을 어떻게 띄우고 보일지 바꿀 때."),
-              L("토글은 즉시 반영됩니다. 메뉴바와 Dock 아이콘 중 최소 하나는 켜져 있습니다."))
+              L("토글은 즉시 반영됩니다. 메뉴바와 Dock 아이콘을 모두 꺼도 됩니다."))
     case .conversation:
       return (L("대화 창의 동작과 기억, 보관 정책을 정합니다."),
               L("창을 붙이거나, 기억을 정리하고 오래된 대화를 보관할 때."),
@@ -356,9 +356,11 @@ struct SettingsView: View {
     .padding(.vertical, 2)
   }
 
-  /// 표시 토글 바인딩 — 정책(진입점 최소 1개)을 거쳐 저장한다.
+  /// 표시 토글 바인딩 — 메뉴바·Dock은 독립이고 둘 다 꺼도 된다(v0.40).
+  /// 복구용 임시 아이콘이 떠 있으면 **표시 중**으로 보여 주고, 끄면 임시 아이콘도 내린다(v0.40.1).
   var menuBarIconBinding: Binding<Bool> {
-    Binding(get: { store.settings.showMenuBarIcon }, set: { store.setMenuBarIcon($0) })
+    Binding(get: { store.settings.showMenuBarIcon || store.sessionMenuBarIconVisible },
+            set: { store.setMenuBarIcon($0) })
   }
   var dockIconBinding: Binding<Bool> {
     Binding(get: { store.settings.showDockIcon }, set: { store.setDockIcon($0) })

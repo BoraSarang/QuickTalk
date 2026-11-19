@@ -121,6 +121,8 @@ final class UIStore: ObservableObject {
   @Published var settings = QuickTalkSettings() {
     didSet { saveSettings() }
   }
+  /// v0.40 — 이번 실행 동안만 표시 중인 메뉴바 아이콘(AppDelegate가 갱신). **저장하지 않는다.**
+  @Published var sessionMenuBarIconVisible = false
   @Published var voiceRecording = false
   /// 설정 › AI의 [검색 테스트] 결과(건수·지연 또는 오류 코드)
   @Published var webSearchTestResult = ""
@@ -623,8 +625,7 @@ final class UIStore: ObservableObject {
         s.activeProviderID = LLMProviderConfig.appleFMID
         changed = true
       }
-      // 표시 정책: 메뉴바·Dock 둘 다 숨김 상태는 진입점이 없으므로 Dock을 켠다
-      if s.normalizeVisibility() { changed = true }
+      // 표시 정책(v0.40): 메뉴바·Dock 둘 다 꺼도 된다 — 재실행으로 설정 창을 연다.
       // v0.36.1 — "리포트 폴더"는 실제로는 도우미의 작업 공간이었다.
       // 앱이 만든 옛 이름(QuickTalkReport)만 새 기본 이름으로 **한 번** 옮긴다.
       if WorkspaceFolder.migrate(settings: &s) { changed = true }
@@ -1187,12 +1188,15 @@ final class UIStore: ObservableObject {
     applyRenderOverride(activeProviderID: p.id)
   }
 
-  // MARK: - 표시 정책 (메뉴바·Dock 중 최소 1개 유지)
+  // MARK: - 표시 정책 (아이콘 0개 허용 · 재실행 복구, v0.40)
 
   func setMenuBarIcon(_ visible: Bool) {
     var s = settings
     s.setMenuBarIcon(visible)
     settings = s
+    // 저장값이 꺼짐이어도 복구용 임시 아이콘이 떠 있을 수 있다.
+    // 토글을 끄면 **이번 실행의 임시 아이콘도** 즉시 내린다(v0.40.1).
+    if !visible { hideSessionMenuBarIcon() }
   }
 
   func setDockIcon(_ visible: Bool) {
@@ -1203,6 +1207,11 @@ final class UIStore: ObservableObject {
 
   /// 현재 진입점 상태 안내 문구 (설정·Hub 공용)
   var visibilityHint: String {
+    if settings.hasNoEntryPoint {
+      return sessionMenuBarIconVisible
+        ? L("메뉴바 아이콘을 이번 실행 동안만 표시 중입니다. 전역 단축키는 그대로 동작합니다.")
+        : L("아이콘 없이 실행 중입니다. 전역 단축키는 그대로 동작합니다.")
+    }
     if !settings.showMenuBarIcon {
       return L("메뉴바 아이콘을 숨겼습니다. Dock 아이콘과 단축키로 열 수 있습니다.")
     }
@@ -1210,6 +1219,17 @@ final class UIStore: ObservableObject {
       return L("메뉴바와 Dock 양쪽에서 열 수 있습니다.")
     }
     return L("메뉴바 아이콘으로 열 수 있습니다. 단축키로도 호출됩니다.")
+  }
+
+  /// 설정 › 일반 [지금 메뉴바 아이콘 표시] — 이번 실행 동안만 아이콘을 보여 달라는 요청.
+  /// (AppDelegate 가 세션 한정 아이콘을 켠다. 저장값은 바꾸지 않는다.)
+  func showMenuBarIconForSession() {
+    NotificationCenter.default.post(name: .quickTalkShowMenuBarIcon, object: nil)
+  }
+
+  /// 임시 메뉴바 아이콘을 이번 실행 중에 내린다(저장값은 그대로).
+  func hideSessionMenuBarIcon() {
+    NotificationCenter.default.post(name: .quickTalkHideMenuBarIcon, object: nil)
   }
 
   // MARK: - AI 빠른 설정 (대화 창 설정 탭 · 메뉴바 Hub 설정 탭 공용 상태)
