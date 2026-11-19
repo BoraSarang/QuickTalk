@@ -79,6 +79,23 @@ public enum FollowUpSource: String, Codable, CaseIterable, Identifiable, Equatab
   }
 }
 
+/// 입력 교정 힌트를 어디서 보여 줄지(v0.41).
+public enum ProofreadScope: String, Codable, CaseIterable, Identifiable, Equatable, Sendable {
+  /// 대화창과 포인터 pill — 빠른 메시지도 확인한다(기본).
+  case composerAndPill
+  /// 대화창만 — pill 은 검사 없이 바로 보낸다.
+  case composerOnly
+
+  public var id: String { rawValue }
+
+  public var displayName: String {
+    switch self {
+    case .composerAndPill: return L("대화창과 pill")
+    case .composerOnly: return L("대화창만")
+    }
+  }
+}
+
 public struct QuickTalkSettings: Codable, Equatable {
   public var showMenuBarIcon: Bool = true
   public var showDockIcon: Bool = false
@@ -105,6 +122,13 @@ public struct QuickTalkSettings: Codable, Equatable {
   public var followUpSource: FollowUpSource = .model
   /// 칩을 누르면 바로 전송할지(끄면 입력창에 채운다).
   public var followUpAutoSend: Bool = true
+  // 입력 교정 힌트 (v0.41) — 보내기 직전에 확실한 맞춤법·띄어쓰기만 알린다.
+  /// 힌트 사용 여부. **기본 켜짐**. 끄면 확인 없이 바로 보낸다.
+  public var proofreadHintsEnabled: Bool = true
+  /// 힌트를 보여 줄 곳 — 대화창과 pill / 대화창만.
+  public var proofreadScope: ProofreadScope = .composerAndPill
+  /// 오타 노트 기록 여부(구간만 저장). 기본 켜짐.
+  public var proofreadRecordEnabled: Bool = true
   public var previewLines: Int = 2
   public var keepDays: Int = 30
   public var globalShortcut: String = "Cmd+Space"
@@ -376,6 +400,7 @@ public struct QuickTalkSettings: Codable, Equatable {
     case chatToolbarAlwaysVisible
     case outlineDisplay, outlineShowPosition
     case followUpsEnabled, followUpSource, followUpAutoSend
+    case proofreadHintsEnabled, proofreadScope, proofreadRecordEnabled
     case appearance, language
     case previewLines, keepDays, globalShortcut
     case shelfShortcut, captureFullShortcut, captureRegionShortcut, captureWindowShortcut
@@ -436,6 +461,13 @@ public struct QuickTalkSettings: Codable, Equatable {
     followUpsEnabled = try c.decodeIfPresent(Bool.self, forKey: .followUpsEnabled) ?? true
     followUpSource = Self.decodeEnum(FollowUpSource.self, c, .followUpSource, default: .model)
     followUpAutoSend = try c.decodeIfPresent(Bool.self, forKey: .followUpAutoSend) ?? true
+    // v0.41 — 입력 교정 힌트는 새 기능이라 기본 켜짐으로 시작한다(사용자 확정).
+    proofreadHintsEnabled = try c.decodeIfPresent(
+      Bool.self, forKey: .proofreadHintsEnabled) ?? true
+    proofreadScope = Self.decodeEnum(ProofreadScope.self, c, .proofreadScope,
+                                     default: .composerAndPill)
+    proofreadRecordEnabled = try c.decodeIfPresent(
+      Bool.self, forKey: .proofreadRecordEnabled) ?? true
     previewLines = try c.decodeIfPresent(Int.self, forKey: .previewLines) ?? 2
     keepDays = try c.decodeIfPresent(Int.self, forKey: .keepDays) ?? 30
     globalShortcut = try c.decodeIfPresent(String.self, forKey: .globalShortcut) ?? "Cmd+Space"
@@ -555,6 +587,9 @@ public struct QuickTalkSettings: Codable, Equatable {
     try c.encode(followUpsEnabled, forKey: .followUpsEnabled)
     try c.encode(followUpSource, forKey: .followUpSource)
     try c.encode(followUpAutoSend, forKey: .followUpAutoSend)
+    try c.encode(proofreadHintsEnabled, forKey: .proofreadHintsEnabled)
+    try c.encode(proofreadScope, forKey: .proofreadScope)
+    try c.encode(proofreadRecordEnabled, forKey: .proofreadRecordEnabled)
     try c.encode(previewLines, forKey: .previewLines)
     try c.encode(keepDays, forKey: .keepDays)
     try c.encode(globalShortcut, forKey: .globalShortcut)

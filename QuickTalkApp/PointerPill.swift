@@ -47,6 +47,9 @@ enum PillMetrics {
   static let font = NSFont.systemFont(ofSize: 15.5)
   /// 입력창 최대 줄 수 — ChatInputField 와 같아야 한다(넘치는 값이 와도 pill 은 여기서 자르지 않는다)
   static let maxLines = 4
+  /// 교정 카드 높이 — compact 스타일(헤더 18 + 요약 14 + 버튼 22 + 여백·간격).
+  /// 카드가 나타나면 창이 **위로** 자라고 pill 본체는 제자리에 둔다.
+  static let hintCardHeight: CGFloat = 86
 
   static func listHeight(rows: Int) -> CGFloat {
     CGFloat(min(max(rows, 1), maxRows)) * rowHeight + 1 + footerHeight
@@ -80,6 +83,8 @@ final class PillModel: ObservableObject {
   @Published var persona: Persona?
   /// 고를 수 있는 비서 목록 — 비어 있으면 버튼을 숨긴다.
   @Published var personas: [Persona] = []
+  /// 보내기 전 교정 카드(v0.41) — Enter 로 검사했을 때만 값이 있다.
+  @Published var hint: ProofreadHintState?
 }
 
 // MARK: - 창
@@ -172,6 +177,7 @@ final class PointerPillController {
     }
     model.recent = recentConversations()
     model.showList = false
+    model.hint = nil
     if let store {
       model.personas = store.settings.personas
       // pill 은 **쌩 새 대화의 입구** — 지난 대화의 비서를 물려받지 않는다.
@@ -219,6 +225,7 @@ final class PointerPillController {
     guard let panel, isVisible else { return }
     isVisible = false
     model.showList = false
+    model.hint = nil
     let app = restoringFocus ? previousApp : nil
     previousApp = nil
     guard animated else {
@@ -247,7 +254,53 @@ final class PointerPillController {
   func submit(_ raw: String) {
     let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
+    // 카드가 떠 있으면 Enter = [교정해서 보내기]. 입력이 바뀌었으면 검사부터 다시 한다.
+    if let hint = model.hint {
+      if hint.original == text {
+        acceptHint(hint)
+        return
+      }
+      dismissHint()
+    }
+    if let store,
+       let hint = store.evaluateProofread(text, source: .pill,
+                                          respectConversationDisabled: false) {
+      model.hint = hint
+      model.focusToken = UUID()
+      NSLog("[QuickTalk] pill 교정 힌트 — %d곳", hint.result.issues.count)
+      return
+    }
     finish(.send(text))
+  }
+
+  // MARK: 교정 카드
+
+  /// [교정해서 보내기] — 고친 문장으로 전송한다.
+  func acceptHint(_ hint: ProofreadHintState) {
+    store?.recordProofread(.accepted, for: hint)
+    model.hint = nil
+    finish(.send(hint.result.corrected))
+  }
+
+  /// [그대로 보내기] (⌥Enter)
+  func sendHintAsIs(_ hint: ProofreadHintState) {
+    store?.recordProofread(.asIs, for: hint)
+    model.hint = nil
+    finish(.send(hint.original))
+  }
+
+  /// 카드만 닫기(Esc·×) — pill 은 입력을 유지한 채 남는다.
+  func dismissHint() {
+    guard let hint = model.hint else { return }
+    store?.recordProofread(.dismissed, for: hint)
+    model.hint = nil
+    model.focusToken = UUID()
+  }
+
+  /// Esc — 카드가 있으면 카드만, 없으면 pill 을 닫는다.
+  func cancel() {
+    if model.hint != nil { dismissHint(); return }
+    dismiss()
   }
 
   func openChatWindow() {
@@ -304,6 +357,7 @@ final class PointerPillController {
   private func finish(_ outcome: PillOutcome) {
     let callback = onOutcome
     model.text = ""
+    model.hint = nil
     dismiss(restoringFocus: false, animated: false)
     callback?(outcome)
   }
@@ -343,7 +397,9 @@ final class PointerPillController {
     let listPart = model.showList
       ? PillMetrics.gap + PillMetrics.listHeight(rows: model.recent.count)
       : 0
-    let total = extra + capsuleH + listPart
+    // 카드가 뜨면 창만 **위로** 자란다 — y(아래 기준선)는 그대로라 pill 본체가 움직이지 않는다.
+    let hintPart = model.hint == nil ? 0 : PillMetrics.gap + PillMetrics.hintCardHeight
+    let total = extra + capsuleH + listPart + hintPart
     var f = NSRect(x: anchorX,
                    y: anchorBottom - extra - capsuleH,
                    width: PillMetrics.width,
@@ -384,7 +440,16 @@ final class PointerPillController {
       onResume: { [weak self] in self?.resume($0) },
       onOpenArchive: { [weak self] in self?.openArchive() },
       onSelectPersona: { [weak self] id in self?.selectPersona(id) },
-      onPasteAttachment: { [weak self] in self?.pasteAttachmentInChat() ?? false }
+      onPasteAttachment: { [weak self] in self?.pasteAttachmentInChat() ?? false },
+      onAcceptHint: { [weak self] in
+        guard let self, let hint = self.model.hint else { return }
+        self.acceptHint(hint)
+      },
+      onSendHintAsIs: { [weak self] in
+        guard let self, let hint = self.model.hint else { return }
+        self.sendHintAsIs(hint)
+      },
+      onDismissHint: { [weak self] in self?.dismissHint() }
     )
     let win = PointerPillPanel(contentRect: NSRect(x: 0, y: 0, width: PillMetrics.width, height: PillMetrics.height),
                                styleMask: [.borderless], backing: .buffered, defer: false)
@@ -397,10 +462,17 @@ final class PointerPillController {
     win.isMovableByWindowBackground = false
     win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
     win.contentView = NSHostingView(rootView: root)
-    win.onCancel = { [weak self] in self?.dismiss() }
+    win.onCancel = { [weak self] in self?.cancel() }
     win.onCommandReturn = { [weak self] in self?.openChatWindow() }
     win.onOpenArchive = { [weak self] in self?.openArchive() }
     panel = win
+
+    // 교정 카드가 뜨거나 닫히면 창 높이를 다시 맞춘다(pill 본체는 제자리).
+    model.$hint
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in self?.resize() }
+      .store(in: &bag)
 
     // 목록이 열리면 창을 아래로 늘리고(위 가장자리 고정), 닫히면 pill 높이로 되돌린다.
     model.$showList
@@ -505,6 +577,10 @@ struct PillRootView: View {
   var onSelectPersona: (UUID?) -> Void = { _ in }
   /// ⌘V — 클립보드에 이미지·파일이 있으면 대화 창으로 넘겨 첨부한다(`true` 면 기본 붙여넣기를 막는다).
   var onPasteAttachment: (() -> Bool)? = nil
+  /// 교정 카드 — [교정해서 보내기] / [그대로] / 닫기
+  var onAcceptHint: () -> Void = {}
+  var onSendHintAsIs: () -> Void = {}
+  var onDismissHint: () -> Void = {}
 
   var body: some View {
     // 창 높이는 컨트롤러가 `capsuleHeight` 로 계산한다 — 여기서 **간격을 더하지 않는다**.
@@ -512,6 +588,14 @@ struct PillRootView: View {
     VStack(spacing: 0) {
       // 입력창이 자란 만큼 위를 비운다 → pill 이 위로 자란다(기준선은 그대로).
       Color.clear.frame(height: inputExtra)
+      // v0.41 교정 카드 — pill 바로 위. 창이 위로 자란 만큼만 차지한다.
+      if let hint = model.hint {
+        ProofreadHintCard(hint: hint, style: .compact,
+                          onAccept: onAcceptHint,
+                          onSendAsIs: onSendHintAsIs,
+                          onDismiss: onDismissHint)
+          .padding(.bottom, PillMetrics.gap)
+      }
       capsule
       if model.showList {
         list.padding(.top, PillMetrics.gap)
@@ -568,7 +652,8 @@ struct PillRootView: View {
                        font: PillMetrics.font,
                        placeholder: L("무엇이든 물어보세요"),
                        onCommandReturn: onCommandReturn,
-                       onCancel: onCancel,
+                       onOptionReturn: model.hint == nil ? nil : onSendHintAsIs,
+                       onCancel: model.hint == nil ? onCancel : onDismissHint,
                        onPasteAttachments: onPasteAttachment,
                        onSubmit: onSubmit)
           .frame(height: textHeight)

@@ -24,6 +24,8 @@ struct ChatInputField: NSViewRepresentable {
   var placeholder: String?
   /// ⌘Return — 지정하면 Enter 대신 이 동작을 맡는다(pill: 대화 창 열기)
   var onCommandReturn: (() -> Void)?
+  /// ⌥Return — 지정하면 Enter 대신 이 동작을 맡는다(교정 카드: 그대로 보내기)
+  var onOptionReturn: (() -> Void)?
   /// Esc — 지정하면 취소 동작을 맡는다(pill: 닫기)
   var onCancel: (() -> Void)?
   /// ⌘V — 클립보드의 이미지·파일을 첨부로 붙일 수 있으면 `true`.
@@ -374,6 +376,12 @@ struct ChatInputField: NSViewRepresentable {
       let shift = NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false
       if shift {
         textView.insertNewlineIgnoringFieldEditor(nil)      // Shift+Enter = 줄바꿈
+        return true
+      }
+      // ⌥Return — 교정 카드가 떠 있을 때 [그대로 보내기]
+      if let onOptionReturn = parent.onOptionReturn,
+         NSApp.currentEvent?.modifierFlags.contains(.option) == true {
+        onOptionReturn()
         return true
       }
       // ⌘Return — 지정된 동작이 있으면 전송 대신 그걸 한다(pill: 대화 창 열기)

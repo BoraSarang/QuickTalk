@@ -141,6 +141,8 @@ struct SettingsView: View {
   @State var showClearArchiveConfirm = false
   /// 대화 기억 요약 보기/편집 시트
   @State var showMemory = false
+  /// 오타 노트 시트(v0.41)
+  @State var showProofreadNotes = false
   /// 공통 메모리 편집 시트
   @State var editingMemory: GlobalMemoryEntry?
   @State var memoryIsNew = false
@@ -204,6 +206,11 @@ struct SettingsView: View {
     }
     .sheet(item: $editingProvider) { p in
       ProviderEditorSheet(provider: p, isNew: editingIsNew)
+        .environmentObject(store)
+    }
+    // v0.41 오타 노트 — 기록은 구간만 저장한다(문장 전체 없음).
+    .sheet(isPresented: $showProofreadNotes) {
+      ProofreadNotesSheet(history: store.proofreadHistory)
         .environmentObject(store)
     }
     .sheet(isPresented: $showClearArchiveConfirm) {

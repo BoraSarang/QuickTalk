@@ -71,6 +71,16 @@ final class UIStore: ObservableObject {
     get { activeSession.draft }
     set { activeSession.draft = newValue }
   }
+  /// 입력 교정 카드(v0.41) — 대화방마다 따로. 카드가 떠 있으면 아직 전송하지 않았다.
+  var proofreadHint: ProofreadHintState? {
+    get { activeSession.proofreadHint }
+    set { activeSession.proofreadHint = newValue }
+  }
+  /// "이 대화에서 끄기" — 대화방 한정. 새 대화를 열면 설정 기본값으로 돌아온다.
+  var proofreadDisabledForConversation: Bool {
+    get { activeSession.proofreadDisabled }
+    set { activeSession.proofreadDisabled = newValue }
+  }
   var attached: [PendingAttachment] {
     get { activeSession.attached }
     set { activeSession.attached = newValue }
@@ -121,6 +131,8 @@ final class UIStore: ObservableObject {
   @Published var settings = QuickTalkSettings() {
     didSet { saveSettings() }
   }
+  /// 입력 교정 기록(v0.41) — 처음 검사할 때 파일을 읽는다(콜드 스타트 영향 없음).
+  lazy var proofreadHistory = ProofreadHistory()
   /// v0.40 — 이번 실행 동안만 표시 중인 메뉴바 아이콘(AppDelegate가 갱신). **저장하지 않는다.**
   @Published var sessionMenuBarIconVisible = false
   @Published var voiceRecording = false
@@ -1634,6 +1646,8 @@ final class UIStore: ObservableObject {
   /// 대화방으로 전환한다 — 방마다 입력·실행 상태가 따로 남는다(v0.31 6a).
   /// 같은 방을 다시 열면 **진행 중인 상태를 덮어쓰지 않는다**(응답 중인 방 보호).
   private func activateSession(_ c: Conversation) {
+    // 다른 대화로 넘어가면 떠 있던 교정 카드는 사라진다(선택을 기록하지 않는다 — Esc 와 구분).
+    proofreadHint = nil
     if let existing = sessions[c.id] {
       if !existing.isReplying {
         existing.core.open(c)
@@ -2172,6 +2186,94 @@ final class UIStore: ObservableObject {
       }
     }
   }
+  // MARK: - 입력 교정 힌트 (v0.41)
+
+  /// 전송 직전 검사 — 규칙 엔진은 동기·수 ms. 문제가 없으면 nil.
+  func evaluateProofread(_ text: String, source: ProofreadSource,
+                         respectConversationDisabled: Bool = true) -> ProofreadHintState? {
+    ProofreadGate.evaluate(text, source: source,
+                           settings: settings,
+                           history: proofreadHistory,
+                           disabledForConversation: respectConversationDisabled
+                             && activeSession.proofreadDisabled)
+  }
+
+  /// 입력창에서 글자가 바뀌었다 — 카드가 떠 있었다면 닫는다(사용자가 직접 고치는 중).
+  func composerDraftChanged(_ text: String) {
+    if let hint = proofreadHint, hint.original != text {
+      dismissProofreadHint()
+    }
+    draft = text
+  }
+
+  /// 대화창의 **공통 전송 게이트** — 문제가 있으면 카드를 띄우고 보내지 않는다.
+  /// ↑ 버튼·Enter·⌘Return 이 모두 이곳을 지난다.
+  func requestSend(_ text: String, source: ProofreadSource = .composer) {
+    guard !isReplying, !isJobConversationBusy else { return }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty || !attached.isEmpty else { return }
+    // 카드가 떠 있을 때 Enter = [교정해서 보내기]. 입력이 바뀌었으면 닫고 다시 검사한다.
+    if let hint = proofreadHint {
+      if hint.original == text {
+        acceptProofreadHint()
+        return
+      }
+      dismissProofreadHint()
+    }
+    if let hint = evaluateProofread(text, source: source) {
+      draft = text
+      proofreadHint = hint
+      NSLog("[QuickTalk] 교정 힌트 — %d곳 · %@", hint.result.issues.count, source.rawValue)
+      return
+    }
+    draft = text
+    send()
+  }
+
+  /// [교정해서 보내기]
+  func acceptProofreadHint() {
+    guard let hint = proofreadHint else { return }
+    ProofreadGate.record(.accepted, for: hint, history: proofreadHistory)
+    proofreadHint = nil
+    draft = hint.result.corrected
+    send()
+    composerFocusToken = UUID()
+  }
+
+  /// [그대로 보내기] (⌥Enter)
+  func sendProofreadOriginal() {
+    guard let hint = proofreadHint else { return }
+    ProofreadGate.record(.asIs, for: hint, history: proofreadHistory)
+    proofreadHint = nil
+    draft = hint.original
+    send()
+    composerFocusToken = UUID()
+  }
+
+  /// 카드만 닫기(Esc·×) — 입력은 그대로 두고 다음 전송에서 다시 검사한다.
+  func dismissProofreadHint() {
+    guard let hint = proofreadHint else { return }
+    ProofreadGate.record(.dismissed, for: hint, history: proofreadHistory)
+    proofreadHint = nil
+    composerFocusToken = UUID()
+  }
+
+  /// [이 대화에서 끄기] — 대화방 한정. 입력은 남겨 두고, 다시 Enter 하면 바로 보낸다.
+  func disableProofreadForConversation() {
+    if let hint = proofreadHint {
+      ProofreadGate.record(.dismissed, for: hint, history: proofreadHistory)
+    }
+    activeSession.proofreadDisabled = true
+    proofreadHint = nil
+    composerFocusToken = UUID()
+    NSLog("[QuickTalk] 교정 힌트 — 이 대화에서 끔")
+  }
+
+  /// pill 카드의 결정을 기록한다(카드 자체는 pill 창이 들고 있다).
+  func recordProofread(_ decision: ProofreadDecision, for hint: ProofreadHintState) {
+    ProofreadGate.record(decision, for: hint, history: proofreadHistory)
+  }
+
   func send(allowCommands: Bool = true, executionOf: Turn? = nil, planOf: Turn? = nil) {
     stopSpeaking()
     // 응답 대기 중 중복 전송 금지 — 답이 섞이지 않게 한다(입력독의 ↑도 비활성)
@@ -3642,6 +3744,10 @@ final class ChatSession: ObservableObject, Identifiable {
   @Published var attached: [PendingAttachment] = []
   /// 이번 질문만 웹 검색을 강제한다(전송 후 자동 해제)
   @Published var forceWebSearch = false
+  /// 입력 교정 카드(v0.41) — 이 방에서만. 전송하기 전에만 값이 있다.
+  @Published var proofreadHint: ProofreadHintState?
+  /// "이 대화에서 끄기" — 방을 새로 만들면 false 로 돌아간다.
+  @Published var proofreadDisabled = false
 
   // 응답 진행
   @Published var isReplying = false

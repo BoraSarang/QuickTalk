@@ -1,0 +1,936 @@
+<!-- mockup
+feature: proofread
+screen: index (chat, pill, settings, notes)
+level: L2
+platform: macos
+viewport: 1280x900
+states: hint, clean, data, empty, dark, light, ko, en
+status: review
+-->
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuickTalk v0.41 — 입력 교정 힌트 · 오타 노트</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0c0c0f;
+    --stage: #121216;
+    --panel: #1c1c21;
+    --panel-2: #24242a;
+    --card: #2a2a31;
+    --text: #f3f3f6;
+    --secondary: #a6a6b0;
+    --tertiary: #73737e;
+    --border: rgba(255,255,255,.10);
+    --border-strong: rgba(255,255,255,.17);
+    --accent: #7a5cff;
+    --accent-soft: rgba(122,92,255,.17);
+    --accent-text: #ccc0ff;
+    --bubble: #5b43d6;
+    --amber: #ffb340;
+    --amber-soft: rgba(255,179,64,.14);
+    --green: #30d158;
+    --red: #ff453a;
+    --shadow: 0 26px 70px rgba(0,0,0,.55);
+    --radius: 14px;
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #ececf1;
+    --stage: #f3f3f7;
+    --panel: #ffffff;
+    --panel-2: #f5f5f9;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --secondary: #68686f;
+    --tertiary: #8c8c94;
+    --border: rgba(0,0,0,.10);
+    --border-strong: rgba(0,0,0,.17);
+    --accent: #6c4cf1;
+    --accent-soft: rgba(108,76,241,.10);
+    --accent-text: #5a3fd6;
+    --bubble: #6c4cf1;
+    --amber: #a86200;
+    --amber-soft: rgba(168,98,0,.10);
+    --green: #1f8f3a;
+    --red: #d70015;
+    --shadow: 0 26px 70px rgba(24,24,48,.20);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Apple SD Gothic Neo", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  [hidden] { display: none !important; }
+
+  /* review chrome */
+  .review-bar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 22px;
+    height: 56px; padding: 0 22px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { font-size: 13px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; }
+  .brand span { color: var(--secondary); font-weight: 500; margin-left: 8px; }
+  .tabs { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); }
+  .tab { border: 0; background: transparent; color: var(--secondary); font-size: 12px; padding: 6px 11px; border-radius: 7px; }
+  .tab[aria-selected="true"] { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+  .controls { margin-left: auto; display: flex; gap: 6px; }
+  .ctrl { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 11.5px; padding: 6px 10px; border-radius: 8px; }
+  .ctrl:hover { border-color: var(--border-strong); }
+
+  .stage {
+    min-height: calc(100vh - 56px);
+    padding: 26px 24px 40px;
+    background:
+      radial-gradient(1100px 520px at 18% 0%, rgba(122,92,255,.11), transparent 62%),
+      var(--stage);
+  }
+  .screen-head { max-width: 1180px; margin: 0 auto 18px; }
+  .screen-head h1 { font-size: 18px; margin: 0 0 5px; letter-spacing: -.2px; }
+  .screen-head p { margin: 0; color: var(--secondary); font-size: 12.5px; line-height: 1.5; }
+  .screen-body { max-width: 1180px; margin: 0 auto; display: flex; gap: 24px; align-items: flex-start; }
+  .window-col { flex: 0 0 auto; }
+
+  /* annotations */
+  .notes { flex: 1; min-width: 260px; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+  .notes-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 15px 16px 14px; }
+  .notes-card h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: var(--tertiary); margin: 0 0 10px; }
+  .notes-card ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .notes-card li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; font-size: 11.5px; line-height: 1.55; color: var(--secondary); }
+  .notes-card li b { color: var(--accent-text); font-weight: 650; }
+  .marker { width: 18px; height: 18px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+  .state-box { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .state-box > span { font-size: 9px; text-transform: uppercase; letter-spacing: .6px; color: var(--tertiary); margin-right: 2px; }
+  .state-btn { border: 1px solid var(--border); background: transparent; color: var(--secondary); font-size: 10px; padding: 4px 7px; border-radius: 6px; }
+  .state-btn.active { background: var(--accent-soft); border-color: transparent; color: var(--accent-text); font-weight: 600; }
+
+  /* windows */
+  .window { background: var(--panel); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; position: relative; }
+  .titlebar { height: 38px; flex: 0 0 38px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--border); background: linear-gradient(var(--panel-2), var(--panel)); position: relative; }
+  .traffic { display: flex; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .window-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .window-tools { margin-left: auto; display: flex; align-items: center; gap: 7px; color: var(--secondary); font-size: 11px; }
+  .tool-glyph { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; }
+  .tool-glyph:hover { background: var(--panel-2); }
+  .persona-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; color: var(--secondary); background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 7px 3px 4px; }
+  .persona-face { width: 16px; height: 16px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; font-size: 9px; }
+
+  /* chat */
+  .chat-window { width: 460px; height: 680px; display: flex; flex-direction: column; }
+  .chat-scroll { flex: 1; overflow: hidden; padding: 16px 16px 214px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 84%; font-size: 13px; line-height: 1.56; }
+  .msg.user { align-self: flex-end; background: var(--bubble); color: #fff; padding: 9px 12px; border-radius: 16px 16px 5px 16px; }
+  .msg.ai { align-self: flex-start; color: var(--text); }
+  .msg.ai .meta { font-size: 9.5px; color: var(--tertiary); margin-top: 5px; display: flex; gap: 8px; }
+  .toolchip { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--secondary); background: var(--panel-2); border: 1px solid var(--border); padding: 5px 8px; border-radius: 7px; margin-bottom: 7px; }
+  .toolchip i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; }
+
+  .composer-area { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 20; }
+  .composer { position: relative; min-height: 92px; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid var(--border-strong); border-radius: 16px; padding: 10px 70px 10px 12px; }
+  [data-theme="light"] .composer { background: #f4f4f8; }
+  .composer-text { font-size: 13px; line-height: 1.5; color: var(--text); }
+  .composer-actions { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 5px; align-items: center; }
+  .toolbtn { width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--secondary); display: grid; place-items: center; font-size: 12px; }
+  .send { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; border: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .send:disabled { background: var(--border-strong); color: var(--secondary); }
+  .composer-hint { margin-top: 6px; font-size: 9px; color: var(--tertiary); text-align: center; }
+
+  /* hint card */
+  .hint-card {
+    position: absolute; left: 0; right: 0; bottom: calc(100% + 8px);
+    background: color-mix(in srgb, var(--panel) 92%, var(--accent) 8%);
+    border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border));
+    border-radius: 14px; box-shadow: 0 18px 48px rgba(0,0,0,.48);
+    padding: 12px;
+  }
+  [data-theme="light"] .hint-card { background: #fff; box-shadow: 0 18px 48px rgba(24,24,52,.18); }
+  .hint-head { display: flex; align-items: flex-start; gap: 9px; }
+  .hint-badge { width: 25px; height: 25px; flex: 0 0 25px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-text); display: grid; place-items: center; font-size: 12px; }
+  .hint-title { font-size: 12.5px; font-weight: 650; line-height: 1.3; }
+  .hint-sub { font-size: 10.5px; color: var(--secondary); margin-top: 1px; }
+  .hint-close { margin-left: auto; border: 0; background: transparent; color: var(--tertiary); font-size: 14px; line-height: 1; padding: 2px 3px; }
+  .fix-list { list-style: none; margin: 10px 0 11px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .fix-list li { display: flex; align-items: center; gap: 7px; font-size: 12px; min-width: 0; }
+  .tag { flex: 0 0 auto; font-size: 9px; font-weight: 650; padding: 2px 5px; border-radius: 4px; letter-spacing: .1px; }
+  .tag.spacing { color: var(--amber); background: var(--amber-soft); }
+  .tag.spelling { color: var(--accent-text); background: var(--accent-soft); }
+  .tag.punct { color: var(--green); background: color-mix(in srgb, var(--green) 13%, transparent); }
+  .orig { color: var(--secondary); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .arrow { color: var(--tertiary); }
+  .fix { color: var(--text); font-weight: 650; }
+  .hint-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .btn { border-radius: 8px; border: 1px solid transparent; font-size: 11.5px; font-weight: 600; padding: 7px 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.secondary { background: transparent; border-color: var(--border-strong); color: var(--text); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--secondary); font-weight: 500; padding-left: 4px; padding-right: 4px; }
+  .btn.small { padding: 5px 9px; font-size: 11px; }
+  kbd { font: 9.5px/1 -apple-system, BlinkMacSystemFont, "SF Mono", monospace; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,.16); color: inherit; }
+  .btn.secondary kbd { background: var(--panel-2); color: var(--secondary); }
+  .hint-foot { margin-top: 9px; font-size: 9.5px; color: var(--tertiary); display: flex; align-items: center; gap: 5px; }
+
+  /* pill */
+  .pill-stage {
+    width: 560px; height: 380px; border-radius: 18px; position: relative; overflow: hidden;
+    background: radial-gradient(760px 360px at 72% 18%, rgba(122,92,255,.30), transparent 62%), linear-gradient(160deg,#1c1c2d,#0d0d13 72%);
+    border: 1px solid var(--border); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 44px;
+  }
+  [data-theme="light"] .pill-stage { background: radial-gradient(760px 360px at 72% 18%, rgba(122,92,255,.20), transparent 62%), linear-gradient(160deg,#f6f6fb,#e5e5ee 72%); }
+  .pill-cluster { width: 380px; position: relative; }
+  .pill-hint { background: color-mix(in srgb, var(--panel) 94%, var(--accent) 6%); border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border)); border-radius: 16px; padding: 9px 11px 10px; box-shadow: 0 14px 36px rgba(0,0,0,.38); margin-bottom: 8px; }
+  .pill-hint-top { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 650; }
+  .pill-hint-top .count { color: var(--amber); }
+  .pill-hint-sub { font-size: 10.5px; color: var(--secondary); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill-hint-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .pill { display: flex; align-items: center; gap: 9px; height: 56px; border-radius: 28px; background: var(--panel); border: 1px solid var(--border-strong); box-shadow: 0 18px 44px rgba(0,0,0,.45); padding: 0 9px 0 12px; }
+  .persona { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; font-size: 14px; flex: 0 0 28px; }
+  .pill-text { flex: 1; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill-send { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700; flex: 0 0 32px; }
+  .cursor { position: absolute; left: 42px; bottom: 58px; width: 13px; height: 19px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+
+  /* settings */
+  .settings-window { width: 780px; height: 540px; display: flex; flex-direction: column; }
+  .settings-body { flex: 1; display: flex; min-height: 0; }
+  .sidebar { width: 205px; flex: 0 0 205px; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--panel-2) 60%, var(--panel)); padding: 9px; overflow: hidden; }
+  .side-group { font-size: 9px; text-transform: uppercase; letter-spacing: .6px; color: var(--tertiary); padding: 10px 8px 4px; }
+  .side-item { display: flex; align-items: center; gap: 8px; padding: 5.5px 8px; border-radius: 7px; font-size: 12px; color: var(--secondary); }
+  .side-item.active { background: var(--accent-soft); color: var(--accent-text); font-weight: 650; }
+  .side-icon { width: 16px; text-align: center; font-size: 11px; opacity: .9; }
+  .side-foot { margin-top: 14px; padding: 8px; font-size: 9.5px; color: var(--tertiary); }
+  .settings-content { flex: 1; padding: 15px 18px 0; overflow: hidden; position: relative; }
+  .settings-content::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 36px; background: linear-gradient(transparent, var(--panel)); pointer-events: none; }
+  .help-card { background: linear-gradient(135deg, var(--accent-soft), transparent 72%); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: 11px; padding: 11px 13px; margin-bottom: 13px; }
+  .help-card h2 { margin: 0 0 4px; font-size: 13px; }
+  .help-card p { margin: 0; font-size: 10.5px; line-height: 1.55; color: var(--secondary); }
+  .group { margin-bottom: 13px; }
+  .group-title { font-size: 11.5px; font-weight: 650; padding: 0 2px 6px; }
+  .group-card { background: color-mix(in srgb, var(--text) 4%, transparent); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+  [data-theme="light"] .group-card { background: #f7f7fa; }
+  .row { display: flex; align-items: flex-start; gap: 14px; padding: 5px 0; }
+  .row-label { flex: 1; font-size: 12px; }
+  .row-desc { font-size: 9.5px; color: var(--secondary); line-height: 1.45; margin-top: 2px; }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--border-strong); position: relative; flex: 0 0 34px; margin-top: 1px; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .switch.on { background: var(--accent); }
+  .switch.on::after { transform: translateX(14px); }
+  .segmented { display: flex; padding: 2px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; gap: 2px; flex: 0 0 auto; }
+  .seg { border: 0; background: transparent; color: var(--secondary); font-size: 10.5px; padding: 4px 8px; border-radius: 5px; white-space: nowrap; }
+  .seg.active { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+  .small-btn { border: 1px solid var(--border-strong); background: var(--card); color: var(--text); font-size: 10px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+  .badge { font-size: 8.5px; font-weight: 700; letter-spacing: .3px; padding: 2px 5px; border-radius: 4px; background: var(--amber-soft); color: var(--amber); margin-left: 6px; }
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+  .inline-actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+
+  /* notes */
+  .notes-window { width: 760px; height: 620px; display: flex; flex-direction: column; }
+  .sheet-head { padding: 15px 18px 11px; display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--border); }
+  .sheet-head h1 { margin: 0; font-size: 17px; letter-spacing: -.2px; }
+  .sheet-head p { margin: 3px 0 0; font-size: 10.5px; color: var(--secondary); }
+  .sheet-head .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sheet-body { flex: 1; overflow: hidden; padding: 13px 18px 0; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 11px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; }
+  .stat .num { font-size: 20px; font-weight: 700; letter-spacing: -.4px; line-height: 1.15; }
+  .stat .label { font-size: 9.5px; color: var(--secondary); margin-top: 2px; }
+  .stat .sub { font-size: 9px; color: var(--tertiary); margin-top: 4px; }
+  .stat .sub b { color: var(--accent-text); font-weight: 650; }
+  .chart-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px 7px; margin-bottom: 11px; }
+  .chart-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+  .chart-head h3 { margin: 0; font-size: 11px; font-weight: 650; }
+  .chart-head span { font-size: 9px; color: var(--tertiary); }
+  .chart-head .right { margin-left: auto; font-size: 8.5px; color: var(--secondary); }
+  .rate-chart { position: relative; height: 84px; display: flex; align-items: flex-end; gap: 9px; padding: 12px 2px 0; border-bottom: 1px solid var(--border); }
+  .rate-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; position: relative; }
+  .rate-bar { width: 100%; max-width: 26px; border-radius: 3px 3px 0 0; background: var(--amber); }
+  .rate-bar.good { background: var(--accent); }
+  .rate-val { position: absolute; top: -11px; font-size: 8px; color: var(--secondary); }
+  .avg-line { position: absolute; left: 0; right: 0; bottom: 36%; border-top: 1px dashed color-mix(in srgb, var(--amber) 62%, transparent); pointer-events: none; }
+  .avg-label { position: absolute; right: 1px; bottom: calc(36% + 2px); font-size: 7.5px; color: var(--amber); background: var(--panel-2); padding: 0 3px; }
+  .chart-x { display: flex; gap: 9px; padding: 4px 2px 0; }
+  .chart-x span { flex: 1; text-align: center; font-size: 8px; color: var(--tertiary); }
+  .chips { display: flex; gap: 6px; margin: 0 0 7px; }
+  .chip { font-size: 9.5px; padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border); color: var(--secondary); background: transparent; }
+  .chip.active { background: var(--accent-soft); border-color: transparent; color: var(--accent-text); font-weight: 600; }
+  .table { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel-2); }
+  .thead, .trow { display: grid; grid-template-columns: 1.85fr .42fr .72fr .55fr 40px; gap: 8px; align-items: center; padding: 6px 10px; }
+  .thead { font-size: 8.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--tertiary); border-bottom: 1px solid var(--border); }
+  .trow { font-size: 10.5px; border-bottom: 1px solid var(--border); }
+  .trow:last-child { border-bottom: 0; }
+  .expr { display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; }
+  .expr .orig, .expr .fix { font-size: 10.5px; }
+  .mini-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; margin-top: 3px; }
+  .mini-bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+  .ignore { border: 0; background: transparent; color: var(--tertiary); font-size: 9.5px; }
+  .sheet-foot { padding: 9px 18px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 9px; font-size: 9.5px; color: var(--tertiary); }
+  .sheet-foot .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .link-danger { color: var(--red); border: 0; background: transparent; font-size: 9.5px; }
+  .empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding-bottom: 40px; }
+  .empty-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); display: grid; place-items: center; font-size: 20px; margin-bottom: 4px; }
+  .empty h2 { margin: 0; font-size: 13px; }
+  .empty p { margin: 0; font-size: 10.5px; color: var(--secondary); line-height: 1.5; max-width: 260px; }
+
+  .review-foot { max-width: 1180px; margin: 20px auto 0; display: flex; align-items: center; gap: 10px; font-size: 9.5px; color: var(--tertiary); }
+  .review-foot .dotsep { width: 3px; height: 3px; border-radius: 50%; background: var(--tertiary); }
+
+  @media (max-width: 1180px) {
+    .screen-body { flex-wrap: wrap; }
+    .notes { max-width: 780px; width: 100%; }
+    .settings-window { width: 100%; max-width: 780px; }
+    .settings-body { min-height: 502px; }
+  }
+  @media (max-width: 620px) {
+    .stage { padding: 18px 12px 30px; }
+    .review-bar { gap: 10px; padding: 0 12px; overflow-x: auto; }
+    .brand span { display: none; }
+    .chat-window, .notes-window, .pill-stage { width: 100%; max-width: 460px; }
+    .settings-window { min-width: 0; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="review-bar">
+  <div class="brand">QuickTalk <span data-i18n="review.sub">v0.41 디자인 검토</span></div>
+  <nav class="tabs" role="tablist" aria-label="Screens">
+    <button class="tab" role="tab" data-tab="chat" aria-selected="true" data-i18n="tab.chat">대화창</button>
+    <button class="tab" role="tab" data-tab="pill" aria-selected="false" data-i18n="tab.pill">포인터 pill</button>
+    <button class="tab" role="tab" data-tab="settings" aria-selected="false" data-i18n="tab.settings">설정</button>
+    <button class="tab" role="tab" data-tab="notes" aria-selected="false" data-i18n="tab.notes">오타 노트</button>
+  </nav>
+  <div class="controls">
+    <button class="ctrl" id="themeBtn" data-i18n="ctrl.light">라이트</button>
+    <button class="ctrl" id="langBtn">EN</button>
+  </div>
+</header>
+
+<main class="stage">
+  <!-- 01 CHAT -->
+  <section class="screen" data-screen="chat">
+    <div class="screen-head">
+      <h1 data-i18n="chat.h1">01 · 대화창 — 보내기 전 교정 카드</h1>
+      <p data-i18n="chat.sub">Enter로 보낼 때, 문제가 있으면 전송을 잠시 멈추고 카드를 띄웁니다.</p>
+    </div>
+    <div class="screen-body">
+      <div class="window-col">
+        <div class="window chat-window">
+          <div class="titlebar">
+            <div class="traffic"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+            <div class="window-title" data-i18n="chat.windowTitle">이사 견적 비교</div>
+            <div class="window-tools">
+              <span class="persona-chip"><span class="persona-face">🧭</span><span data-i18n="chat.persona">이사 도우미</span></span>
+              <span class="tool-glyph">◫</span>
+              <span class="tool-glyph">⋯</span>
+            </div>
+          </div>
+          <div class="chat-scroll">
+            <div class="msg user" data-i18n="chat.msg1">이사 견적 비교해 줘. 다음주까지 정리해야 해.</div>
+            <div class="msg ai">
+              <div class="toolchip"><i></i><span data-i18n="chat.tool">견적 3곳 확인</span></div>
+              <div data-i18n="chat.msg2">네, 세 곳의 견적을 같은 기준으로 비교해 표로 정리하겠습니다. 업체별 금액·포함 항목·추가 비용을 맞춰 볼게요.</div>
+              <div class="meta"><span>12.4초</span><span>18 tok/s</span><span data-i18n="chat.copy">복사</span></div>
+            </div>
+            <div class="msg user" data-i18n="chat.msg3">고마워요!</div>
+            <div class="msg ai" data-i18n="chat.msg4">필요하면 이사 날짜 후보도 같이 정리해 드릴게요.</div>
+          </div>
+
+          <div class="composer-area">
+            <div class="hint-card">
+              <div class="hint-head">
+                <div class="hint-badge">✎</div>
+                <div>
+                  <div class="hint-title" data-i18n="hint.title">보내기 전에 다듬을까요?</div>
+                  <div class="hint-sub"><span data-i18n="hint.found">3곳을 찾았어요</span></div>
+                </div>
+                <button class="hint-close" aria-label="Close" data-i18n-aria="hint.close">×</button>
+              </div>
+              <ul class="fix-list">
+                <li><span class="tag spacing" data-i18n="tag.spacing">띄어쓰기</span><span class="orig">이번주</span><span class="arrow">→</span><span class="fix">이번 주</span></li>
+                <li><span class="tag spelling" data-i18n="tag.spelling">맞춤법</span><span class="orig">몇일</span><span class="arrow">→</span><span class="fix">며칠</span></li>
+                <li><span class="tag spelling" data-i18n="tag.spelling">맞춤법</span><span class="orig">할께요</span><span class="arrow">→</span><span class="fix">할게요</span></li>
+              </ul>
+              <div class="hint-actions">
+                <button class="btn primary"><span data-i18n="hint.fixSend">교정해서 보내기</span><kbd>↩</kbd></button>
+                <button class="btn secondary"><span data-i18n="hint.asIs">그대로 보내기</span><kbd>⌥↩</kbd></button>
+                <button class="btn ghost" data-i18n="hint.off">이 대화에서 끄기</button>
+              </div>
+              <div class="hint-foot"><span>⌁</span><span data-i18n="hint.foot">온디바이스 규칙 검사 · 3ms · 문장은 저장하지 않음</span></div>
+            </div>
+
+            <div class="composer">
+              <div class="composer-text" data-i18n="chat.draft">이번주 금요일에 시간 괜찮아요? 몇일 전에 말씀드린 그 건으로 이야기하고 싶어요. 회의 자료도 미리 준비할께요.</div>
+              <div class="composer-actions">
+                <button class="toolbtn" aria-label="Tools">＋</button>
+                <button class="toolbtn" aria-label="Voice">🎤</button>
+                <button class="send" aria-label="Send">↑</button>
+              </div>
+            </div>
+            <div class="composer-hint" data-i18n="chat.composerHint">Enter 전송 · Shift+Enter 줄바꿈</div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="notes">
+        <div class="notes-card">
+          <h2 data-i18n="notes.panel">설계 메모</h2>
+          <div class="state-box" style="margin-bottom:11px">
+            <span data-i18n="state.label">상태</span>
+            <button class="state-btn active" data-chat-state="hint" data-i18n="state.hint">힌트</button>
+            <button class="state-btn" data-chat-state="clean" data-i18n="state.clean">힌트 없음</button>
+          </div>
+          <ol>
+            <li><span class="marker">1</span><span data-i18n="chat.note1">카드는 입력독 위에 겹쳐 뜹니다. 대화 본문을 밀거나 스크롤을 튀게 하지 않습니다.</span></li>
+            <li><span class="marker">2</span><span data-i18n="chat.note2">기본 버튼은 [교정해서 보내기]. Enter로 실행하고, ⌥Enter는 원문 그대로 보냅니다.</span></li>
+            <li><span class="marker">3</span><span data-i18n="chat.note3">[이 대화에서 끄기]는 이 대화에서만. 설정의 기본값은 유지됩니다.</span></li>
+            <li><span class="marker">4</span><span data-i18n="chat.note4">검사는 전송 직전, 온디바이스 규칙으로 5ms 이하. 네트워크를 쓰지 않습니다.</span></li>
+          </ol>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 02 PILL -->
+  <section class="screen" data-screen="pill" hidden>
+    <div class="screen-head">
+      <h1 data-i18n="pill.h1">02 · 포인터 pill — 한 줄 교정 카드</h1>
+      <p data-i18n="pill.sub">빠른 전송을 방해하지 않도록 카드를 380pt 안에 줄입니다.</p>
+    </div>
+    <div class="screen-body">
+      <div class="window-col">
+        <div class="pill-stage">
+          <div class="pill-cluster">
+            <div class="pill-hint">
+              <div class="pill-hint-top"><span class="count" data-i18n="pill.count">3곳</span><span data-i18n="pill.kinds">· 띄어쓰기 1 · 맞춤법 2</span></div>
+              <div class="pill-hint-sub"><span>이번주 → 이번 주</span><span style="color:var(--tertiary)"> · </span><span>몇일 → 며칠</span><span style="color:var(--tertiary)"> · </span><span data-i18n="pill.more">+1</span></div>
+              <div class="pill-hint-actions">
+                <button class="btn primary small"><span data-i18n="pill.fix">교정</span><kbd>↩</kbd></button>
+                <button class="btn secondary small"><span data-i18n="pill.asIs">그대로</span><kbd>⌥↩</kbd></button>
+              </div>
+            </div>
+            <div class="pill">
+              <div class="persona">🧭</div>
+              <div class="pill-text" data-i18n="pill.draft">이번주 금요일에 시간 되요?</div>
+              <div class="pill-send">↑</div>
+            </div>
+            <svg class="cursor" viewBox="0 0 12 18" aria-hidden="true"><path d="M1 1 L11 9 L6.6 10.4 L9 16.2 L7 17 L4.6 11.2 L1 14 Z" fill="#fff" stroke="#000" stroke-width=".7"/></svg>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div class="notes-card">
+          <h2 data-i18n="notes.panel">설계 메모</h2>
+          <ol>
+            <li><span class="marker">1</span><span data-i18n="pill.note1">380pt 폭에 맞춰 2줄까지만 보여 주고, 나머지는 ‘+N곳’으로 접습니다.</span></li>
+            <li><span class="marker">2</span><span data-i18n="pill.note2">Enter = 교정해서 보내기, ⌥Enter = 그대로. ⌘Return은 지금처럼 대화 창을 엽니다.</span></li>
+            <li><span class="marker">3</span><span data-i18n="pill.note3">화면 위쪽에서도 보이는 영역 안으로 클램프합니다. 포커스는 빼앗지 않습니다.</span></li>
+            <li><span class="marker">4</span><span data-i18n="pill.note4">Esc는 카드만 닫고 pill은 유지합니다. 한 번 더 누르면 pill이 닫힙니다.</span></li>
+          </ol>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 03 SETTINGS -->
+  <section class="screen" data-screen="settings" hidden>
+    <div class="screen-head">
+      <h1 data-i18n="settings.h1">03 · 설정 — 입력 교정</h1>
+      <p data-i18n="settings.sub">설정 › 대화 › 입력 교정. 기본값은 켜짐입니다.</p>
+    </div>
+    <div class="screen-body">
+      <div class="window-col">
+        <div class="window settings-window">
+          <div class="titlebar">
+            <div class="traffic"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+            <div class="window-title" data-i18n="settings.windowTitle">설정</div>
+            <div class="window-tools"><span class="tool-glyph">?</span></div>
+          </div>
+          <div class="settings-body">
+            <aside class="sidebar">
+              <div class="side-group" data-i18n="settings.groupApp">앱</div>
+              <div class="side-item"><span class="side-icon">⚙︎</span><span data-i18n="settings.tabGeneral">일반</span></div>
+              <div class="side-item active"><span class="side-icon">💬</span><span data-i18n="settings.tabConversation">대화</span></div>
+              <div class="side-item"><span class="side-icon">⌨︎</span><span data-i18n="settings.tabShortcut">단축키</span></div>
+              <div class="side-group" data-i18n="settings.groupFeatures">기능</div>
+              <div class="side-item"><span class="side-icon">✦</span><span data-i18n="settings.tabAI">AI</span></div>
+              <div class="side-item"><span class="side-icon">⌕</span><span data-i18n="settings.tabSearch">검색</span></div>
+              <div class="side-item"><span class="side-icon">🧰</span><span data-i18n="settings.tabTools">도구·권한</span></div>
+              <div class="side-item"><span class="side-icon">🤖</span><span data-i18n="settings.tabAssistant">비서</span></div>
+              <div class="side-item"><span class="side-icon">🎙︎</span><span data-i18n="settings.tabVoice">음성</span></div>
+              <div class="side-item"><span class="side-icon">🗂︎</span><span data-i18n="settings.tabShelf">퀵셸프</span></div>
+              <div class="side-group" data-i18n="settings.groupOther">기타</div>
+              <div class="side-item"><span class="side-icon">ⓘ</span><span data-i18n="settings.tabAbout">정보</span></div>
+              <div class="side-foot">QuickTalk v1.41.0</div>
+            </aside>
+            <div class="settings-content">
+              <div class="help-card">
+                <h2 data-i18n="settings.helpTitle">입력 교정</h2>
+                <p data-i18n="settings.helpBody">보내기 직전에 맞춤법과 띄어쓰기를 확인합니다. 문제가 있으면 보내지 않고 카드를 띄웁니다. 검사는 이 Mac 안에서만 하고, 문장은 저장하지 않습니다.</p>
+              </div>
+
+              <div class="group">
+                <div class="group-title" data-i18n="settings.groupInput">입력 교정</div>
+                <div class="group-card">
+                  <div class="row">
+                    <div class="row-label"><span data-i18n="settings.toggle">입력 교정 힌트</span><div class="row-desc" data-i18n="settings.toggleDesc">끄면 확인 없이 바로 보냅니다.</div></div>
+                    <div class="switch on" role="switch" aria-checked="true"></div>
+                  </div>
+                  <div class="row">
+                    <div class="row-label"><span data-i18n="settings.where">표시 위치</span><div class="row-desc" data-i18n="settings.whereDesc">pill에서는 카드를 한 줄로 줄여 보여 줍니다. ‘대화창만’을 고르면 pill은 검사 없이 전송합니다.</div></div>
+                    <div class="segmented">
+                      <button class="seg active" data-i18n="settings.both">대화창과 pill</button>
+                      <button class="seg" data-i18n="settings.chatOnly">대화창만</button>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-label"><span data-i18n="settings.record">검사 기록 남기기</span><div class="row-desc" data-i18n="settings.recordDesc">오타 노트에 틀린 구간과 고친 구간만 저장합니다. 문장 전체는 저장하지 않습니다.</div></div>
+                    <div class="switch on" role="switch" aria-checked="true"></div>
+                  </div>
+                  <div class="inline-actions" style="justify-content:flex-end">
+                    <button class="small-btn" data-i18n="settings.openNotes">오타 노트 열기…</button>
+                  </div>
+                  <div class="divider"></div>
+                  <div class="row">
+                    <div class="row-label"><span data-i18n="settings.ai">AI 자세히 검사</span><span class="badge" data-i18n="settings.badge">실험</span><div class="row-desc" data-i18n="settings.aiDesc">Apple Intelligence로 더 살펴봅니다. 이 Mac에서 2초 안팎 걸리고 한국어 정확도가 아직 낮아 기본은 꺼짐입니다. 전송을 막지 않습니다.</div></div>
+                    <div class="switch" role="switch" aria-checked="false"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="group">
+                <div class="group-title" data-i18n="settings.followTitle">후속 질문</div>
+                <div class="group-card">
+                  <div class="row">
+                    <div class="row-label"><span data-i18n="settings.follow1">응답이 끝나면 후속 질문 제안</span><div class="row-desc" data-i18n="settings.follow1Desc">답변이 끝난 뒤 이어서 물어볼 만한 질문 3개를 칩으로 보여 줍니다.</div></div>
+                    <div class="switch on" role="switch" aria-checked="true"></div>
+                  </div>
+                  <div class="row">
+                    <div class="row-label"><span data-i18n="settings.follow2">칩을 누르면 바로 보내기</span><div class="row-desc" data-i18n="settings.follow2Desc">끄면 입력창에 질문만 채우고, 보내기 전에 고칠 수 있습니다.</div></div>
+                    <div class="switch on" role="switch" aria-checked="true"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div class="notes-card">
+          <h2 data-i18n="notes.panel">설계 메모</h2>
+          <ol>
+            <li><span class="marker">1</span><span data-i18n="settings.note1">설정 › 대화 › 입력 교정. 기본 켜짐, 대화창과 pill 모두 표시.</span></li>
+            <li><span class="marker">2</span><span data-i18n="settings.note2">‘대화창만’을 고르면 pill은 검사 없이 바로 전송합니다.</span></li>
+            <li><span class="marker">3</span><span data-i18n="settings.note3">AI 검사는 기본 꺼짐. 켜도 전송을 막지 않고, [AI로 더 보기]를 눌렀을 때만 실행합니다.</span></li>
+            <li><span class="marker">4</span><span data-i18n="settings.note4">새 탭을 만들지 않습니다. 이미 10개라 사이드바가 길어집니다.</span></li>
+          </ol>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 04 NOTES -->
+  <section class="screen" data-screen="notes" hidden>
+    <div class="screen-head">
+      <h1 data-i18n="notes.h1">04 · 오타 노트 — 자주 틀리는 표현과 교정률</h1>
+      <p data-i18n="notes.sub">목적은 점수가 아니라, 같은 실수를 덜 반복하는 것입니다.</p>
+    </div>
+    <div class="screen-body">
+      <div class="window-col">
+        <div class="window notes-window">
+          <div class="sheet-head">
+            <div>
+              <h1 data-i18n="notes.title">오타 노트</h1>
+              <p data-i18n="notes.subtitle">내가 자주 틀리는 표현</p>
+            </div>
+            <div class="right">
+              <div class="segmented">
+                <button class="seg" data-i18n="notes.range7">7일</button>
+                <button class="seg active" data-i18n="notes.range30">30일</button>
+                <button class="seg" data-i18n="notes.range90">90일</button>
+              </div>
+              <button class="hint-close" aria-label="Close">×</button>
+            </div>
+          </div>
+          <div class="sheet-body">
+            <div class="notes-data">
+              <div class="stat-grid">
+                <div class="stat"><div class="num">128</div><div class="label" data-i18n="notes.checks">검사한 메시지</div><div class="sub" data-i18n="notes.checksSub">기능이 켜진 동안</div></div>
+                <div class="stat"><div class="num">23</div><div class="label" data-i18n="notes.hints">힌트가 뜬 메시지</div><div class="sub"><b data-i18n="notes.rate">발생률 18%</b> · <span data-i18n="notes.asIs">그대로 2</span></div></div>
+                <div class="stat"><div class="num">17</div><div class="label" data-i18n="notes.fixed">교정해서 보냄</div><div class="sub"><b data-i18n="notes.fixedRate">교정률 74%</b></div></div>
+                <div class="stat"><div class="num">4</div><div class="label" data-i18n="notes.revised">다시 고침</div><div class="sub" data-i18n="notes.revisedSub">힌트를 닫고 입력으로</div></div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <h3 data-i18n="notes.chartTitle">주별 발생률</h3>
+                  <span data-i18n="notes.chartSub">검사한 메시지 대비 힌트가 뜬 비율</span>
+                  <span class="right" data-i18n="notes.chartRight">평균 22% · 8주</span>
+                </div>
+                <div class="rate-chart">
+                  <div class="avg-line"></div>
+                  <div class="avg-label">22%</div>
+                  <div class="rate-col"><span class="rate-val">50%</span><div class="rate-bar" style="height:82%"></div></div>
+                  <div class="rate-col"><span class="rate-val">33%</span><div class="rate-bar" style="height:54%"></div></div>
+                  <div class="rate-col"><span class="rate-val">21%</span><div class="rate-bar" style="height:34%"></div></div>
+                  <div class="rate-col"><span class="rate-val">19%</span><div class="rate-bar" style="height:31%"></div></div>
+                  <div class="rate-col"><span class="rate-val">17%</span><div class="rate-bar" style="height:28%"></div></div>
+                  <div class="rate-col"><span class="rate-val">15%</span><div class="rate-bar" style="height:25%"></div></div>
+                  <div class="rate-col"><span class="rate-val">10%</span><div class="rate-bar" style="height:16%"></div></div>
+                  <div class="rate-col"><span class="rate-val">10%</span><div class="rate-bar" style="height:16%"></div></div>
+                </div>
+                <div class="chart-x">
+                  <span>10/1</span><span>10/8</span><span>10/15</span><span>10/22</span><span>10/29</span><span>11/5</span><span>11/12</span><span data-i18n="notes.today">11/19</span>
+                </div>
+              </div>
+
+              <div class="chips">
+                <button class="chip active" data-i18n="notes.catAll">전체 23</button>
+                <button class="chip" data-i18n="notes.catSpacing">띄어쓰기 14</button>
+                <button class="chip" data-i18n="notes.catSpelling">맞춤법 7</button>
+                <button class="chip" data-i18n="notes.catPunct">문장부호 2</button>
+              </div>
+
+              <div class="table">
+                <div class="thead"><span data-i18n="notes.colExpr">표현</span><span data-i18n="notes.colCount">횟수</span><span data-i18n="notes.colRate">교정</span><span data-i18n="notes.colLast">마지막</span><span></span></div>
+                <div class="trow">
+                  <div class="expr"><span class="orig">이번주</span><span class="arrow">→</span><span class="fix">이번 주</span><span class="tag spacing" data-i18n="tag.spacing">띄어쓰기</span></div>
+                  <div>7</div>
+                  <div><div>6/7</div><div class="mini-bar"><i style="width:86%"></i></div></div>
+                  <div data-i18n="notes.lastToday">오늘</div>
+                  <button class="ignore" data-i18n="notes.ignore">무시</button>
+                </div>
+                <div class="trow">
+                  <div class="expr"><span class="orig">몇일</span><span class="arrow">→</span><span class="fix">며칠</span><span class="tag spelling" data-i18n="tag.spelling">맞춤법</span></div>
+                  <div>4</div>
+                  <div><div>4/4</div><div class="mini-bar"><i style="width:100%"></i></div></div>
+                  <div data-i18n="notes.lastYesterday">어제</div>
+                  <button class="ignore" data-i18n="notes.ignore">무시</button>
+                </div>
+                <div class="trow">
+                  <div class="expr"><span class="orig">할께요</span><span class="arrow">→</span><span class="fix">할게요</span><span class="tag spelling" data-i18n="tag.spelling">맞춤법</span></div>
+                  <div>3</div>
+                  <div><div>2/3</div><div class="mini-bar"><i style="width:67%"></i></div></div>
+                  <div data-i18n="notes.lastNov16">11월 16일</div>
+                  <button class="ignore" data-i18n="notes.ignore">무시</button>
+                </div>
+                <div class="trow">
+                  <div class="expr"><span class="orig">잘부탁</span><span class="arrow">→</span><span class="fix">잘 부탁</span><span class="tag spacing" data-i18n="tag.spacing">띄어쓰기</span></div>
+                  <div>2</div>
+                  <div><div>2/2</div><div class="mini-bar"><i style="width:100%"></i></div></div>
+                  <div data-i18n="notes.lastNov14">11월 14일</div>
+                  <button class="ignore" data-i18n="notes.ignore">무시</button>
+                </div>
+                <div class="trow">
+                  <div class="expr"><span class="orig">다음달</span><span class="arrow">→</span><span class="fix">다음 달</span><span class="tag spacing" data-i18n="tag.spacing">띄어쓰기</span></div>
+                  <div>2</div>
+                  <div><div>1/2</div><div class="mini-bar"><i style="width:50%"></i></div></div>
+                  <div data-i18n="notes.lastNov12">11월 12일</div>
+                  <button class="ignore" data-i18n="notes.ignore">무시</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="notes-empty" hidden>
+              <div class="empty">
+                <div class="empty-icon">✎</div>
+                <h2 data-i18n="notes.emptyTitle">아직 기록이 없어요</h2>
+                <p data-i18n="notes.emptyBody">교정 힌트를 사용하면 자주 틀리는 표현이 여기에 쌓입니다.</p>
+                <p style="color:var(--tertiary)" data-i18n="notes.emptyFoot">문장 전체가 아니라 틀린 구간만 저장합니다.</p>
+              </div>
+            </div>
+          </div>
+          <div class="sheet-foot">
+            <span>⌁</span>
+            <span data-i18n="notes.foot">기록은 이 Mac에만 저장됩니다 · 90일 뒤 자동 삭제</span>
+            <div class="right">
+              <button class="link-danger" data-i18n="notes.clear">모두 지우기</button>
+              <button class="btn secondary small" data-i18n="notes.close">닫기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div class="notes-card">
+          <h2 data-i18n="notes.panel">설계 메모</h2>
+          <div class="state-box" style="margin-bottom:11px">
+            <span data-i18n="state.label">상태</span>
+            <button class="state-btn active" data-notes-state="data" data-i18n="state.data">데이터</button>
+            <button class="state-btn" data-notes-state="empty" data-i18n="state.empty">빈 상태</button>
+          </div>
+          <ol>
+            <li><span class="marker">1</span><span data-i18n="notes.note1">발생률 = 힌트가 뜬 메시지 ÷ 검사한 메시지.</span></li>
+            <li><span class="marker">2</span><span data-i18n="notes.note2">교정률 = 교정해서 보낸 메시지 ÷ 힌트가 뜬 메시지.</span></li>
+            <li><span class="marker">3</span><span data-i18n="notes.note3">‘다시 고침’은 힌트를 닫고 입력으로 돌아간 횟수 — 스스로 고치는 신호입니다.</span></li>
+            <li><span class="marker">4</span><span data-i18n="notes.note4">문장 전체는 저장하지 않고 틀린 구간·고친 구간만. 90일 뒤 자동 삭제.</span></li>
+          </ol>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="review-foot">
+    <span data-i18n="foot.review">검토용 목업 · 구현 계약은 PLAN_v0.41</span>
+    <span class="dotsep"></span>
+    <span>2026-11-19</span>
+    <span class="dotsep"></span>
+    <span>ko / en</span>
+    <span class="dotsep"></span>
+    <span>dark / light</span>
+    <span class="dotsep"></span>
+    <span>1280×900</span>
+  </div>
+</main>
+
+<script>
+  var I18N = {
+    ko: {
+      'review.sub': 'v0.41 디자인 검토',
+      'tab.chat': '대화창', 'tab.pill': '포인터 pill', 'tab.settings': '설정', 'tab.notes': '오타 노트',
+      'ctrl.light': '라이트', 'ctrl.dark': '다크',
+      'chat.h1': '01 · 대화창 — 보내기 전 교정 카드',
+      'chat.sub': 'Enter로 보낼 때, 문제가 있으면 전송을 잠시 멈추고 카드를 띄웁니다.',
+      'chat.windowTitle': '이사 견적 비교', 'chat.persona': '이사 도우미',
+      'chat.msg1': '이사 견적 비교해 줘. 다음주까지 정리해야 해.',
+      'chat.tool': '견적 3곳 확인',
+      'chat.msg2': '네, 세 곳의 견적을 같은 기준으로 비교해 표로 정리하겠습니다. 업체별 금액·포함 항목·추가 비용을 맞춰 볼게요.',
+      'chat.msg3': '고마워요!', 'chat.msg4': '필요하면 이사 날짜 후보도 같이 정리해 드릴게요.',
+      'chat.copy': '복사', 'chat.draft': '이번주 금요일에 시간 괜찮아요? 몇일 전에 말씀드린 그 건으로 이야기하고 싶어요. 회의 자료도 미리 준비할께요.',
+      'chat.composerHint': 'Enter 전송 · Shift+Enter 줄바꿈',
+      'chat.note1': '카드는 입력독 위에 겹쳐 뜹니다. 대화 본문을 밀거나 스크롤을 튀게 하지 않습니다.',
+      'chat.note2': '기본 버튼은 [교정해서 보내기]. Enter로 실행하고, ⌥Enter는 원문 그대로 보냅니다.',
+      'chat.note3': '[이 대화에서 끄기]는 이 대화에서만. 설정의 기본값은 유지됩니다.',
+      'chat.note4': '검사는 전송 직전, 온디바이스 규칙으로 5ms 이하. 네트워크를 쓰지 않습니다.',
+      'hint.title': '보내기 전에 다듬을까요?', 'hint.found': '3곳을 찾았어요',
+      'hint.fixSend': '교정해서 보내기', 'hint.asIs': '그대로 보내기', 'hint.off': '이 대화에서 끄기',
+      'hint.foot': '온디바이스 규칙 검사 · 3ms · 문장은 저장하지 않음', 'hint.close': '닫기',
+      'tag.spacing': '띄어쓰기', 'tag.spelling': '맞춤법',
+      'pill.h1': '02 · 포인터 pill — 한 줄 교정 카드',
+      'pill.sub': '빠른 전송을 방해하지 않도록 카드를 380pt 안에 줄입니다.',
+      'pill.count': '3곳', 'pill.kinds': '· 띄어쓰기 1 · 맞춤법 2', 'pill.more': '+1',
+      'pill.fix': '교정', 'pill.asIs': '그대로', 'pill.draft': '이번주 금요일에 시간 괜찮아요? 몇일 전에…',
+      'pill.note1': '380pt 폭에 맞춰 2줄까지만 보여 주고, 나머지는 ‘+N곳’으로 접습니다.',
+      'pill.note2': 'Enter = 교정해서 보내기, ⌥Enter = 그대로. ⌘Return은 지금처럼 대화 창을 엽니다.',
+      'pill.note3': '화면 위쪽에서도 보이는 영역 안으로 클램프합니다. 포커스는 빼앗지 않습니다.',
+      'pill.note4': 'Esc는 카드만 닫고 pill은 유지합니다. 한 번 더 누르면 pill이 닫힙니다.',
+      'settings.h1': '03 · 설정 — 입력 교정', 'settings.sub': '설정 › 대화 › 입력 교정. 기본값은 켜짐입니다.',
+      'settings.windowTitle': '설정',
+      'settings.groupApp': '앱', 'settings.tabGeneral': '일반', 'settings.tabConversation': '대화', 'settings.tabShortcut': '단축키',
+      'settings.groupFeatures': '기능', 'settings.tabAI': 'AI', 'settings.tabSearch': '검색', 'settings.tabTools': '도구·권한',
+      'settings.tabAssistant': '비서', 'settings.tabVoice': '음성', 'settings.tabShelf': '퀵셸프',
+      'settings.groupOther': '기타', 'settings.tabAbout': '정보',
+      'settings.helpTitle': '입력 교정',
+      'settings.helpBody': '보내기 직전에 맞춤법과 띄어쓰기를 확인합니다. 문제가 있으면 보내지 않고 카드를 띄웁니다. 검사는 이 Mac 안에서만 하고, 문장은 저장하지 않습니다.',
+      'settings.groupInput': '입력 교정', 'settings.toggle': '입력 교정 힌트', 'settings.toggleDesc': '끄면 확인 없이 바로 보냅니다.',
+      'settings.where': '표시 위치', 'settings.both': '대화창과 pill', 'settings.chatOnly': '대화창만',
+      'settings.whereDesc': 'pill에서는 카드를 한 줄로 줄여 보여 줍니다. ‘대화창만’을 고르면 pill은 검사 없이 전송합니다.',
+      'settings.record': '검사 기록 남기기', 'settings.recordDesc': '오타 노트에 틀린 구간과 고친 구간만 저장합니다. 문장 전체는 저장하지 않습니다.',
+      'settings.openNotes': '오타 노트 열기…', 'settings.ai': 'AI 자세히 검사', 'settings.badge': '실험',
+      'settings.aiDesc': 'Apple Intelligence로 더 살펴봅니다. 이 Mac에서 2초 안팎 걸리고 한국어 정확도가 아직 낮아 기본은 꺼짐입니다. 전송을 막지 않습니다.',
+      'settings.followTitle': '후속 질문', 'settings.follow1': '응답이 끝나면 후속 질문 제안',
+      'settings.follow1Desc': '답변이 끝난 뒤 이어서 물어볼 만한 질문 3개를 칩으로 보여 줍니다.',
+      'settings.follow2': '칩을 누르면 바로 보내기', 'settings.follow2Desc': '끄면 입력창에 질문만 채우고, 보내기 전에 고칠 수 있습니다.',
+      'settings.note1': '설정 › 대화 › 입력 교정. 기본 켜짐, 대화창과 pill 모두 표시.',
+      'settings.note2': '‘대화창만’을 고르면 pill은 검사 없이 바로 전송합니다.',
+      'settings.note3': 'AI 검사는 기본 꺼짐. 켜도 전송을 막지 않고, [AI로 더 보기]를 눌렀을 때만 실행합니다.',
+      'settings.note4': '새 탭을 만들지 않습니다. 이미 10개라 사이드바가 길어집니다.',
+      'notes.h1': '04 · 오타 노트 — 자주 틀리는 표현과 교정률',
+      'notes.sub': '목적은 점수가 아니라, 같은 실수를 덜 반복하는 것입니다.',
+      'notes.title': '오타 노트', 'notes.subtitle': '내가 자주 틀리는 표현',
+      'notes.range7': '7일', 'notes.range30': '30일', 'notes.range90': '90일',
+      'notes.checks': '검사한 메시지', 'notes.checksSub': '기능이 켜진 동안',
+      'notes.hints': '힌트가 뜬 메시지', 'notes.rate': '발생률 18%', 'notes.asIs': '그대로 2',
+      'notes.fixed': '교정해서 보냄', 'notes.fixedRate': '교정률 74%',
+      'notes.revised': '다시 고침', 'notes.revisedSub': '힌트를 닫고 입력으로',
+      'notes.chartTitle': '주별 발생률', 'notes.chartSub': '검사한 메시지 대비 힌트가 뜬 비율', 'notes.chartRight': '평균 22% · 8주',
+      'notes.today': '11/19',
+      'notes.catAll': '전체 23', 'notes.catSpacing': '띄어쓰기 14', 'notes.catSpelling': '맞춤법 7', 'notes.catPunct': '문장부호 2',
+      'notes.colExpr': '표현', 'notes.colCount': '횟수', 'notes.colRate': '교정', 'notes.colLast': '마지막',
+      'notes.lastToday': '오늘', 'notes.lastYesterday': '어제', 'notes.lastNov16': '11월 16일', 'notes.lastNov14': '11월 14일', 'notes.lastNov12': '11월 12일',
+      'notes.ignore': '무시',
+      'notes.emptyTitle': '아직 기록이 없어요',
+      'notes.emptyBody': '교정 힌트를 사용하면 자주 틀리는 표현이 여기에 쌓입니다.',
+      'notes.emptyFoot': '문장 전체가 아니라 틀린 구간만 저장합니다.',
+      'notes.foot': '기록은 이 Mac에만 저장됩니다 · 90일 뒤 자동 삭제',
+      'notes.clear': '모두 지우기', 'notes.close': '닫기',
+      'notes.note1': '발생률 = 힌트가 뜬 메시지 ÷ 검사한 메시지.',
+      'notes.note2': '교정률 = 교정해서 보낸 메시지 ÷ 힌트가 뜬 메시지.',
+      'notes.note3': '‘다시 고침’은 힌트를 닫고 입력으로 돌아간 횟수 — 스스로 고치는 신호입니다.',
+      'notes.note4': '문장 전체는 저장하지 않고 틀린 구간·고친 구간만. 90일 뒤 자동 삭제.',
+      'notes.panel': '설계 메모',
+      'state.label': '상태', 'state.hint': '힌트', 'state.clean': '힌트 없음', 'state.data': '데이터', 'state.empty': '빈 상태',
+      'foot.review': '검토용 목업 · 구현 계약은 PLAN_v0.41'
+    },
+    en: {
+      'review.sub': 'v0.41 design review',
+      'tab.chat': 'Chat', 'tab.pill': 'Pointer pill', 'tab.settings': 'Settings', 'tab.notes': 'Notes',
+      'ctrl.light': 'Light', 'ctrl.dark': 'Dark',
+      'chat.h1': '01 · Chat — proofread card before sending',
+      'chat.sub': 'When you press Enter, a finding pauses the send for a moment and shows this card.',
+      'chat.windowTitle': 'Moving quotes', 'chat.persona': 'Moving helper',
+      'chat.msg1': 'Compare moving quotes for me. I need it organized by next week.',
+      'chat.tool': 'Checked 3 quotes',
+      'chat.msg2': 'Sure. I will compare the three quotes on the same basis: price, included items, and extra fees.',
+      'chat.msg3': 'Thanks!', 'chat.msg4': 'I can also organize candidate moving dates if you like.',
+      'chat.copy': 'Copy', 'chat.draft': '이번주 금요일에 시간 괜찮아요? 몇일 전에 말씀드린 그 건으로 이야기하고 싶어요. 회의 자료도 미리 준비할께요.',
+      'chat.composerHint': 'Enter to send · Shift+Enter for a new line',
+      'chat.note1': 'The card floats above the composer. It does not push the transcript or jump the scroll.',
+      'chat.note2': 'The default is [Send corrected]. Enter accepts it; ⌥Enter sends the original.',
+      'chat.note3': '[Turn off for this chat] is scoped to this conversation. The setting stays on.',
+      'chat.note4': 'Checked right before sending, on-device rules, under 5 ms. No network.',
+      'hint.title': 'Polish before sending?', 'hint.found': 'Found 3 fixes',
+      'hint.fixSend': 'Send corrected', 'hint.asIs': 'Send as is', 'hint.off': 'Turn off for this chat',
+      'hint.foot': 'On-device rule check · 3 ms · sentences are not stored', 'hint.close': 'Close',
+      'tag.spacing': 'Spacing', 'tag.spelling': 'Spelling',
+      'pill.h1': '02 · Pointer pill — compact proofread card',
+      'pill.sub': 'The card stays inside the 380 pt pill so quick sends keep their rhythm.',
+      'pill.count': '3 fixes', 'pill.kinds': '· 1 spacing · 2 spelling', 'pill.more': '+1',
+      'pill.fix': 'Fix', 'pill.asIs': 'As is', 'pill.draft': '이번주 금요일에 시간 괜찮아요? 몇일 전에…',
+      'pill.note1': 'Two lines fit the 380 pt width; the rest collapses into “+N”.',
+      'pill.note2': 'Enter = send corrected, ⌥Enter = send as is. ⌘Return still opens the chat window.',
+      'pill.note3': 'Clamped to the visible screen even near the top edge. Focus is never taken away.',
+      'pill.note4': 'Esc closes only the card; the pill stays. Esc again closes the pill.',
+      'settings.h1': '03 · Settings — input proofreading', 'settings.sub': 'Settings › Conversation › Input proofreading. On by default.',
+      'settings.windowTitle': 'Settings',
+      'settings.groupApp': 'App', 'settings.tabGeneral': 'General', 'settings.tabConversation': 'Conversation', 'settings.tabShortcut': 'Shortcuts',
+      'settings.groupFeatures': 'Features', 'settings.tabAI': 'AI', 'settings.tabSearch': 'Search', 'settings.tabTools': 'Tools & access',
+      'settings.tabAssistant': 'Assistants', 'settings.tabVoice': 'Voice', 'settings.tabShelf': 'QuickShelf',
+      'settings.groupOther': 'Other', 'settings.tabAbout': 'About',
+      'settings.helpTitle': 'Input proofreading',
+      'settings.helpBody': 'Checks spelling and spacing right before sending. If it finds something, it shows a card instead of sending. The check stays on this Mac, and sentences are not stored.',
+      'settings.groupInput': 'Input proofreading', 'settings.toggle': 'Proofreading hints', 'settings.toggleDesc': 'Turn off to send without checking.',
+      'settings.where': 'Show in', 'settings.both': 'Chat and pill', 'settings.chatOnly': 'Chat only',
+      'settings.whereDesc': 'The pill shows a one-line card. With “Chat only”, the pill sends without checking.',
+      'settings.record': 'Keep a correction log', 'settings.recordDesc': 'Notes store only the wrong fragment and the fix. The full sentence is never stored.',
+      'settings.openNotes': 'Open notes…', 'settings.ai': 'AI closer look', 'settings.badge': 'BETA',
+      'settings.aiDesc': 'Uses Apple Intelligence for a closer look. About 2 s on this Mac, and Korean accuracy is still low, so it is off by default. It never blocks sending.',
+      'settings.followTitle': 'Follow-up questions', 'settings.follow1': 'Suggest follow-ups after a reply',
+      'settings.follow1Desc': 'Shows three chips with questions you may want to ask next.',
+      'settings.follow2': 'Send when a chip is clicked', 'settings.follow2Desc': 'Turn off to fill the composer only, so you can edit before sending.',
+      'settings.note1': 'Settings › Conversation › Input proofreading. On by default, shown in chat and pill.',
+      'settings.note2': '“Chat only” makes the pill send immediately without checking.',
+      'settings.note3': 'AI is off by default. Even when on, it never blocks sending and runs only from [AI closer look].',
+      'settings.note4': 'No new settings tab. There are already ten, and the sidebar would grow.',
+      'notes.h1': '04 · Correction notes — recurring mistakes and fix rate',
+      'notes.sub': 'The goal is not a score. It is repeating the same mistake less often.',
+      'notes.title': 'Correction notes', 'notes.subtitle': 'Patterns I keep getting wrong',
+      'notes.range7': '7 days', 'notes.range30': '30 days', 'notes.range90': '90 days',
+      'notes.checks': 'Messages checked', 'notes.checksSub': 'While the feature was on',
+      'notes.hints': 'Messages with a hint', 'notes.rate': 'Hint rate 18%', 'notes.asIs': 'sent as is 2',
+      'notes.fixed': 'Sent corrected', 'notes.fixedRate': 'Fix rate 74%',
+      'notes.revised': 'Revised by hand', 'notes.revisedSub': 'Closed the hint and went back',
+      'notes.chartTitle': 'Weekly hint rate', 'notes.chartSub': 'Hints shown vs. messages checked', 'notes.chartRight': 'Average 22% · 8 weeks',
+      'notes.today': '11/19',
+      'notes.catAll': 'All 23', 'notes.catSpacing': 'Spacing 14', 'notes.catSpelling': 'Spelling 7', 'notes.catPunct': 'Punctuation 2',
+      'notes.colExpr': 'Pattern', 'notes.colCount': 'Count', 'notes.colRate': 'Fixed', 'notes.colLast': 'Last',
+      'notes.lastToday': 'Today', 'notes.lastYesterday': 'Yesterday', 'notes.lastNov16': 'Nov 16', 'notes.lastNov14': 'Nov 14', 'notes.lastNov12': 'Nov 12',
+      'notes.ignore': 'Ignore',
+      'notes.emptyTitle': 'No notes yet',
+      'notes.emptyBody': 'Once you use proofreading hints, the patterns you keep missing will appear here.',
+      'notes.emptyFoot': 'Only the fragment is stored, never the full sentence.',
+      'notes.foot': 'Stored only on this Mac · deleted after 90 days',
+      'notes.clear': 'Clear all', 'notes.close': 'Close',
+      'notes.note1': 'Hint rate = messages with a hint ÷ messages checked.',
+      'notes.note2': 'Fix rate = messages sent corrected ÷ messages with a hint.',
+      'notes.note3': '“Revised by hand” counts closing the hint and returning to the draft — a sign of self-correction.',
+      'notes.note4': 'Only the fragment and the fix are stored. Auto-deleted after 90 days.',
+      'notes.panel': 'Design notes',
+      'state.label': 'State', 'state.hint': 'Hint', 'state.clean': 'No hint', 'state.data': 'Data', 'state.empty': 'Empty',
+      'foot.review': 'Review mockup · the contract is PLAN_v0.41'
+    }
+  };
+
+  var params = new URLSearchParams(location.search);
+  var state = {
+    screen: ['chat', 'pill', 'settings', 'notes'].indexOf(params.get('screen')) >= 0 ? params.get('screen') : 'chat',
+    theme: params.get('theme') === 'light' ? 'light' : 'dark',
+    lang: params.get('lang') === 'en' ? 'en' : 'ko',
+    state: params.get('state') || ''
+  };
+
+  function render() {
+    document.documentElement.dataset.theme = state.theme;
+    document.documentElement.lang = state.lang;
+    var dict = I18N[state.lang];
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var value = dict[el.getAttribute('data-i18n')];
+      if (value != null) el.textContent = value;
+    });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function (el) {
+      var value = dict[el.getAttribute('data-i18n-aria')];
+      if (value != null) el.setAttribute('aria-label', value);
+    });
+    document.querySelectorAll('.screen').forEach(function (sec) {
+      sec.hidden = sec.getAttribute('data-screen') !== state.screen;
+    });
+    document.querySelectorAll('.tab').forEach(function (btn) {
+      btn.setAttribute('aria-selected', btn.getAttribute('data-tab') === state.screen ? 'true' : 'false');
+    });
+    document.getElementById('themeBtn').textContent = dict[state.theme === 'dark' ? 'ctrl.light' : 'ctrl.dark'];
+    document.getElementById('langBtn').textContent = state.lang === 'ko' ? 'EN' : '한국어';
+    if (state.screen === 'chat') {
+      var clean = state.state === 'clean';
+      document.querySelector('.hint-card').style.display = clean ? 'none' : '';
+      document.querySelectorAll('[data-chat-state]').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-chat-state') === (clean ? 'clean' : 'hint'));
+      });
+    }
+    if (state.screen === 'notes') {
+      var empty = state.state === 'empty';
+      document.querySelector('.notes-data').hidden = empty;
+      document.querySelector('.notes-empty').hidden = !empty;
+      document.querySelector('.link-danger').hidden = empty;
+      document.querySelectorAll('[data-notes-state]').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-notes-state') === (empty ? 'empty' : 'data'));
+      });
+    }
+  }
+
+  document.querySelectorAll('.tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.screen = btn.getAttribute('data-tab');
+      state.state = '';
+      render();
+    });
+  });
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    render();
+  });
+  document.getElementById('langBtn').addEventListener('click', function () {
+    state.lang = state.lang === 'ko' ? 'en' : 'ko';
+    render();
+  });
+
+  document.querySelectorAll('[data-chat-state]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var clean = btn.getAttribute('data-chat-state') === 'clean';
+      state.state = clean ? 'clean' : 'hint';
+      document.querySelector('.hint-card').style.display = clean ? 'none' : '';
+      document.querySelectorAll('[data-chat-state]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    });
+  });
+  document.querySelectorAll('[data-notes-state]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var empty = btn.getAttribute('data-notes-state') === 'empty';
+      state.state = empty ? 'empty' : 'data';
+      document.querySelector('.notes-data').hidden = empty;
+      document.querySelector('.notes-empty').hidden = !empty;
+      document.querySelector('.link-danger').hidden = empty;
+      document.querySelectorAll('[data-notes-state]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    });
+  });
+
+  render();
+</script>
+</body>
+</html>

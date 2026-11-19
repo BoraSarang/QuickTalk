@@ -395,6 +395,61 @@ extension AppDelegate {
           size: NSSize(width: 460, height: 330),
           to: "\(dir)/persona-skills-\(suffix).png")
       }
+      // v0.41 — 입력 교정 힌트 · 오타 노트(대화창 카드 / pill 카드 / 오타 노트 / 설정)
+      if CommandLine.arguments.contains("--demo-proofread") {
+        // 검사 대상은 한국어 원문이다 — 영어 UI 에서도 입력은 한국어인 경우를 그대로 보여 준다.
+        let text = "이번주 금요일에 시간 되요? 몇일까지 괜찮아?"
+        let result = ProofreadEngine.check(text)
+        let hint = ProofreadHintState(source: .composer, original: text,
+                                      result: result, token: nil)
+        // 실제 대화 기록이 문서에 남지 않게 **예시 대화로 바꿔** 그린다(렌더 후 복원).
+        let conversationBackup = self.store.conversation
+        let draftBackup = self.store.draft
+        self.store.conversation = Conversation(title: L("금요일 약속"), turns: [
+          Turn(role: .user, text: L("금요일 오후에 시간 괜찮아?")),
+          Turn(role: .assistant, text: L("네, 오후 2시부터는 괜찮습니다. 장소는 어디로 할까요?"))
+        ])
+        // 대화창 — 실제 ContentView 하단에 카드가 어떻게 붙는지.
+        self.store.draft = text
+        self.store.proofreadHint = hint
+        self.renderPNG(AnyView(ContentView().environmentObject(self.store)),
+                       size: NSSize(width: 460, height: 620),
+                       to: "\(dir)/chat-hint-\(suffix).png")
+        self.store.proofreadHint = nil
+        // 카드 단독 — 간격·칩·버튼을 확대해 확인한다.
+        self.renderPNG(AnyView(
+          ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            ProofreadHintCard(hint: hint, style: .composer,
+                              onAccept: {}, onSendAsIs: {}, onDismiss: {},
+                              onDisableForConversation: {})
+              .padding(20)
+              .frame(width: 620)
+          }),
+          size: NSSize(width: 620, height: 210),
+          to: "\(dir)/card-\(suffix).png")
+        // pill — 카드가 pill **위로** 붙고 본체는 제자리인지.
+        let pillText = "이번주 되요? 몇일까지 괜찮아?"
+        let pill = PillModel()
+        pill.text = pillText
+        pill.hint = ProofreadHintState(source: .pill, original: pillText,
+                                       result: ProofreadEngine.check(pillText), token: nil)
+        self.renderPNG(AnyView(Self.proofreadPillStage(pill)),
+                       size: NSSize(width: 460,
+                                    height: PillMetrics.height + PillMetrics.gap
+                                      + PillMetrics.hintCardHeight + 36),
+                       to: "\(dir)/pill-hint-\(suffix).png")
+        // 오타 노트 — 표본이 쌓인 상태와 빈 상태.
+        self.renderPNG(AnyView(ProofreadNotesSheet(history: Self.demoProofreadHistory())),
+                       size: NSSize(width: 760, height: 630),
+                       to: "\(dir)/notes-\(suffix).png")
+        self.renderPNG(AnyView(ProofreadNotesSheet(
+          history: ProofreadHistory(data: ProofreadData()))),
+          size: NSSize(width: 760, height: 630),
+          to: "\(dir)/notes-empty-\(suffix).png")
+        self.store.conversation = conversationBackup
+        self.store.draft = draftBackup
+      }
       self.renderPNG(AnyView(SettingsView(initialTab: tab,
                                           initialAgentRuleProbe: ruleProbe,
                                           initialSkills: demoSkills,
@@ -2659,6 +2714,82 @@ extension AppDelegate {
                    onSubmit: { _ in }, onCancel: {}, onCommandReturn: {}, onToggleList: {},
                    onResume: { _ in }, onOpenArchive: {})
     }
+  }
+
+  /// v0.41 — 교정 카드가 붙은 pill. 창 높이를 그대로 재현한다(투명 여백은 초록).
+  private static func proofreadPillStage(_ model: PillModel) -> some View {
+    ZStack(alignment: .bottom) {
+      Color.green.opacity(0.35)
+      PillRootView(model: model,
+                   onSubmit: { _ in }, onCancel: {}, onCommandReturn: {}, onToggleList: {},
+                   onResume: { _ in }, onOpenArchive: {})
+    }
+  }
+
+  /// v0.41 오타 노트 데모 — 8주에 걸친 검사·힌트·교정 기록(파일에 쓰지 않는다).
+  private static func demoProofreadHistory() -> ProofreadHistory {
+    var calendar = Calendar.current
+    calendar.timeZone = .current
+    let base = calendar.startOfDay(for: Date())
+    let formatter = DateFormatter()
+    formatter.calendar = calendar
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+
+    // 주별 발생률이 50% → 10% 로 내려가는 모양(목업과 같은 흐름).
+    // 하루 단위 반올림은 10% 구간을 0 으로 만들어 버린다 —
+    // 주 목표 힌트 수를 **누적 잔차**로 요일마다 나눠 배분한다(합계가 정확히 맞는다).
+    let rates: [Double] = [0.50, 0.33, 0.21, 0.19, 0.17, 0.15, 0.10, 0.10]
+    let perDayChecks = [5, 6, 5, 7, 6, 5, 4]
+    let weeklyChecks = perDayChecks.reduce(0, +)
+    var daily: [ProofreadDay] = []
+    var carry = 0.0
+    var assigned = 0
+    var currentWeek = -1
+    for daysAgo in (0..<56).reversed() {
+      let weekBack = daysAgo / 7
+      if weekBack != currentWeek {
+        currentWeek = weekBack
+        carry = 0
+        assigned = 0
+      }
+      let rate = rates[7 - min(7, weekBack)]
+      guard let date = calendar.date(byAdding: .day, value: -daysAgo, to: base) else { continue }
+      let checks = perDayChecks[daysAgo % 7]
+      let target = Int((Double(weeklyChecks) * rate).rounded())
+      carry += Double(checks) * rate
+      let due = min(target, Int(carry.rounded(.down)))
+      let hints = max(0, min(checks, due - assigned))
+      assigned += hints
+      let accepted = hints > 0 && daysAgo % 4 != 0 ? hints : 0
+      daily.append(ProofreadDay(day: formatter.string(from: date),
+                                checks: checks, hints: hints,
+                                accepted: accepted,
+                                asIs: hints - accepted,
+                                dismissed: hints > 0 && daysAgo % 9 == 0 ? 1 : 0))
+    }
+
+    let samples: [(String, String, ProofreadCategory, String, Int)] = [
+      ("이번주", "이번 주", .spacing, "spacing.this-week", 7),
+      ("몇일", "며칠", .spelling, "spelling.myeochil", 4),
+      ("할께요", "할게요", .spelling, "spelling.halkke", 3),
+      ("잘부탁", "잘 부탁", .spacing, "spacing.jal-butak", 2),
+      ("다음달", "다음 달", .spacing, "spacing.this-month", 2)
+    ]
+    var entries: [ProofreadEntry] = []
+    for (index, sample) in samples.enumerated() {
+      for n in 0..<sample.4 {
+        let date = calendar.date(byAdding: .day,
+                                 value: -(n * 4 + index * 2), to: base) ?? base
+        entries.append(ProofreadEntry(
+          at: date, category: sample.2, original: sample.0,
+          replacement: sample.1,
+          accepted: n < sample.4 - (index % 3),
+          ruleID: sample.3, source: index.isMultiple(of: 2) ? "composer" : "pill"))
+      }
+    }
+    return ProofreadHistory(data: ProofreadData(entries: entries, daily: daily),
+                            calendar: calendar)
   }
 
   /// SwiftUI 뷰를 창 없이 PNG로 — `--render` 전용

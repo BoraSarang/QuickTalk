@@ -269,11 +269,35 @@ extension SettingsView {
   var conversationSection: some View {
     windowAttachmentSection
     windowBehaviorSection
+    proofreadSection
     outlineSection
     followUpSection
     memorySection
     globalMemorySection
     archiveSection
+  }
+
+  // MARK: - 입력 교정 힌트 (v0.41)
+
+  /// 보내기 직전에 확실한 맞춤법·띄어쓰기만 알린다.
+  /// Apple FM 은 실측(중앙값 2.04초·오교정 13/18)으로 전송 경로에서 제외 — v0.41 에는 노출하지 않는다.
+  @ViewBuilder
+  var proofreadSection: some View {
+    groupBox(L("입력 교정")) {
+      toggleRow(L("입력 교정 힌트"), isOn: $store.settings.proofreadHintsEnabled,
+                description: L("보내기 직전에 맞춤법·띄어쓰기를 확인합니다. 문제가 있으면 보내지 않고 카드를 띄웁니다. 검사는 이 Mac 안에서 하고, 문장은 저장하지 않습니다."))
+      if store.settings.proofreadHintsEnabled {
+        pickerRow(L("표시 위치"), selection: $store.settings.proofreadScope,
+                  options: ProofreadScope.allCases.map { ($0, $0.displayName) })
+        caption(L("‘대화창만’을 고르면 pill은 검사 없이 바로 전송합니다."))
+        toggleRow(L("검사 기록 남기기"), isOn: $store.settings.proofreadRecordEnabled,
+                  description: L("오타 노트에 틀린 구간과 고친 구간만 저장합니다. 문장 전체는 저장하지 않습니다."))
+        HStack {
+          Spacer()
+          Button(L("오타 노트 열기…")) { showProofreadNotes = true }
+        }
+      }
+    }
   }
 
   // MARK: - 대화 목차 · 후속 질문 (v0.32)
