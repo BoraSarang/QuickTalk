@@ -22,6 +22,9 @@
 - **단일 출처**: `QuickTalkApp/Info.plist`. 손으로 고치지 말고 `scripts/bump-version.sh <릴리스> [핫픽스]` 사용(`--show` 로 확인).
 - 릴리스 브랜치 **마지막 커밋**에서 올리고, 배포 기록에 표시 버전을 함께 적는다(상세: `docs/DESIGN.md` §14.6).
 
+## 3.2 세션 모드
+- **세션 모드: file** — `.beads/` 없음, `bd where` 실패. 원장은 `.agent/tasks/`, 이력은 `.agent/journal/`, 재개 스냅샷은 `.agent/SESSION.md` 하나만 쓴다(과거 `session-*.md` 아카이브는 읽기 전용).
+
 ## 4. 프로젝트 특화 예외 규칙
 - 분석 대상 `/System/Applications/Siri AI.app` (bundle `com.apple.campo`)는 읽기 전용으로만 취급. 복사·수정·재배포 금지, 동작 관찰 + 리소스 인벤토리만 수행
 - QuickTalk는 Siri AI 복제가 아니라 대화·응답 UX 호환 구현을 목표로 함
