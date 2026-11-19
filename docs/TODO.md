@@ -10,8 +10,8 @@
 - **읽기 승인 1회 묶기**: 같은 턴에 `history.json` 읽기(또는 앱 데이터 폴더 목록)를 한 번 승인하면 후속 `history.json` 읽기는 카드 없이. **`secrets.json`·클립보드·미리보기·일정·쓰기·실행은 매번 확인**, 정책이 "읽기: 매번 확인"이면 묶지 않는다. 카드에 "이 답변을 만드는 동안 같은 읽기 요청은 다시 묻지 않습니다" 표시.
 - **지시문**: 과거 작업 질문은 `past_work` 한 번으로 답하고 `history.json`·`agent-audit.log`를 셸로 읽지 않는다. Apple FM·자동 실행에는 도구를 붙이지 않는다.
 - **부수 수정**: `JobMemory`·`PastWork`가 계획 제안 문구("계획을 제안했습니다…")를 Job 결과로 쓰지 않는다. `지난 주`·`지난 달`(띄어쓰기) 표현 추가.
-- **검증**: `swift test` **1171/1171**(6 skip — `PastWorkTests` 8 · `AppDataGuardTests` +3 · `JobTests` +2) · 번역 2키 · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.2(build 4102)**.
-- **설치(2026-11-19)**: Debug 1.41.2 교체(백업 번들 없음) · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `4a157632…` · PID 3791.
+- **검증**: `swift test` **1172/1172**(6 skip — `PastWorkTests` 9 · `AppDataGuardTests` +3 · `JobTests` +2) · 번역 2키 · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.2(build 4102)**.
+- **설치(2026-11-19)**: Debug 1.41.2 교체(백업 번들 없음) · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `0d119f5b…` · PID 5029. 후속 **PR #185 → `1730dea`** — 중단 문구("응답을 중지했습니다.")를 요약에서 제외.
 - **실측 대기**: ① 새 대화 "지난 주에 어디까지 했지?" → 도구 1회·승인 0~1회 ② 현재 대화가 답변에 섞이지 않음 ③ 승인 카드의 "다시 묻지 않습니다" 문구 ④ `secrets.json`·클립보드·쓰기는 매번 확인.
 - **후속**: Job `resultSummary` 자체를 실제 작업 결과로 고치는 문제(현재는 표시에서만 걸러 낸다).
 
