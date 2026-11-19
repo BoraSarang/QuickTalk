@@ -193,6 +193,15 @@ final class ProofreadTests: XCTestCase {
     }
   }
 
+  /// 교정이 줄바꿈을 지우지 않는다 — 여러 줄 입력은 그대로 두고 틀린 구간만 바꾼다.
+  func testMultilineTextKeepsLineBreaks() {
+    let text = "이번주\n되요?\n몇일까지 괜찮아?"
+    let result = ProofreadEngine.check(text)
+    XCTAssertEqual(result.corrected, "이번 주\n돼요?\n며칠까지 괜찮아?")
+    XCTAssertEqual(result.corrected.components(separatedBy: "\n").count, 3)
+    XCTAssertEqual(result.issues.count, 3)
+  }
+
   // MARK: - 성능
 
   /// 10,000자 상한에서도 전송을 붙잡지 않는다(디버그 빌드 여유 포함 60ms).
