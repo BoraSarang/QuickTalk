@@ -256,8 +256,8 @@ status: review
   .rate-bar { width: 100%; max-width: 26px; border-radius: 3px 3px 0 0; background: var(--amber); }
   .rate-bar.good { background: var(--accent); }
   .rate-val { position: absolute; top: -11px; font-size: 8px; color: var(--secondary); }
-  .avg-line { position: absolute; left: 0; right: 0; bottom: 29%; border-top: 1px dashed color-mix(in srgb, var(--amber) 62%, transparent); pointer-events: none; }
-  .avg-label { position: absolute; right: 1px; bottom: calc(29% + 2px); font-size: 7.5px; color: var(--amber); background: var(--panel-2); padding: 0 3px; }
+  .avg-line { position: absolute; left: 0; right: 0; bottom: 36%; border-top: 1px dashed color-mix(in srgb, var(--amber) 62%, transparent); pointer-events: none; }
+  .avg-label { position: absolute; right: 1px; bottom: calc(36% + 2px); font-size: 7.5px; color: var(--amber); background: var(--panel-2); padding: 0 3px; }
   .chart-x { display: flex; gap: 9px; padding: 4px 2px 0; }
   .chart-x span { flex: 1; text-align: center; font-size: 8px; color: var(--tertiary); }
   .chips { display: flex; gap: 6px; margin: 0 0 7px; }
@@ -574,19 +574,19 @@ status: review
                 <div class="chart-head">
                   <h3 data-i18n="notes.chartTitle">주별 발생률</h3>
                   <span data-i18n="notes.chartSub">검사한 메시지 대비 힌트가 뜬 비율</span>
-                  <span class="right" data-i18n="notes.chartRight">평균 18% · 8주</span>
+                  <span class="right" data-i18n="notes.chartRight">평균 22% · 8주</span>
                 </div>
                 <div class="rate-chart">
                   <div class="avg-line"></div>
-                  <div class="avg-label">18%</div>
+                  <div class="avg-label">22%</div>
                   <div class="rate-col"><span class="rate-val">50%</span><div class="rate-bar" style="height:82%"></div></div>
                   <div class="rate-col"><span class="rate-val">33%</span><div class="rate-bar" style="height:54%"></div></div>
                   <div class="rate-col"><span class="rate-val">21%</span><div class="rate-bar" style="height:34%"></div></div>
                   <div class="rate-col"><span class="rate-val">19%</span><div class="rate-bar" style="height:31%"></div></div>
-                  <div class="rate-col"><span class="rate-val">17%</span><div class="rate-bar good" style="height:28%"></div></div>
-                  <div class="rate-col"><span class="rate-val">15%</span><div class="rate-bar good" style="height:25%"></div></div>
-                  <div class="rate-col"><span class="rate-val">10%</span><div class="rate-bar good" style="height:16%"></div></div>
-                  <div class="rate-col"><span class="rate-val">10%</span><div class="rate-bar good" style="height:16%"></div></div>
+                  <div class="rate-col"><span class="rate-val">17%</span><div class="rate-bar" style="height:28%"></div></div>
+                  <div class="rate-col"><span class="rate-val">15%</span><div class="rate-bar" style="height:25%"></div></div>
+                  <div class="rate-col"><span class="rate-val">10%</span><div class="rate-bar" style="height:16%"></div></div>
+                  <div class="rate-col"><span class="rate-val">10%</span><div class="rate-bar" style="height:16%"></div></div>
                 </div>
                 <div class="chart-x">
                   <span>10/1</span><span>10/8</span><span>10/15</span><span>10/22</span><span>10/29</span><span>11/5</span><span>11/12</span><span data-i18n="notes.today">11/19</span>
@@ -751,7 +751,7 @@ status: review
       'notes.hints': '힌트가 뜬 메시지', 'notes.rate': '발생률 18%', 'notes.asIs': '그대로 2',
       'notes.fixed': '교정해서 보냄', 'notes.fixedRate': '교정률 74%',
       'notes.revised': '다시 고침', 'notes.revisedSub': '힌트를 닫고 입력으로',
-      'notes.chartTitle': '주별 발생률', 'notes.chartSub': '검사한 메시지 대비 힌트가 뜬 비율', 'notes.chartRight': '평균 18% · 8주',
+      'notes.chartTitle': '주별 발생률', 'notes.chartSub': '검사한 메시지 대비 힌트가 뜬 비율', 'notes.chartRight': '평균 22% · 8주',
       'notes.today': '11/19',
       'notes.catAll': '전체 23', 'notes.catSpacing': '띄어쓰기 14', 'notes.catSpelling': '맞춤법 7', 'notes.catPunct': '문장부호 2',
       'notes.colExpr': '표현', 'notes.colCount': '횟수', 'notes.colRate': '교정', 'notes.colLast': '마지막',
@@ -828,7 +828,7 @@ status: review
       'notes.hints': 'Messages with a hint', 'notes.rate': 'Hint rate 18%', 'notes.asIs': 'sent as is 2',
       'notes.fixed': 'Sent corrected', 'notes.fixedRate': 'Fix rate 74%',
       'notes.revised': 'Revised by hand', 'notes.revisedSub': 'Closed the hint and went back',
-      'notes.chartTitle': 'Weekly hint rate', 'notes.chartSub': 'Hints shown vs. messages checked', 'notes.chartRight': 'Average 18% · 8 weeks',
+      'notes.chartTitle': 'Weekly hint rate', 'notes.chartSub': 'Hints shown vs. messages checked', 'notes.chartRight': 'Average 22% · 8 weeks',
       'notes.today': '11/19',
       'notes.catAll': 'All 23', 'notes.catSpacing': 'Spacing 14', 'notes.catSpelling': 'Spelling 7', 'notes.catPunct': 'Punctuation 2',
       'notes.colExpr': 'Pattern', 'notes.colCount': 'Count', 'notes.colRate': 'Fixed', 'notes.colLast': 'Last',
