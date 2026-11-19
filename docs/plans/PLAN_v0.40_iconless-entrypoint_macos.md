@@ -1,6 +1,6 @@
 # PLAN v0.40 — 아이콘 없이 상주 · 재실행 진입점 복구 (macOS)
 
-> 상태: **PR #175 · 구현·검증(오프스크린)·Debug 1.40.0 설치 완료 · 사용자 실측 대기** (2026-11-19)
+> 상태: **PR #175 · 구현·검증·Debug 1.40.1 설치 완료 · 사용자 실측 대기** (2026-11-19)
 > 크기: **M(표시 정책 변경 + 앱 수명주기)** — 사용자 요청 2026-11-19
 > "메뉴바에 아이콘이 너무 많아서 줄여 볼라고" · "앱을 실행(.app)하면 그때 메뉴바나 Dock이 보이면 될 것 같은데"
 > 지원 언어: **ko + en** (`L10n.table`)
@@ -85,7 +85,7 @@
 - `Sources/QuickTalkCore/LocalizationTable.swift` — en 문구
 - `Tests/QuickTalkCoreTests/VisibilityPolicyTests.swift` — 새 계약으로 교체
 - `docs/TODO.md`, `docs/CHANGELOG.md`, `docs/HANDOFF.md`, `docs/DESIGN.md`(표시 정책 절)
-- 버전: `1.40.0`(build 4000), `scripts/bump-version.sh 40 0`
+- 버전: `1.40.0`(build 4000) → **`1.40.1`**(build 4001, 핫픽스), `scripts/bump-version.sh 40 1`
 
 ## 6. 위험 · 엣지
 
@@ -103,6 +103,13 @@
 - 빌드: Debug/Release clean `BUILD SUCCEEDED · 경고 0`.
 - 수동(사용자): ① 둘 다 끔 → 메뉴바·Dock 사라짐 ② 단축키 동작 ③ .app 재실행 → 아이콘+설정 창 ④ 설정에서 다시 끔 → 아이콘 사라짐 ⑤ 로그인 자동 시작 → 아무것도 안 뜸 ⑥ 메뉴바만 끄고 Dock 클릭 → 대화 창.
 
+### 7.1 v0.40.1 핫픽스 (2026-11-19, 사용자 실측)
+
+- **증상**: 재실행 복구로 임시 메뉴바 아이콘이 떠 있을 때 설정 › 일반의 "메뉴바에 표시"가 **꺼짐**으로 보였고, 토글을 꺼도 아이콘이 남았다.
+- **원인**: 복구는 저장값을 바꾸지 않고 `sessionMenuBarIcon`만 켠다. 토글은 저장값만 읽었고, `setMenuBarIcon(false)`는 저장값이 이미 false라 `applyVisibility`에서 아무 변화도 만들지 못했다.
+- **수정**: ① 토글 표시 = `showMenuBarIcon || sessionMenuBarIconVisible`. ② `setMenuBarIcon(false)`가 세션 아이콘도 내린다. ③ 저장값이 켜지면 세션 아이콘을 해제해 중복을 막는다. ④ 경고 카드에 **[메뉴바에 항상 표시]** 추가.
+- **검증**: `swift test` 1126/1126(6 skip) · 번역 1키 · Debug/Release clean 경고 0 · **Debug 1.40.1 설치**(SHA-256 `9767d0eb…`, PID 33543).
+
 ## 8. 롤백
 
 - 기능 커밋 revert 후 1.39.1 재빌드. 설정 스키마 변경 없음(키 추가/삭제 없음) — 롤백 시 둘 다 꺼진 값은 구버전이 Dock을 켜서 복구한다.
@@ -114,4 +121,5 @@
 - [x] 로그인 실행은 조용히 — Apple Event 판별, 실기 확인 대기
 - [x] 설정 UI·i18n·테스트·빌드 통과
 - [x] 문서(TODO·CHANGELOG·HANDOFF·DESIGN) 갱신
-- [ ] 사용자 실측 6항목(§7) — 설치 후 확인
+- [x] v0.40.1 임시 아이콘·토글 표시 일치 — 사용자 실측 반영
+- [ ] 사용자 실측(§7 ④ 토글 끄기) — 1.40.1 설치 후 확인
