@@ -35,7 +35,7 @@
 - **수정**: `JobMemory.prompt(_:limit:matching:)` — 요청에 과거 작업을 묻는 표현이 있을 때만 블록 생성(`지난 작업`·`지난주`·`어디까지 했`·`작업 진행 상황`·`last week`·`what did i` 등). `makeAgentClient(request:)`로 대화창 요청만 넘기고 **Job·예약·자동 실행·자기 점검은 nil** → 넣지 않는다.
 - **검증**: `swift test` **1158/1158**(6 skip, JobTests +2) · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.1(build 4101)**.
 - **병합/설치**: **PR #180 → squash merge `51b93fd`**(2026-11-19) · Debug 1.41.1을 `~/Applications/QuickTalk.app`에 교체(백업 번들 없음) · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `71dda2f4ad384c910b8a585090a400c0891d4cf4682d6982cbc8a8b51f0a21ed` · PID 95018.
-- **실측 대기**: ① 새 대화에서 "ㄴㄴㄴ" → 볼륨 스크립트가 나오지 않는다 ② "지난주에 어디까지 했지?" → 완료 Job 요약이 나온다.
+- **실측 확인/대기**: ① **확인(2026-11-19, 사용자 스크린샷)** — 새 대화 "ㄴㄴㄴ" 답변에 볼륨 스크립트가 없다 ② "지난주에 어디까지 했지?" → 완료 Job 요약은 아직 대기.
 - **한계**: 과거 작업 표현이 없으면 다른 대화의 Job을 모른다(의도). Job `resultSummary`가 계획 제안 문구로 끝나는 문제는 후속.
 
 ### 2026-11-19 인계 (36) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** — **PR #175 → `88d355b` · Debug 1.40.1 설치 · 실측 대기**
