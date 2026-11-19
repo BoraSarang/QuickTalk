@@ -3,7 +3,7 @@
 > 현재 상태·다음 작업·실측 대기는 **`docs/HANDOFF.md`**가 단일 출처다. 이 파일은 작업 이력이다.
 > 마지막 갱신: 2026-11-19 KST
 
-## 구현·검증(오프스크린) 완료 (2026-11-19) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** [PLAN `docs/plans/PLAN_v0.40_iconless-entrypoint_macos.md` · 사용자 실측 대기]
+## 구현·검증(오프스크린) 완료 (2026-11-19) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** [**PR #175** · PLAN `docs/plans/PLAN_v0.40_iconless-entrypoint_macos.md` · 사용자 실측 대기]
 
 - **계기(사용자)**: "메뉴바에 아이콘이 너무 많아서 줄여 볼라고" — 메뉴바 아이콘을 끄고도 쓰고 싶다.
 - **정책**: `setMenuBarIcon`/`setDockIcon`의 상호 자동 보정과 `normalizeVisibility()`를 제거 — 두 토글은 독립이고 **둘 다 꺼도 저장·복원**된다(`hasNoEntryPoint`).
