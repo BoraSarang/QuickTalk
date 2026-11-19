@@ -1,6 +1,6 @@
 # HANDOFF — QuickTalk (macOS)
 
-> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-16 KST
+> **새 세션은 이 문서부터 읽는다.** 마지막 갱신: 2026-11-19 KST
 > **git 저장소 있음**(2026-10-21 20:12 초기화) — `origin https://github.com/BoraSarang/QuickTalk.git`, `main` 추적 중.
 > T-21은 **PR #2 → squash merge `6d344cf`**로 `main`에 병합됐다. **`main` 직접 push 금지** — 다음 작업도 브랜치 → PR.
 > **현재 작업 브랜치 `main`** — 2026-10-25 P1 3건 수정(되돌리기·헤더·프로세스 트리)은 **PR #35 → squash merge `e8319f8`**, 이어서 문서 PR **#36·#37·#38** 로 병합됐다. **`main` = 코드 `e8319f8` + 그 뒤 문서 커밋**(SHA 를 외우지 말고 `git log --oneline -1` 로 확인). 안전장치(치명적 명령 실행 전 차단)는 PR #13 → squash merge `53c23c4`, 단일 인스턴스 가드는 PR #10 → `5114e08`, 공용 메모리 기본 OFF 는 PR #15 → `998f787`, 🧠·카드 순서·`processes` 는 PR #16 → `9fdc9b9`, 대화 창 위치 조율은 PR #18 → `8313c56`, 캡션 단축키·배포 SHA 는 PR #20 → `0d2d817` 로 병합됐다. **2026-10-23 변경은 PR #27 → `54a82cd`(pill 본체·로그인 자동 시작), PR #29 → `f0e90bb`(pill 입력창 프레임·정렬) 로 병합됐다. 2026-10-25 변경(v0.19 WIP + 창 연결 + v0.20~v0.22)은 PR #33 → `f46ace8` 로 병합됐다. **2026-10-27 변경(10-26 권한 카드 + v0.23 웹 검색 루프 + v0.24 설정 재구성)은 PR #39 → squash merge `321fd7a` 로 병합됐다.**
@@ -12,6 +12,7 @@
 > **v0.35.3 병합·설치 완료** — LazyVStack 의 빈 화면 회귀를 **VStack + 최근 턴 윈도잉**으로 수정. **PR #130 → squash merge `91508f9`**. PLAN `docs/plans/PLAN_v0.35.3_chat-blank_macos.md`, 인계 (16).
 > **v0.35.4 수정·설치·실측 완료** — 윈도잉 뒤 **목차 현재 위치가 늘 첫 질문**으로 보이던 회귀. clear→prune + `visibleIndex(minimumPosition:)`. **PR #132 → squash merge `d8c82d4`** · **사용자 실측 확인(2026-11-09)**. PLAN `docs/plans/PLAN_v0.35.4_outline-position_macos.md`, 인계 (17).
 > **현재 설치본은 Debug 1.39.1**(2026-11-16 21:43, `~/Applications/QuickTalk.app`, PID 16853) — **v0.39.1 창 드래그 복구·응답 속도(tok/s)**. v0.35.3~v0.35.5·v0.36 P0~v0.36.8·v0.37·v0.38.0~v0.38.3·v0.39 상태는 아래 인계 참조.
+> **v0.40 구현·검증(오프스크린) 완료 — 설치·실측 대기(2026-11-19)** — **메뉴바·Dock 아이콘을 둘 다 꺼도 되고**, 아이콘이 0개일 때 `.app`을 다시 열면 **이번 실행 한정 메뉴바 아이콘 + 설정 창**이 열린다(PopClip 방식). 로그인 자동 시작은 조용히. `swift test` **1126/1126** · Debug/Release **BUILD SUCCEEDED · 경고 0** · 1.40.0(build 4000). PLAN `docs/plans/PLAN_v0.40_iconless-entrypoint_macos.md`, 인계 (36).
 > **v0.39.1 구현·검증·설치·실측 완료(2026-11-16)** — **① 제목·헤더 어디를 잡아도 창이 끌린다**(40pt `HeaderDragArea`·26pt 제목 표면·`hitTest nil` 측정/호버 뷰) · **② 토큰 칩과 답변 하단에 초당 토큰(tok/s, 추정)**. **PR #173 → squash merge `35e4fae`** · **사용자 실측 "모두 정상"**, PLAN `docs/plans/PLAN_v0.39.1_drag-speed_macos.md`, 인계 (35).
 > **v0.39 구현·검증·설치 완료(2026-11-13)** — 예약 작업·맡긴 작업(Job)이 승인 때문에 멈췄을 때 **Telegram 메시지의 [✅ 허용]/[❌ 거부]** 버튼으로 한 번만 응답한다. Bot API **long polling**(아웃바운드 HTTPS)만 쓰고 인바운드 포트·웹훅은 열지 않는다. 기본 꺼짐 · 봇 토큰 `SecretStore` 0600 · 설정한 chat 하나만 · nonce 128비트 1회용 · 기존 10분 만료·Job 상태 전이·감사 로그·Mac 알림 그대로. PLAN `docs/plans/PLAN_v0.39_remote-approval_macos.md`, 인계 (34). **실측 대기** — 실제 봇 토큰·chat ID·Telegram 카드.
 > **v0.38.3 구현·검증·병합·설치 완료(2026-11-13)** — 모델이 읽는 격리 브라우저 페이지를 **보이는 창**에 띄우고 주소창·뒤로·앞으로·새로고침·격리 배지·모델 활동을 보여 준다. 같은 `WKWebView` 를 옮겨 붙이고, 닫으면 오프스크린으로 복귀해 페이지·모델 읽기를 유지한다. 자동 표시 기본 켜짐·포커스 스틸 없음. **PR #169 → squash merge `41c056f`**. PLAN `docs/plans/PLAN_v0.38.3_browser-window_macos.md`, 인계 (33).
@@ -24,6 +25,19 @@
 > **v0.35.5 수정·실측·병합 완료** — ⌘Space **pill 입력창 붙여넣기(⌘V) + 이미지·파일 첨부**. 원인은 편집 단축키 판정 `isOwnWindow` 에 pill 패널이 빠진 것. **PR #135 → squash merge `050e024`** · **사용자 실측 확인(2026-11-11)**. PLAN `docs/plans/PLAN_v0.35.5_pill-paste_macos.md`, 인계 (18).
 > **성능 측정은 `--switch-perf-live` 로 한다** — 합성 표본 + 레이아웃만 재는 `--switch-perf-test` 는 체감과 어긋난다(DESIGN §14.5).
 > **버전 규칙(2026-11-08 확정)**: 표시 버전 = `1.<릴리스>.<핫픽스>` — `v0.35` = 앱 **`1.35.0`**(build 3500). `scripts/bump-version.sh <릴리스> [핫픽스]` 로 올린다(DESIGN §14.6).
+
+### 2026-11-19 인계 (36) — v0.40 **아이콘 없이 상주 · 재실행 진입점 복구** — **구현·검증(오프스크린) 완료 · 설치·실측 대기**
+
+- **계기(사용자)**: *"메뉴바에 아이콘이 너무 많아서 줄여 볼라고"* · *"메뉴바나 Dock 에 아이콘이 없을때 앱을 실행(.app 파일로 실행) 하면 그때 메뉴바나 Dock 이 보이면 될 것 같은데 아닌가? … popclip … 그게 그런식으로 동작 했던것 같은데"*. 기존 `Settings`가 "진입점 최소 1개"를 강제해 둘 다 끄면 자동으로 하나가 켜졌다.
+- **정책(v0.40)**: `setMenuBarIcon`/`setDockIcon`의 상호 자동 보정과 `normalizeVisibility()`를 제거 — 두 토글은 **독립**이고 **둘 다 꺼도 저장·복원**된다(`hasNoEntryPoint`). 전역 단축키는 원래 Carbon이라 아이콘과 무관하게 동작한다.
+- **복구 계약**: ① 아이콘이 0개일 때 `.app`을 다시 열면 **이번 실행 한정 메뉴바 아이콘 + 설정 창**이 열린다. 실행 중 재실행은 `applicationShouldHandleReopen`과 `SingleInstance` 분산 알림 **두 경로**를 `handleUserReopen()`으로 통합했고, 콜드 런치도 `shouldRecoverEntryPointOnLaunch`로 같은 복구를 한다. ② 설정 › 일반 경고 카드의 [지금 메뉴바 아이콘 표시]/[메뉴바 아이콘 숨기기]. ③ 임시 아이콘 우클릭 [메뉴바 아이콘 숨기기]. **아이콘이 하나라도 있으면** 재실행은 기존처럼 대화 창을 연다(Dock 클릭 동작 보존).
+- **로그인 자동 시작**: `kAEOpenApplication` + `keyAELaunchedAsLogInItem`(Apple Event)으로 판별해 아이콘·창 없이 조용히 시작한다. `currentAppleEvent`를 읽을 수 없으면 **보수적으로 조용히 시작** — 콜드 런치 복구는 생략되지만 앱을 한 번 더 열면 복구된다. QA 하네스도 복구를 하지 않는다.
+- **깜빡임 제거**: 시작 시 `setupStatusItem()`을 무조건 부르지 않고 `showMenuBarIcon || sessionMenuBarIcon`일 때만 만든다.
+- **변경 파일**: `Sources/QuickTalkCore/Settings.swift`(정책·`shouldRecoverEntryPointOnLaunch`) · `QuickTalkApp/UIStore.swift`(`sessionMenuBarIconVisible`·안내·요청) · `QuickTalkApp/QuickTalkApp.swift`(세션 아이콘·`handleUserReopen`·로그인 판별·우클릭 메뉴·알림) · `QuickTalkApp/SettingsView+General.swift`(경고 카드) · `QuickTalkApp/SettingsView.swift`(도움말) · `Sources/QuickTalkCore/LocalizationTable.swift`(en 9키) · `Tests/QuickTalkCoreTests/VisibilityPolicyTests.swift`(7테스트) · `docs/DESIGN.md` §4.
+- **검증(오프스크린)**: `swift test` **1126/1126**(6 skip) · `LocalizationCoverageTests` 통과(신규 9키) · Debug/Release **BUILD SUCCEEDED · 경고 0**(clean) · 버전 **1.40.0(build 4000)**.
+- **실측 대기(사용자 — 앱 종료·설치가 필요해 에이전트가 하지 않음)**: ① 설정에서 메뉴바·Dock 둘 다 끔 → 둘 다 사라짐 ② 전역 단축키로 대화 창 열림 ③ `.app` 재실행 → 임시 메뉴바 아이콘 + 설정 창 ④ [메뉴바 아이콘 숨기기] → 즉시 사라짐 ⑤ 로그인 자동 시작 → 아이콘·창 없이 조용히 ⑥ 메뉴바만 숨기고 Dock을 켠 상태에서 Dock 클릭 → 기존처럼 대화 창.
+- **한계**: 로그인 실행 판별이 실패하면 콜드 런치 복구가 생략된다(재실행 1회로 복구). 메뉴바 관리 앱(Bartender·Ice)이 아이콘을 화면 밖으로 옮기면 아이콘은 있어도 안 보인다. 단축키 충돌로 등록이 실패하면 아이콘 0개 상태에서는 설정 창의 ⚠️로만 확인할 수 있다.
+- **다음**: PR 생성 → 사용자 실측 → Debug 1.40.0 설치(배포 [HARD]: `~/Applications/` 밖에서 빌드·서명 확인 → 기존 번들 삭제 → 한 번에 이동, 백업 번들 금지).
 
 ### 2026-11-16 인계 (35) — v0.39.1 **창 드래그 복구 · 응답 속도(tok/s)** — **PR #173 병합 · Debug 1.39.1 설치 · 실측 확인**
 
