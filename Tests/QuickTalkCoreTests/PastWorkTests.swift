@@ -30,6 +30,18 @@ final class PastWorkTests: XCTestCase {
     XCTAssertTrue(text.contains("볼륨 스크립트"))
   }
 
+  func testDigestOmitsStopBoilerplateAnswers() {
+    // 2026-11-15 기록처럼 마지막 답이 "응답을 중지했습니다."인 대화 —
+    // 그대로 넣으면 "작업이 중단됐다"로 오해된다.
+    let stopped = conversation("볼륨", daysAgo: 1, question: "볼륨 스크립트 만들어줘",
+                               answer: "응답을 중지했습니다.")
+
+    let text = PastWork.digest(conversations: [stopped], jobs: [], days: 7, now: now)
+
+    XCTAssertTrue(text.contains("볼륨 스크립트 만들어줘"))
+    XCTAssertFalse(text.contains("응답을 중지했습니다"))
+  }
+
   func testDigestKeepsOnlyTheWindow() {
     let old = conversation("한 달 전", daysAgo: 30, question: "예전 작업")
     let recent = conversation("이틀 전", daysAgo: 2, question: "최근 작업")

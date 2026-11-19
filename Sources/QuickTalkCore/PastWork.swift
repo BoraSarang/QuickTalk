@@ -147,7 +147,8 @@ public enum PastWork {
       let question = turns.last(where: { $0.role == .user })
         .map { oneLine($0.text, limit: 70) } ?? ""
       let answer = turns.last(where: { $0.role == .assistant })
-        .map { oneLine($0.text, limit: 80) } ?? ""
+        .map { oneLine($0.text, limit: 80) }
+        .flatMap { isBoilerplateAnswer($0) ? nil : $0 } ?? ""
 
       var line = "- \(dateText(lastActivity)) · \(title)"
       if !question.isEmpty { line += (english ? " — asked: " : " — 질문: ") + "\"\(question)\"" }
@@ -155,6 +156,15 @@ public enum PastWork {
       return (lastActivity, line)
     }
     return rows.sorted { $0.0 > $1.0 }.map(\.1)
+  }
+
+  /// "응답을 중지했습니다" 같은 중단·오류 문구는 답이 아니다 — '어디까지 했는지'를 흐린다.
+  static func isBoilerplateAnswer(_ text: String) -> Bool {
+    let lowered = text.lowercased()
+    let phrases = ["응답을 중지했습니다", "응답이 중지되었습니다",
+                   "도구 실행은 끝났지만 모델이 최종 답변을 작성하지 못했습니다",
+                   "the response was stopped", "response stopped"]
+    return phrases.contains { lowered.contains($0) }
   }
 
   // MARK: - 글자 다듬기
