@@ -35,8 +35,8 @@
 - **읽기 승인 1회 묶기**: `AgentExecutor`가 이번 턴에 `history.json` 읽기(또는 앱 데이터 폴더의 **목록**)를 한 번 승인받으면, 그 턴의 후속 `history.json` 읽기는 카드 없이 지나간다(`AppDataGuard.canReuseReadApproval`). **비밀 키(`secrets.json`)·클립보드·미리보기·일정·쓰기·실행은 그대로 매번 확인**하고, 정책이 "읽기: 매번 확인"이면 묶지 않는다. 승인 카드에 "이 답변을 만드는 동안 같은 읽기 요청은 다시 묻지 않습니다"를 표시.
 - **지시문**: 과거 작업 질문은 `past_work` 한 번으로 답하고 `history.json`·`agent-audit.log`를 셸로 직접 읽지 않는다. Apple FM·자동(Job/계획) 실행에는 도구를 붙이지 않는다.
 - **부수 수정**: `JobMemory`와 `PastWork`가 Job `resultSummary`의 계획 제안 문구("계획을 제안했습니다… [실행]을 누르면")를 결과로 쓰지 않는다(2026-11-15 볼륨 Job). 과거 작업 표현에 `지난 주`·`지난 달`(띄어쓰기) 추가.
-- **검증**: `swift test` **1171/1171**(6 skip — `PastWorkTests` 8, `AppDataGuardTests` +3, `JobTests` +2) · `LocalizationCoverageTests` 통과(신규 2키) · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.2(build 4102)**.
-- **병합/설치(2026-11-19)**: **PR #183 → squash merge `6161cbc`** · Debug 1.41.2를 `~/Applications/QuickTalk.app`에 교체(백업 번들 없음) · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `4a157632189cbdaa1fca72c106da0c6f9cd2e8fd9ad434682e8f0601730318b2` · PID 3791.
+- **검증**: `swift test` **1172/1172**(6 skip — `PastWorkTests` 9, `AppDataGuardTests` +3, `JobTests` +2) · `LocalizationCoverageTests` 통과(신규 2키) · Debug **BUILD SUCCEEDED · 경고 0** · **1.41.2(build 4102)**.
+- **병합/설치(2026-11-19)**: **PR #183 → squash merge `6161cbc`** · 후속 **PR #185 → `1730dea`**(실제 기록 확인 후 "응답을 중지했습니다." 같은 중단 문구를 요약에서 제외) · Debug 1.41.2를 `~/Applications/QuickTalk.app`에 교체(백업 번들 없음) · `codesign --verify --strict --deep` OK · `QuickTalk.debug.dylib` SHA-256 `0d119f5b8e2ff238e6120a178dffbdda670f0f00cb11fbe71b644b12336ab97f` · PID 5029.
 - **실측 대기(사용자)**: ① 새 대화에서 "지난 주에 어디까지 했지?" → `past_work` 1회·승인 **0~1회** ② 답변에 현재 대화(방금 질문)가 섞이지 않음 ③ 첫 승인 카드 문구에 "같은 읽기 요청은 다시 묻지 않습니다" ④ `secrets.json`·클립보드·쓰기는 여전히 매번 확인.
 - **한계**: 요약은 최근 7일(최대 60일)·대화 8개·Job 5개로 자른다 — 원문 전체가 필요하면 사용자가 그 대화를 열어야 한다. 셸 문자열에 `history.json`이 드러난 경우만 묶으므로 난독화된 읽기는 잡지 못한다(기존 가드와 같은 한계). Job `resultSummary` 자체를 실제 결과로 고치는 일은 후속.
 
