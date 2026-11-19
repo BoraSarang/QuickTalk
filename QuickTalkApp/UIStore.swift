@@ -273,8 +273,11 @@ final class UIStore: ObservableObject {
     }
   }
 
-  /// 최근 완료 작업 — 시스템 지식에 넣을 블록(없으면 빈 문자열).
-  var jobMemoryBlock: String { JobMemory.prompt(jobs) }
+  /// 최근 완료 작업 — **과거 작업을 물을 때만** 시스템 지식에 넣을 블록(없으면 빈 문자열).
+  /// 새 대화에 다른 대화의 작업이 새지 않도록 요청 문장을 함께 넘긴다(v0.41.1).
+  func jobMemoryBlock(for request: String) -> String {
+    JobMemory.prompt(jobs, matching: request)
+  }
 
   /// 예약 실행의 승인을 기다린다 — 10분이 지나면 거부로 끝난다.
   /// 알림에서는 승인할 수 없다(오탭 방지) — 사용자가 대화를 열어 카드에서 눌러야 한다.
@@ -2675,7 +2678,8 @@ final class UIStore: ObservableObject {
           } else if let agentClient = self.makeAgentClientIfEnabled(provider: p,
                                                                     persona: conversationPersona,
                                                                     session: session,
-                                                                    skillsBlock: skillsBlock) {
+                                                                    skillsBlock: skillsBlock,
+                                                                    request: automatic ? nil : prompt) {
             // 도우미 도구 — **판정 없이** 도구를 넘기고, 본 모델이 직접 골라 실행한다.
             // 웹 검색도 **같은 루프**에 넣는다(v0.23) — 모델이 답을 모르면 `web_search` 를 고른다.
             // Apple FM 은 등록 도구가 shell/read_file/list_dir 뿐이라 넘겨도 쓰이지 않는다.

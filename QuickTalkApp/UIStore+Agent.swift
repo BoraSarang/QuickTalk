@@ -263,7 +263,8 @@ extension UIStore {
   func makeAgentClient(provider: LLMProviderConfig,
                        executor: any AgentToolExecutor,
                        persona: Persona?,
-                       skillsBlock: String?) -> AgentClient? {
+                       skillsBlock: String?,
+                       request: String? = nil) -> AgentClient? {
     let base: String
     switch provider.type {
     case .appleFM:
@@ -272,9 +273,12 @@ extension UIStore {
       var sections = [AgentInstructions.text,
                       AgentInstructions.selfKnowledge(settings: settings, persona: persona)]
       // v0.38 — 최근 완료한 Job을 참고 사실로 넣는다("지난주에 어디까지 했지?").
-      // 완료된 작업만·최근 3개·한 줄씩이라 프롬프트가 작다.
-      let jobsBlock = jobMemoryBlock
-      if !jobsBlock.isEmpty { sections.append(jobsBlock) }
+      // v0.41.1 — **과거 작업을 물을 때만** 넣는다. 요청이 없거나(자동 실행·Job)
+      // 과거를 묻지 않으면 넣지 않는다 — 새 대화에 다른 대화의 작업이 새지 않게.
+      if let request {
+        let jobsBlock = jobMemoryBlock(for: request)
+        if !jobsBlock.isEmpty { sections.append(jobsBlock) }
+      }
       if let skillsBlock, !skillsBlock.isEmpty { sections.append(skillsBlock) }
       base = sections.joined(separator: "\n\n")
     }
@@ -363,13 +367,14 @@ extension UIStore {
   func makeAgentClientIfEnabled(provider: LLMProviderConfig,
                                 persona: Persona? = nil,
                                 session: ChatSession? = nil,
-                                skillsBlock: String? = nil) -> AgentClient? {
+                                skillsBlock: String? = nil,
+                                request: String? = nil) -> AgentClient? {
     guard settings.agentToolsEnabled else { return nil }
     let s = session ?? activeSession
     let executor = AgentExecutor(store: self, session: s)
     s.agentExecutor = executor
     return makeAgentClient(provider: provider, executor: executor, persona: persona,
-                           skillsBlock: skillsBlock)
+                           skillsBlock: skillsBlock, request: request)
   }
 
   /// 이번 턴에 프롬프트에 넣을 스킬 목록(v0.37). 없으면 nil.

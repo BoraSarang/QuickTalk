@@ -138,7 +138,16 @@ public enum JobPrompt {
 /// 완료된 Job을 시스템 지식에 한 블록으로 넣는다 — "지난주에 어디까지 했지?"에 답하기 위해.
 /// 최근 3개, 한 줄씩. 실패·중단은 넣지 않는다(기억은 사실만).
 public enum JobMemory {
-  public static func prompt(_ jobs: [Job], limit: Int = 3) -> String {
+  /// 사용자가 **과거 작업을 물을 때만** 블록을 만든다.
+  ///
+  /// v0.41.1 — 예전에는 이 블록을 모든 대화의 에이전트 프롬프트에 넣었다. 그래서
+  /// 새 대화의 첫 메시지에도 **다른 대화**에서 끝낸 작업이 새어 들어갔다
+  /// (2026-11-19 사용자 보고: 새 대화 "ㄴㄴㄴ"에 볼륨 스크립트 계획이 등장).
+  /// 지금은 요청에 과거 작업을 묻는 표현이 있을 때만 넣는다 — 새는 것보다
+  /// 놓치는 편이 낫다.
+  public static func prompt(_ jobs: [Job], limit: Int = 3,
+                            matching request: String) -> String {
+    guard requestsPastWork(request) else { return "" }
     let completed = jobs
       .filter { $0.status == .completed }
       .sorted { ($0.finishedAt ?? $0.updatedAt) > ($1.finishedAt ?? $1.updatedAt) }
@@ -163,6 +172,22 @@ public enum JobMemory {
       [최근 완료한 작업 — 참고만 하고 다시 실행하지 않는다]
       \(lines.joined(separator: "\n"))
       """
+  }
+
+  /// 과거 작업을 묻는 표현 — 한국어·영어. **명시적인 것만** 넣는다.
+  /// 넓게 잡으면 새 대화에 또 새므로 "작업" 한 단어만으로는 걸리지 않게 한다.
+  static let pastWorkPhrases = [
+    "지난 작업", "지난 대화", "지난주", "지난달", "지난번", "저번", "이전 작업",
+    "예전에", "최근 작업", "전에 했", "했던 작업", "완료한 작업",
+    "작업 어디까지", "어디까지 했", "작업 진행 상황", "작업 기억",
+    "last week", "last month", "last time", "recent job", "recent work",
+    "previous job", "previous work", "past work", "what did i", "where did we",
+    "remind me what"
+  ]
+
+  static func requestsPastWork(_ request: String) -> Bool {
+    let text = request.lowercased()
+    return pastWorkPhrases.contains { text.contains($0) }
   }
 }
 

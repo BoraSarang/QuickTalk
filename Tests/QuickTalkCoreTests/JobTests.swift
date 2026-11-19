@@ -222,7 +222,7 @@ final class JobTests: XCTestCase {
       job("완료4", status: .completed, finished: Date()),
       job("실패", status: .failed)
     ]
-    let text = JobMemory.prompt(jobs, limit: 3)
+    let text = JobMemory.prompt(jobs, limit: 3, matching: "지난주에 어디까지 했지?")
     XCTAssertTrue(text.contains("최근 완료한 작업"))
     XCTAssertTrue(text.contains("완료4"))
     XCTAssertTrue(text.contains("완료2"))
@@ -231,7 +231,25 @@ final class JobTests: XCTestCase {
   }
 
   func testMemoryEmptyWhenNoCompletedJobs() {
-    XCTAssertEqual(JobMemory.prompt([job(status: .running)]), "")
+    XCTAssertEqual(JobMemory.prompt([job(status: .running)],
+                                    matching: "지난주에 어디까지 했지?"), "")
+  }
+
+  /// v0.41.1 회귀 — 새 대화의 첫 메시지에 **다른 대화의 작업**이 새면 안 된다.
+  /// (2026-11-19: 새 대화 "ㄴㄴㄴ"에 볼륨 스크립트 계획이 등장)
+  func testMemoryNotInjectedWithoutPastWorkRequest() {
+    let jobs = [job("볼륨 스크립트", status: .completed, finished: Date())]
+    for request in ["ㄴㄴㄴ\nㄴㄴㄴ", "오늘 날씨 어때?", "이 작업 도와줘", "새 대화 시작"] {
+      XCTAssertEqual(JobMemory.prompt(jobs, matching: request), "", request)
+    }
+  }
+
+  func testMemoryInjectedWhenPastWorkIsAsked() {
+    let jobs = [job("볼륨 스크립트", status: .completed, finished: Date())]
+    for request in ["지난주에 어디까지 했지?", "지난 작업 뭐였지?", "작업 진행 상황 알려줘",
+                    "what did I do last week?"] {
+      XCTAssertTrue(JobMemory.prompt(jobs, matching: request).contains("볼륨 스크립트"), request)
+    }
   }
 
   func testCompletedNotificationText() {
